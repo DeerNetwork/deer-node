@@ -1,0 +1,254 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
+use codec::{Encode, Decode};
+use sp_std::prelude::*;
+use sp_runtime::{
+	RuntimeDebug,
+	traits::{AccountIdConversion},
+
+};
+use frame_support::{
+	PalletId,
+	dispatch::DispatchResult,
+	traits::{Get, Currency, ExistenceRequirement, ReservableCurrency, tokens::nonfungibles::{Inspect, Transfer}, MaxEncodedLen},
+};
+
+pub use pallet::*;
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
+// #[cfg(feature = "runtime-benchmarks")]
+// mod benchmarking;
+
+
+pub type BalanceOf<T, I = ()> =
+	<<T as pallet_uniques::Config<I>>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+pub type ClassIdOf<T, I = ()> = <T as pallet_uniques::Config<I>>::ClassId;
+pub type InstanceIdOf<T, I = ()> = <T as pallet_uniques::Config<I>>::InstanceId;
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen)]
+pub struct OrderDetails<
+	AccountId,
+	Balance,
+	BlockNumber,
+> {
+	/// Who create the order.
+	pub owner: AccountId,
+	/// Price of this order.
+	pub price: Balance,
+	/// The balances to create an order
+	pub deposit: Balance,
+	/// This order will be invalidated after `deadline` block number.
+	pub deadline: Option<BlockNumber>,
+}
+
+
+#[frame_support::pallet]
+pub mod pallet {
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
+	use super::*;
+
+	#[pallet::config]
+	pub trait Config<I: 'static = ()>: frame_system::Config + pallet_uniques::Config<I> {
+		/// The overarching event type.
+		type Event: From<Event<Self, I>> + IsType<<Self as frame_system::Config>::Event>;
+		/// The basic amount of funds that must be reserved for an asset class.
+		type OrderDeposit: Get<BalanceOf<Self, I>>;
+		/// The module id, used for deriving its sovereign account ID.
+		#[pallet::constant]
+		type PalletId: Get<PalletId>;
+		/// The maximum amount of order an account owned
+		#[pallet::constant]
+		type MaxOrders: Get<u32>;
+	}
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T, I = ()>(_);
+
+	#[pallet::event]
+	#[pallet::metadata(
+		T::AccountId = "AccountId",
+		T::ClassId = "ClassId",
+		T::InstanceId = "InstanceId",
+	)]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config<I>, I: 'static = ()> {
+		/// Selling a nft asset, \[ class_id, instance_id, account_id \]
+		Selling(T::ClassId, T::InstanceId, T::AccountId),
+		/// Make a deal with sell order, \[ class_id, instance_id, account_id \]
+		Dealed(T::ClassId, T::InstanceId, T::AccountId),
+		/// Order price updated \[ class_id, instance_id \]
+		UpdatedPrice(T::ClassId, T::InstanceId),
+		/// Removed an sell order , \[ class_id, instance_id \]
+		Removed(T::ClassId, T::InstanceId),
+	}
+
+	// Errors inform users that something went wrong.
+	#[pallet::error]
+	pub enum Error<T, I = ()> {
+		/// Asset not found
+		NotFound,
+		/// Not own the asset
+		NotOwn,
+		/// Invalid deaeline
+		InvalidDeadline,
+		/// Order not found
+		OrderNotFound,
+		/// To many order exceed T::MaxOrders
+		TooManyOrders,
+		/// A sell order already expired
+		OrderExpired,
+		/// Bad storage State
+		BadState,
+	}
+
+	/// An index mapping from token to order.
+	#[pallet::storage]
+	#[pallet::getter(fn orders)]
+	pub type Orders<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		T::ClassId,
+		Blake2_128Concat,
+		T::InstanceId,
+		OrderDetails<T::AccountId, BalanceOf<T, I>, BlockNumberFor<T>>,
+		OptionQuery,
+	>;
+
+	/// The set of account orders.
+	#[pallet::storage]
+	#[pallet::getter(fn account_orders)]
+	pub type AccountOrders<T: Config<I>, I: 'static = ()> = StorageMap<
+		_,
+		Twox64Concat,
+		T::AccountId,
+		BoundedVec<
+			(ClassIdOf<T, I>, InstanceIdOf<T, I>),
+			T::MaxOrders,
+		>,
+		ValueQuery
+	>;
+
+	#[pallet::call]
+	impl<T:Config<I>, I: 'static> Pallet<T, I> {
+		/// Create a order to sell a non-fungible asset
+		#[pallet::weight(10_000)]
+		pub fn sell(
+			origin: OriginFor<T>,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] instance_id: T::InstanceId,
+			#[pallet::compact] price: BalanceOf<T, I>,
+			deadline: Option<T::BlockNumber>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let owner =
+				<pallet_uniques::Pallet::<T, I> as Inspect<_>>::owner(&class_id, &instance_id)
+				.ok_or(Error::<T, I>::NotFound)?;
+			// TODO support approval
+			ensure!(who == owner, Error::<T, I>::NotOwn);
+			if let Some(ref deadline)  = deadline {
+				ensure!(<frame_system::Pallet<T>>::block_number() < *deadline, Error::<T, I>::InvalidDeadline);
+			}
+			T::Currency::reserve(&who, T::OrderDeposit::get())?;
+			<pallet_uniques::Pallet::<T, I> as Transfer<_>>::transfer(&class_id, &instance_id, &Self::account_id())?;
+			let order = OrderDetails {
+				owner: who.clone(),
+				deposit: T::OrderDeposit::get(),
+				price,
+				deadline,
+			};
+			AccountOrders::<T, I>::try_mutate(&who, |ref mut orders| -> DispatchResult {
+				orders.try_push((class_id, instance_id)).map_err(|_| Error::<T, I>::TooManyOrders)?;
+				Ok(())
+			})?;
+			Orders::<T, I>::insert(class_id, instance_id, order);
+			Self::deposit_event(Event::Selling(class_id, instance_id, who));
+			Ok(())
+		}
+
+		/// Create a order to buy a non-fungible asset
+		#[pallet::weight(10_000)]
+		pub fn deal(
+			origin: OriginFor<T>,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] instance_id: T::InstanceId,
+			owner: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let order = Orders::<T, I>::try_get(class_id, instance_id).map_err(|_| Error::<T, I>::OrderNotFound)?;
+			if let Some(ref deadline) = order.deadline {
+				ensure!(<frame_system::Pallet<T>>::block_number() <= *deadline, Error::<T, I>::OrderExpired);
+			}
+			Self::delete_order(class_id, instance_id)?;
+			T::Currency::transfer(&who, &order.owner, order.price, ExistenceRequirement::KeepAlive)?;
+			<pallet_uniques::Pallet<T, I> as Transfer<_>>::transfer(&class_id, &instance_id, &owner)?;
+			Self::deposit_event(Event::Dealed(class_id, instance_id, owner));
+			Ok(())
+		}
+
+
+		/// Update the price of an order
+		#[pallet::weight(10_000)]
+		pub fn update_price(
+			origin: OriginFor<T>,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] instance_id: T::InstanceId,
+			#[pallet::compact] price: BalanceOf<T, I>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			Orders::<T, I>::try_mutate(class_id, instance_id, |maybe_order| -> DispatchResult {
+				let order = maybe_order.as_mut().ok_or(Error::<T, I>::OrderNotFound)?;
+				ensure!(who == order.owner, Error::<T, I>::NotOwn);
+				order.price = price;
+				Ok(())
+			})?;
+			Ok(())
+		}
+
+		/// Remove an order
+		#[pallet::weight(10_000)]
+		pub fn remove(
+			origin: OriginFor<T>,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] instance_id: T::InstanceId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let order = Orders::<T, I>::try_get(class_id, instance_id).map_err(|_| Error::<T, I>::OrderNotFound)?;
+			ensure!(who == order.owner, Error::<T, I>::NotOwn);
+			<pallet_uniques::Pallet<T, I> as Transfer<_>>::transfer(&class_id, &instance_id, &who)?;
+			Self::delete_order(class_id, instance_id)?;
+			Self::deposit_event(Event::Removed(class_id, instance_id));
+			Ok(())
+		}
+	}
+}
+
+impl<T: Config<I>, I: 'static> Pallet<T, I> {
+	/// The account ID of the nft order pot.
+	pub fn account_id() -> T::AccountId {
+		T::PalletId::get().into_account()
+	}
+	/// Remove order
+	pub fn delete_order(class_id: ClassIdOf<T, I>, instance_id: InstanceIdOf<T, I>) -> DispatchResult {
+		Orders::<T, I>::try_mutate_exists(class_id, instance_id, |maybe_order| -> DispatchResult {
+			let order = maybe_order.as_mut().ok_or(Error::<T, I>::OrderNotFound)?;
+			T::Currency::unreserve(&order.owner, order.deposit);
+			AccountOrders::<T, I>::try_mutate(&order.owner, |orders| -> DispatchResult {
+				if let Some(idx) = orders.iter().position(|&v| v.0 == class_id && v.1 == instance_id) {
+					orders.remove(idx);
+				}
+				Ok(())
+			})?;
+			*maybe_order = None;
+			Ok(())
+		})?;
+		Ok(())
+	}
+
+}

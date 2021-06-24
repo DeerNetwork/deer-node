@@ -9,5 +9,6 @@ exclude = [
 members = [
     'node',
     'pallets/template',
+    'pallets/nft-order',
     'runtime',
 ]
