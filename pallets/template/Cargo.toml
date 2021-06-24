@@ -1,47 +1,22 @@
-[dev-dependencies.serde]
-version = '1.0.119'
-
-[dev-dependencies.sp-core]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-rev = 'd6c33e7ec313f9bd5e319dc0a5a3ace5543f9617'
+[package]
+name = 'pallet-template'
+edition = '2018'
 version = '3.0.0'
 
-[dev-dependencies.sp-io]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-rev = 'd6c33e7ec313f9bd5e319dc0a5a3ace5543f9617'
-version = '3.0.0'
+[package.metadata.docs.rs]
+targets = ['x86_64-unknown-linux-gnu']
 
-[dev-dependencies.sp-runtime]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-rev = 'd6c33e7ec313f9bd5e319dc0a5a3ace5543f9617'
-version = '3.0.0'
-[dependencies.codec]
-default-features = false
-features = ['derive']
-package = 'parity-scale-codec'
-version = '2.0.0'
+[dependencies]
+codec = { version = '2.0.0', package = 'parity-scale-codec', features = ['derive'], default-features = false }
+frame-benchmarking = { version = '3.1.0', path = '../../substrate/frame/benchmarking', default-features = false, optional = true }
+frame-support = { version = '3.0.0', path = '../../substrate/frame/support', default-features = false }
+frame-system = { version = '3.0.0', path = '../../substrate/frame/system', default-features = false }
 
-[dependencies.frame-benchmarking]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-optional = true
-rev = 'd6c33e7ec313f9bd5e319dc0a5a3ace5543f9617'
-version = '3.1.0'
-
-[dependencies.frame-support]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-rev = 'd6c33e7ec313f9bd5e319dc0a5a3ace5543f9617'
-version = '3.0.0'
-
-[dependencies.frame-system]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-rev = 'd6c33e7ec313f9bd5e319dc0a5a3ace5543f9617'
-version = '3.0.0'
+[dev-dependencies]
+serde = { version = '1.0.119' }
+sp-core = { version = '3.0.0', path = '../../substrate/primitives/core', default-features = false }
+sp-io = { version = '3.0.0', path = '../../substrate/primitives/io', default-features = false }
+sp-runtime = { version = '3.0.0', path = '../../substrate/primitives/runtime', default-features = false }
 
 [features]
 default = ['std']
@@ -53,16 +28,3 @@ std = [
     'frame-benchmarking/std',
 ]
 try-runtime = ['frame-support/try-runtime']
-
-[package]
-authors = ['Substrate DevHub <https://github.com/substrate-developer-hub>']
-description = 'FRAME pallet template for defining custom runtime logic.'
-edition = '2018'
-homepage = 'https://substrate.dev'
-license = 'Unlicense'
-name = 'pallet-template'
-readme = 'README.md'
-repository = 'https://github.com/substrate-developer-hub/substrate-node-template/'
-version = '3.0.0'
-[package.metadata.docs.rs]
-targets = ['x86_64-unknown-linux-gnu']
