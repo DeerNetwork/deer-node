@@ -1,11 +1,11 @@
 [package]
-name = 'node-template'
+name = 'nft360'
 version = '3.0.0'
 build = 'build.rs'
 edition = '2018'
 
 [[bin]]
-name = 'node-template'
+name = 'nft360'
 
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
@@ -15,7 +15,7 @@ jsonrpc-core = '15.1.0'
 structopt = '0.3.8'
 frame-benchmarking = { version = '3.1.0', path = '../substrate/frame/benchmarking' }
 frame-benchmarking-cli = { version = '3.0.0', path = '../substrate/utils/frame/benchmarking-cli' }
-node-template-runtime = { version = '3.0.0', path = '../runtime' }
+nft360-runtime = { version = '3.0.0', path = '../runtime' }
 pallet-transaction-payment-rpc = { version = '3.0.0', path = '../substrate/frame/transaction-payment/rpc' }
 sc-basic-authorship = { version = '0.9.0', path = '../substrate/client/basic-authorship' }
 sc-cli = { version = '0.9.0', path = '../substrate/client/cli', features = ['wasmtime'] }
@@ -48,4 +48,4 @@ substrate-build-script-utils = { version = '3.0.0', path = '../substrate/utils/b
 
 [features]
 default = []
-runtime-benchmarks = ['node-template-runtime/runtime-benchmarks']
+runtime-benchmarks = ['nft360-runtime/runtime-benchmarks']

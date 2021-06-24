@@ -1,5 +1,5 @@
 [package]
-name = 'node-template-runtime'
+name = 'nft360-runtime'
 edition = '2018'
 version = '3.0.0'
 

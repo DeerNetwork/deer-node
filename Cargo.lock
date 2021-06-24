@@ -3634,13 +3634,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "node-template"
+name = "nft360"
 version = "3.0.0"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "jsonrpc-core",
- "node-template-runtime",
+ "nft360-runtime",
  "pallet-transaction-payment-rpc",
  "sc-basic-authorship",
  "sc-cli",
@@ -3672,7 +3672,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "node-template-runtime"
+name = "nft360-runtime"
 version = "3.0.0"
 dependencies = [
  "frame-benchmarking",
