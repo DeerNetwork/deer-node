@@ -30,7 +30,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use sp_runtime::{Permill, Perbill};
 pub use frame_support::{
-	construct_runtime, parameter_types, StorageValue,
+	construct_runtime, parameter_types, StorageValue, PalletId,
 	traits::{KeyOwnerProofSystem, Randomness},
 	weights::{
 		Weight, IdentityFee,
@@ -38,9 +38,6 @@ pub use frame_support::{
 	},
 };
 use pallet_transaction_payment::CurrencyAdapter;
-
-/// Import the template pallet.
-pub use pallet_template;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -67,6 +64,14 @@ pub type Hash = sp_core::H256;
 
 /// Digest item type.
 pub type DigestItem = generic::DigestItem<Hash>;
+
+pub const MILLICENTS: Balance = 1_000_000_000;
+pub const CENTS: Balance = 1_000 * MILLICENTS;    // assume this is worth about a cent.
+pub const DOLLARS: Balance = 100 * CENTS;
+
+pub const fn deposit(items: u32, bytes: u32) -> Balance {
+	items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+}
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -273,10 +278,44 @@ impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 }
+parameter_types! {
+	pub const ClassDeposit: Balance = 100 * DOLLARS;
+	pub const InstanceDeposit: Balance = 1 * DOLLARS;
+	pub const MetadataDepositBase: Balance = 10 * DOLLARS;
+	pub const MetadataDepositPerByte: Balance = 1 * DOLLARS;
+	pub const StringLimit: u32 = 50;
+	pub const KeyLimit: u32 = 32;
+	pub const ValueLimit: u32 = 256;
+}
 
-/// Configure the pallet-template in pallets/template.
-impl pallet_template::Config for Runtime {
+impl pallet_uniques::Config for Runtime {
 	type Event = Event;
+	type ClassId = u32;
+	type InstanceId = u32;
+	type Currency = Balances;
+	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+	type ClassDeposit = ClassDeposit;
+	type InstanceDeposit = InstanceDeposit;
+	type MetadataDepositBase = MetadataDepositBase;
+	type AttributeDepositBase = MetadataDepositBase;
+	type DepositPerByte = MetadataDepositPerByte;
+	type StringLimit = StringLimit;
+	type KeyLimit = KeyLimit;
+	type ValueLimit = ValueLimit;
+	type WeightInfo = pallet_uniques::weights::SubstrateWeight<Runtime>;
+}
+
+parameter_types! {
+	pub const OrderDeposit: Balance = 5 * DOLLARS;
+	pub const NftOrderPalletId: PalletId = PalletId(*b"nftordr*");
+	pub const MaxOrders: u32 = 50;
+}
+
+impl pallet_nft_order::Config for Runtime {
+	type Event = Event;
+	type PalletId = NftOrderPalletId;
+	type OrderDeposit = OrderDeposit;
+	type MaxOrders = MaxOrders;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -294,8 +333,8 @@ construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
 		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
-		// Include the custom logic from the pallet-template in the runtime.
-		TemplateModule: pallet_template::{Pallet, Call, Storage, Event<T>},
+		NFT: pallet_uniques::{Pallet, Call, Storage, Event<T>},
+		NFTOrder: pallet_nft_order::{Pallet, Call, Storage, Event<T>},
 	}
 );
 

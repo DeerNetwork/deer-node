@@ -19,11 +19,12 @@ pallet-aura = { version = '3.0.0', path = '../substrate/frame/aura', default-fea
 pallet-balances = { version = '3.0.0', path = '../substrate/frame/balances', default-features = false }
 pallet-grandpa = { version = '3.1.0', path = '../substrate/frame/grandpa', default-features = false }
 pallet-randomness-collective-flip = { version = '3.0.0', path = '../substrate/frame/randomness-collective-flip', default-features = false }
+pallet-nft-order = { version = "0.1.0", path = "../pallets/nft-order", default-features = false }
 pallet-sudo = { version = '3.0.0', path = '../substrate/frame/sudo', default-features = false }
-pallet-template = { version = '3.0.0', path = '../pallets/template', default-features = false }
 pallet-timestamp = { version = '3.0.0', path = '../substrate/frame/timestamp', default-features = false }
 pallet-transaction-payment = { version = '3.0.0', path = '../substrate/frame/transaction-payment', default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { version = '3.0.0', path = '../substrate/frame/transaction-payment/rpc/runtime-api', default-features = false }
+pallet-uniques = { version = '3.0.0', path = '../substrate/frame/uniques', default-features = false }
 sp-api = { version = '3.0.0', path = '../substrate/primitives/api', default-features = false }
 sp-block-builder = { version = '3.0.0', path = '../substrate/primitives/block-builder', default-features = false }
 sp-consensus-aura = { version = '0.9.0', path = '../substrate/primitives/consensus/aura', default-features = false }
@@ -48,8 +49,9 @@ runtime-benchmarks = [
     'frame-system/runtime-benchmarks',
     'hex-literal',
     'pallet-balances/runtime-benchmarks',
-    'pallet-template/runtime-benchmarks',
+    # 'pallet-nft-order/runtime-benchmarks',
     'pallet-timestamp/runtime-benchmarks',
+    'pallet-uniques/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
 ]
 std = [
@@ -62,11 +64,12 @@ std = [
     'pallet-balances/std',
     'pallet-grandpa/std',
     'pallet-randomness-collective-flip/std',
+    'pallet-nft-order/std',
     'pallet-sudo/std',
-    'pallet-template/std',
     'pallet-timestamp/std',
     'pallet-transaction-payment-rpc-runtime-api/std',
     'pallet-transaction-payment/std',
+    'pallet-uniques/std',
     'sp-api/std',
     'sp-block-builder/std',
     'sp-consensus-aura/std',
