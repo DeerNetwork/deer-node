@@ -1,41 +1,71 @@
 [package]
 name = 'nft360-runtime'
 edition = '2018'
-version = '3.0.0'
+version = '0.1.0'
 
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
 
 [dependencies]
 codec = { version = '2.0.0', package = 'parity-scale-codec', features = ['derive'], default-features = false }
+hex-literal = { version = '0.3.1', optional = true }
+log = { version = "0.4.14", default-features = false }
+static_assertions = "1.1.0"
+
 frame-benchmarking = { version = '3.1.0', path = '../substrate/frame/benchmarking', default-features = false, optional = true }
+frame-election-provider-support = { version = "3.0.0", path = "../substrate/frame/election-provider-support", default-features = false }
 frame-executive = { version = '3.0.0', path = '../substrate/frame/executive', default-features = false }
 frame-support = { version = '3.0.0', path = '../substrate/frame/support', default-features = false }
 frame-system = { version = '3.0.0', path = '../substrate/frame/system', default-features = false }
 frame-system-benchmarking = { version = '3.0.0', path = '../substrate/frame/system/benchmarking', default-features = false, optional = true }
 frame-system-rpc-runtime-api = { version = '3.0.0', path = '../substrate/frame/system/rpc/runtime-api', default-features = false }
-hex-literal = { version = '0.3.1', optional = true }
-pallet-aura = { version = '3.0.0', path = '../substrate/frame/aura', default-features = false }
+frame-try-runtime = { version = "0.9.0", default-features = false, path = "../substrate/frame/try-runtime", optional = true }
+pallet-authority-discovery = { version = "3.0.0", default-features = false, path = "../substrate/frame/authority-discovery" }
+pallet-authorship = { version = "3.0.0", default-features = false, path = "../substrate/frame/authorship" }
+pallet-babe = { version = "3.0.0", default-features = false, path = "../substrate/frame/babe" }
 pallet-balances = { version = '3.0.0', path = '../substrate/frame/balances', default-features = false }
+pallet-bounties = { version = '3.0.0', path = '../substrate/frame/bounties', default-features = false }
+pallet-democracy = { version = "3.0.0", default-features = false, path = "../substrate/frame/democracy" }
+pallet-collective = { version = "3.0.0", default-features = false, path = "../substrate/frame/collective" }
+pallet-election-provider-multi-phase = { version = "3.0.0", default-features = false, path = "../substrate/frame/election-provider-multi-phase" }
+pallet-elections-phragmen = { version = "4.0.0", default-features = false, path = "../substrate/frame/elections-phragmen" }
 pallet-grandpa = { version = '3.1.0', path = '../substrate/frame/grandpa', default-features = false }
-pallet-randomness-collective-flip = { version = '3.0.0', path = '../substrate/frame/randomness-collective-flip', default-features = false }
+pallet-identity = { version = "3.0.0", default-features = false, path = "../substrate/frame/identity" }
+pallet-im-online = { version = "3.0.0", default-features = false, path = "../substrate/frame/im-online" }
+pallet-indices = { version = "3.0.0", default-features = false, path = "../substrate/frame/indices" }
+pallet-membership = { version = "3.0.0", default-features = false, path = "../substrate/frame/membership" }
 pallet-nft-order = { version = "0.1.0", path = "../pallets/nft-order", default-features = false }
+pallet-offences = { version = "3.0.0", default-features = false, path = "../substrate/frame/offences" }
+pallet-randomness-collective-flip = { version = '3.0.0', path = '../substrate/frame/randomness-collective-flip', default-features = false }
+pallet-scheduler = { version = "3.0.0", default-features = false, path = "../substrate/frame/scheduler" }
+pallet-session = { version = '3.0.0', path = '../substrate/frame/session', default-features = false }
+pallet-session-benchmarking = { version = '3.0.0', path = '../substrate/frame/session/benchmarking', default-features = false, optional = true }
 pallet-sudo = { version = '3.0.0', path = '../substrate/frame/sudo', default-features = false }
+pallet-staking = { version = '3.0.0', path = '../substrate/frame/staking', default-features = false }
+pallet-staking-reward-curve = { version = "3.0.0", default-features = false, path = "../substrate/frame/staking/reward-curve" }
 pallet-timestamp = { version = '3.0.0', path = '../substrate/frame/timestamp', default-features = false }
 pallet-transaction-payment = { version = '3.0.0', path = '../substrate/frame/transaction-payment', default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { version = '3.0.0', path = '../substrate/frame/transaction-payment/rpc/runtime-api', default-features = false }
+pallet-transaction-storage = { version = '3.0.0', path = '../substrate/frame/transaction-storage', default-features = false  }
+pallet-treasury = { version = "3.0.0", default-features = false, path = "../substrate/frame/treasury" }
 pallet-uniques = { version = '3.0.0', path = '../substrate/frame/uniques', default-features = false }
+pallet-utility = { version = '3.0.0', path = '../substrate/frame/utility', default-features = false }
+nft360-primitives = { version = "0.1.0", default-features = false, path = "../primitives" }
 sp-api = { version = '3.0.0', path = '../substrate/primitives/api', default-features = false }
+sp-authority-discovery = { version = "3.0.0", default-features = false, path = "../substrate/primitives/authority-discovery" }
 sp-block-builder = { version = '3.0.0', path = '../substrate/primitives/block-builder', default-features = false }
-sp-consensus-aura = { version = '0.9.0', path = '../substrate/primitives/consensus/aura', default-features = false }
+sp-consensus-babe = { version = "0.9.0", default-features = false, path = "../substrate/primitives/consensus/babe" }
 sp-core = { version = '3.0.0', path = '../substrate/primitives/core', default-features = false }
 sp-inherents = { version = '3.0.0', path = '../substrate/primitives/inherents', default-features = false }
+sp-keyring = { version = "3.0.0", optional = true, path = "../substrate/primitives/keyring" }
 sp-offchain = { version = '3.0.0', path = '../substrate/primitives/offchain', default-features = false }
 sp-runtime = { version = '3.0.0', path = '../substrate/primitives/runtime', default-features = false }
 sp-session = { version = '3.0.0', path = '../substrate/primitives/session', default-features = false }
+sp-staking = { version = "3.0.0", default-features = false, path = "../substrate/primitives/staking" }
 sp-std = { version = '3.0.0', path = '../substrate/primitives/std', default-features = false }
 sp-transaction-pool = { version = '3.0.0', path = '../substrate/primitives/transaction-pool', default-features = false }
 sp-version = { version = '3.0.0', path = '../substrate/primitives/version', default-features = false }
+sp-npos-elections = { version = "3.0.0", default-features = false, path = "../substrate/primitives/npos-elections" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = '4.0.0', path = '../substrate/utils/wasm-builder' }
@@ -43,42 +73,82 @@ substrate-wasm-builder = { version = '4.0.0', path = '../substrate/utils/wasm-bu
 [features]
 default = ['std']
 runtime-benchmarks = [
+    'hex-literal',
     'frame-benchmarking',
     'frame-support/runtime-benchmarks',
     'frame-system-benchmarking',
     'frame-system/runtime-benchmarks',
-    'hex-literal',
+	"pallet-babe/runtime-benchmarks",
     'pallet-balances/runtime-benchmarks',
+    'pallet-bounties/runtime-benchmarks',
+	"pallet-collective/runtime-benchmarks",
+	"pallet-democracy/runtime-benchmarks",
+	"pallet-election-provider-multi-phase/runtime-benchmarks",
+	"pallet-elections-phragmen/runtime-benchmarks",
+	"pallet-grandpa/runtime-benchmarks",
+	"pallet-identity/runtime-benchmarks",
+	"pallet-im-online/runtime-benchmarks",
+	"pallet-indices/runtime-benchmarks",
+	"pallet-membership/runtime-benchmarks",
     # 'pallet-nft-order/runtime-benchmarks',
+	"pallet-offences/runtime-benchmarks",
+	"pallet-scheduler/runtime-benchmarks",
+	"pallet-session-benchmarking",
+	"pallet-staking/runtime-benchmarks",
     'pallet-timestamp/runtime-benchmarks',
+	"pallet-transaction-storage/runtime-benchmarks",
+	"pallet-treasury/runtime-benchmarks",
     'pallet-uniques/runtime-benchmarks',
+    'pallet-utility/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
 ]
 std = [
     'codec/std',
     'frame-executive/std',
+	'frame-election-provider-support/std',
     'frame-support/std',
     'frame-system-rpc-runtime-api/std',
     'frame-system/std',
-    'pallet-aura/std',
+	'pallet-authority-discovery/std',
+	'pallet-authorship/std',
+	'pallet-babe/std',
     'pallet-balances/std',
+    'pallet-bounties/std',
+	'pallet-collective/std',
+	'pallet-democracy/std',
+	'pallet-election-provider-multi-phase/std',
+	'pallet-elections-phragmen/std',
     'pallet-grandpa/std',
+    'pallet-im-online/std',
+    'pallet-indices/std',
+    'pallet-identity/std',
+    'pallet-membership/std',
+    'pallet-offences/std',
     'pallet-randomness-collective-flip/std',
     'pallet-nft-order/std',
     'pallet-sudo/std',
+    'pallet-scheduler/std',
+	'pallet-staking/std',
     'pallet-timestamp/std',
-    'pallet-transaction-payment-rpc-runtime-api/std',
     'pallet-transaction-payment/std',
+    'pallet-transaction-payment-rpc-runtime-api/std',
+	'pallet-transaction-storage/std',
+	'pallet-treasury/try-runtime',
     'pallet-uniques/std',
+    'pallet-utility/std',
     'sp-api/std',
+	'sp-authority-discovery/std',
     'sp-block-builder/std',
-    'sp-consensus-aura/std',
+	'sp-consensus-babe/std',
     'sp-core/std',
     'sp-inherents/std',
+    'sp-keyring',
     'sp-offchain/std',
     'sp-runtime/std',
     'sp-session/std',
+    'sp-staking/std',
     'sp-std/std',
     'sp-transaction-pool/std',
     'sp-version/std',
+	'sp-npos-elections/std',
 ]

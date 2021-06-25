@@ -1,0 +1,28 @@
+[package]
+name = "nft360-primitives"
+version = "0.1.0"
+edition = "2018"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+frame-system = { version = "3.0.0", default-features = false, path = "../substrate/frame/system" }
+sp-application-crypto = { version = "3.0.0", default-features = false, path = "../substrate/primitives/application-crypto" }
+sp-core = { version = "3.0.0", default-features = false, path = "../substrate/primitives/core" }
+sp-runtime = { version = "3.0.0", default-features = false, path = "../substrate/primitives/runtime" }
+
+[dev-dependencies]
+sp-serializer = { version = "3.0.0", path = "../substrate/primitives/serializer" }
+pretty_assertions = "0.6.1"
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"frame-system/std",
+	"sp-application-crypto/std",
+	"sp-core/std",
+	"sp-runtime/std",
+]

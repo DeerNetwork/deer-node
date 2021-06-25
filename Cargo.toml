@@ -8,6 +8,8 @@ exclude = [
 
 members = [
     'node',
+	'rpc',
+	'primitives',
     'pallets/*',
     'runtime',
 ]
