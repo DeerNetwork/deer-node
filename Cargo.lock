@@ -4047,8 +4047,10 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-nft",
  "pallet-nft-order",
  "pallet-offences",
+ "pallet-offences-benchmarking",
  "pallet-randomness-collective-flip",
  "pallet-scheduler",
  "pallet-session",
@@ -4061,7 +4063,6 @@ dependencies = [
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-transaction-storage",
  "pallet-treasury",
- "pallet-uniques",
  "pallet-utility",
  "parity-scale-codec",
  "sp-api",
@@ -4564,7 +4565,7 @@ dependencies = [
  "frame-system",
  "max-encoded-len",
  "pallet-balances",
- "pallet-uniques",
+ "pallet-nft",
  "parity-scale-codec",
  "sp-core",
  "sp-io",
@@ -4582,6 +4583,27 @@ dependencies = [
  "pallet-balances",
  "parity-scale-codec",
  "serde",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-offences-benchmarking"
+version = "3.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-system",
+ "pallet-babe",
+ "pallet-balances",
+ "pallet-grandpa",
+ "pallet-im-online",
+ "pallet-offences",
+ "pallet-session",
+ "pallet-staking",
+ "parity-scale-codec",
  "sp-runtime",
  "sp-staking",
  "sp-std",
@@ -4779,19 +4801,6 @@ dependencies = [
  "pallet-balances",
  "parity-scale-codec",
  "serde",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-uniques"
-version = "3.0.0"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "sp-core",
  "sp-runtime",
  "sp-std",
 ]

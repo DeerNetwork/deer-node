@@ -18,7 +18,7 @@
 //! Test environment for Assets pallet.
 
 use super::*;
-use crate as pallet_uniques;
+use crate as pallet_nft;
 
 use sp_core::H256;
 use sp_runtime::{traits::{BlakeTwo256, IdentityLookup}, testing::Header};
@@ -35,7 +35,7 @@ construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Uniques: pallet_uniques::{Pallet, Call, Storage, Event<T>},
+		NFT: pallet_nft::{Pallet, Call, Storage, Event<T>},
 	}
 );
 

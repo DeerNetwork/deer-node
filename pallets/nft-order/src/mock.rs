@@ -3,7 +3,7 @@ use crate as pallet_nft_order;
 
 use sp_core::H256;
 use sp_runtime::{traits::{BlakeTwo256, IdentityLookup}, testing::Header};
-use frame_support::{parameter_types, construct_runtime, PalletId};
+use frame_support::{parameter_types, construct_runtime};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -16,7 +16,7 @@ construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		NFT: pallet_uniques::{Pallet, Call, Storage, Event<T>},
+		NFT: pallet_nft::{Pallet, Call, Storage, Event<T>},
 		NFTOrder: pallet_nft_order::{Pallet, Call, Storage, Event<T>},
 	}
 );
@@ -78,18 +78,15 @@ parameter_types! {
 	pub const MetadataDepositPerByte: u64 = 1;
 }
 
-impl pallet_uniques::Config for Test {
+impl pallet_nft::Config for Test {
 	type Event = Event;
 	type ClassId = u32;
 	type InstanceId = u32;
 	type Currency = Balances;
-	type ForceOrigin = frame_system::EnsureRoot<u64>;
 	type ClassDeposit = ClassDeposit;
 	type InstanceDeposit = InstanceDeposit;
-	type MetadataDepositBase = MetadataDepositBase;
 	type AttributeDepositBase = AttributeDepositBase;
 	type DepositPerByte = MetadataDepositPerByte;
-	type StringLimit = StringLimit;
 	type KeyLimit = KeyLimit;
 	type ValueLimit = ValueLimit;
 	type WeightInfo = ();
@@ -97,13 +94,11 @@ impl pallet_uniques::Config for Test {
 
 parameter_types! {
 	pub const OrderDeposit: u64 = 10;
-	pub const NftOrderPalletId: PalletId = PalletId(*b"nftordr*");
 	pub const MaxOrders: u32 = 50;
 }
 
 impl Config for Test {
 	type Event = Event;
-	type PalletId = NftOrderPalletId;
 	type OrderDeposit = OrderDeposit;
 	type MaxOrders = MaxOrders;
 }

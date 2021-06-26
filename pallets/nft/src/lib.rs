@@ -46,10 +46,9 @@ pub struct ClassDetails<
 	AccountId,
 	DepositBalance,
 > {
-	/// Can change `owner`, `issuer` and `admin` accounts.
+	/// The owner of this class.
 	pub owner: AccountId,
-	/// The total balance deposited for the all storage associated with this asset class. Used by
-	/// `destroy`.
+	/// The total balance deposited for this asset class. 
 	pub deposit: DepositBalance,
 	/// The total number of outstanding instances of this asset class.
 	pub instances: u32,
@@ -60,8 +59,10 @@ pub struct ClassDetails<
 pub struct InstanceDetails<AccountId, DepositBalance> {
 	/// The owner of this asset.
 	pub owner: AccountId,
-	/// Whether the asset can be transferred or not.
+	/// The total balance deposited for this asset class. 
 	pub deposit: DepositBalance,
+	/// Whether the asset can be reserved or not.
+    pub reserved: bool,
 }
 
 #[frame_support::pallet]
@@ -191,7 +192,9 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T, I = ()> {
-		/// The given asset ID is unknown.
+		/// The given asset ID is nof found.
+		NotFound,
+		/// Unknown error 
 		Unknown,
 		/// The asset class Id or instance ID has already been used for an asset.
 		AlreadyExists,
@@ -199,17 +202,14 @@ pub mod pallet {
 		WrongClassOwner,
 		/// The owner turned out to be different to what was expected.
 		WrongOwner,
+        /// The asset is ready reserved
+        AlreadyReserved,
+        /// The asset is not reserved
+        NotReserved,
 	}
 
 	#[pallet::hooks]
 	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {}
-
-	impl<T: Config<I>, I: 'static> Pallet<T, I> {
-		/// Get the owner of the asset instance, if the asset exists.
-		pub fn owner(class: T::ClassId, instance: T::InstanceId) -> Option<T::AccountId> {
-			Asset::<T, I>::get(class, instance).map(|i| i.owner)
-		}
-	}
 
 	#[pallet::call]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
@@ -273,7 +273,7 @@ pub mod pallet {
 			ensure!(!Asset::<T, I>::contains_key(class, instance), Error::<T, I>::AlreadyExists);
 
 			Class::<T, I>::try_mutate(&class, |maybe_class_details| -> DispatchResult {
-				let class_details = maybe_class_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
+				let class_details = maybe_class_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
 				ensure!(class_details.owner == owner, Error::<T, I>::WrongClassOwner);
 
 				let instances = class_details.instances.checked_add(1).ok_or(ArithmeticError::Overflow)?;
@@ -283,7 +283,7 @@ pub mod pallet {
 				T::Currency::reserve(&owner, deposit)?;
 
 				Account::<T, I>::insert((&owner, &class, &instance), ());
-				let details = InstanceDetails { owner: owner.clone(), deposit };
+				let details = InstanceDetails { owner: owner.clone(), deposit, reserved: false };
 				Asset::<T, I>::insert(&class, &instance, details);
 				Ok(())
 			})?;
@@ -315,6 +315,7 @@ pub mod pallet {
 				let details = Asset::<T, I>::get(&class, &instance)
 					.ok_or(Error::<T, I>::Unknown)?;
 				ensure!(details.owner == owner, Error::<T, I>::WrongOwner);
+				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
 				T::Currency::unreserve(&owner, details.deposit);
 				class_details.instances.saturating_dec();
                 Attribute::<T, I>::remove_prefix((class, Some(instance),), None);
@@ -345,10 +346,9 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
-			Self::do_transfer(class, instance, owner, dest)?;
+			Self::do_transfer(&class, &instance, &owner, &dest)?;
 			Ok(())
 		}
-
 
 		/// Set an attribute for an asset class or instance.
 		///
@@ -374,10 +374,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			if let Some(ref instance) = maybe_instance {
-				let details = Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::Unknown)?;
+				let details = Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::NotFound)?;
 				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
+				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
 			} else {
-				let class_details = Class::<T, I>::get(&class).ok_or(Error::<T, I>::Unknown)?;
+				let class_details = Class::<T, I>::get(&class).ok_or(Error::<T, I>::NotFound)?;
 				ensure!(&class_details.owner == &owner, Error::<T, I>::WrongClassOwner);
 			}
 			let attribute = Attribute::<T, I>::get((class, maybe_instance, &key));
@@ -432,10 +433,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			if let Some(ref instance) = maybe_instance {
-				let details = Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::Unknown)?;
+				let details = Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::NotFound)?;
 				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
+				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
 			} else {
-				let class_details = Class::<T, I>::get(&class).ok_or(Error::<T, I>::Unknown)?;
+				let class_details = Class::<T, I>::get(&class).ok_or(Error::<T, I>::NotFound)?;
 				ensure!(&class_details.owner == &owner, Error::<T, I>::WrongClassOwner);
 			}
 			if let Some((_, deposit)) = Attribute::<T, I>::take((class, maybe_instance, &key)) {
@@ -465,27 +467,47 @@ pub mod pallet {
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	pub fn do_transfer(
-		class: T::ClassId,
-		instance: T::InstanceId,
-		owner: T::AccountId,
-		dest: T::AccountId,
+		class: &T::ClassId,
+		instance: &T::InstanceId,
+		owner: &T::AccountId,
+		dest: &T::AccountId,
 	) -> DispatchResult {
-		let mut details = Asset::<T, I>::get(&class, &instance).ok_or(Error::<T, I>::Unknown)?;
-		ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
+        Asset::<T, I>::try_mutate(class, instance, |maybe_details| -> DispatchResult {
+            let details = maybe_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
+            ensure!(&details.owner == owner, Error::<T, I>::WrongOwner);
+            ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
 
-		Account::<T, I>::insert((&dest, &class, &instance), ());
-		T::Currency::reserve(&dest, details.deposit)?;
+            Account::<T, I>::insert((dest, class, instance), ());
+            T::Currency::reserve(dest, details.deposit)?;
 
-		Account::<T, I>::remove((&owner, &class, &instance));
-		T::Currency::unreserve(&owner, details.deposit);
+            Account::<T, I>::remove((owner, class, instance));
+            T::Currency::unreserve(owner, details.deposit);
 
-		details.owner = dest.clone();
-		Asset::<T, I>::insert(&class, &instance, &details);
-
-		Self::deposit_event(Event::Transferred(class, instance, owner, dest));
-		Ok(())
+            details.owner = dest.clone();
+            Self::deposit_event(Event::Transferred(class.clone(), instance.clone(), owner.clone(), dest.clone()));
+            Ok(())
+        })
 	}
-
+    pub fn get_info(class: &T::ClassId, instance: &T::InstanceId) -> Option<(T::AccountId, bool)> {
+		Asset::<T, I>::get(class, instance).map(|v| (v.owner, v.reserved))
+    }
+    pub fn reserve(class: &T::ClassId, instance: &T::InstanceId, owner: &T::AccountId) -> DispatchResult {
+        Asset::<T, I>::try_mutate(class, instance, |maybe_details| -> DispatchResult {
+            let details = maybe_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
+            ensure!(&details.owner == owner, Error::<T, I>::WrongOwner);
+            ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
+            details.reserved = true;
+            Ok(())
+        })
+    }
+    pub fn unreserve(class: &T::ClassId, instance: &T::InstanceId) -> DispatchResult {
+        Asset::<T, I>::try_mutate(class, instance, |maybe_details| -> DispatchResult {
+            let details = maybe_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
+            ensure!(details.reserved, Error::<T, I>::NotReserved);
+            details.reserved = false;
+            Ok(())
+        })
+    }
 	fn update_deposit(
 		target: &mut DepositBalanceOf<T, I>,
 		new: &DepositBalanceOf<T, I>,

@@ -5,7 +5,7 @@
 
 use sp_std::prelude::*;
 use frame_support::{
-	construct_runtime, parameter_types, RuntimeDebug, PalletId,
+	construct_runtime, parameter_types, PalletId,
 	weights::{
 		Weight, IdentityFee,
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -13,7 +13,7 @@ use frame_support::{
 	},
 	traits::{
 		Currency, Imbalance, KeyOwnerProofSystem, OnUnbalanced, LockIdentifier,
-		U128CurrencyToVote, MaxEncodedLen,
+		U128CurrencyToVote,
 	},
 };
 use frame_system::{
@@ -805,21 +805,18 @@ parameter_types! {
 	pub const MetadataDepositPerByte: Balance = 1 * DOLLARS;
 }
 
-impl pallet_uniques::Config for Runtime {
+impl pallet_nft::Config for Runtime {
 	type Event = Event;
 	type ClassId = u32;
 	type InstanceId = u32;
 	type Currency = Balances;
-	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
 	type ClassDeposit = ClassDeposit;
 	type InstanceDeposit = InstanceDeposit;
-	type MetadataDepositBase = MetadataDepositBase;
 	type AttributeDepositBase = MetadataDepositBase;
 	type DepositPerByte = MetadataDepositPerByte;
-	type StringLimit = StringLimit;
 	type KeyLimit = KeyLimit;
 	type ValueLimit = ValueLimit;
-	type WeightInfo = pallet_uniques::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = pallet_nft::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_transaction_storage::Config for Runtime {
@@ -830,18 +827,18 @@ impl pallet_transaction_storage::Config for Runtime {
 	type WeightInfo = pallet_transaction_storage::weights::SubstrateWeight<Runtime>;
 }
 
-parameter_types! {
-	pub const OrderDeposit: Balance = 5 * DOLLARS;
-	pub const NftOrderPalletId: PalletId = PalletId(*b"nftordr*");
-	pub const MaxOrders: u32 = 50;
-}
+// parameter_types! {
+// 	pub const OrderDeposit: Balance = 5 * DOLLARS;
+// 	pub const NftOrderPalletId: PalletId = PalletId(*b"nftordr*");
+// 	pub const MaxOrders: u32 = 50;
+// }
 
-impl pallet_nft_order::Config for Runtime {
-	type Event = Event;
-	type PalletId = NftOrderPalletId;
-	type OrderDeposit = OrderDeposit;
-	type MaxOrders = MaxOrders;
-}
+// impl pallet_nft_order::Config for Runtime {
+// 	type Event = Event;
+// 	type PalletId = NftOrderPalletId;
+// 	type OrderDeposit = OrderDeposit;
+// 	type MaxOrders = MaxOrders;
+// }
 
 
 construct_runtime!(
@@ -877,8 +874,8 @@ construct_runtime!(
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>},
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
-		NFT: pallet_uniques::{Pallet, Call, Storage, Event<T>},
-		NFTOrder: pallet_nft_order::{Pallet, Call, Storage, Event<T>},
+		NFT: pallet_nft::{Pallet, Call, Storage, Event<T>},
+		// NFTOrder: pallet_nft_order::{Pallet, Call, Storage, Event<T>},
 		TransactionStorage: pallet_transaction_storage::{Pallet, Call, Storage, Inherent, Config<T>, Event<T>},
 	}
 );
@@ -1153,6 +1150,8 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_im_online, ImOnline);
 			add_benchmark!(params, batches, pallet_indices, Indices);
 			add_benchmark!(params, batches, pallet_membership, TechnicalMembership);
+			add_benchmark!(params, batches, pallet_nft, NFT);
+			// add_benchmark!(params, batches, pallet_nft_order, NFTOrder);
 			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
 			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
@@ -1161,7 +1160,6 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_transaction_storage, TransactionStorage);
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
-			add_benchmark!(params, batches, pallet_uniques, Uniques);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }

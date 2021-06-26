@@ -2,15 +2,10 @@
 
 use codec::{Encode, Decode};
 use sp_std::prelude::*;
-use sp_runtime::{
-	RuntimeDebug,
-	traits::{AccountIdConversion},
-
-};
+use sp_runtime::{RuntimeDebug};
 use frame_support::{
-	PalletId,
 	dispatch::DispatchResult,
-	traits::{Get, Currency, ExistenceRequirement, ReservableCurrency, tokens::nonfungibles::{Inspect, Transfer}, MaxEncodedLen},
+	traits::{Currency, ExistenceRequirement, ReservableCurrency, MaxEncodedLen},
 };
 
 pub use pallet::*;
@@ -26,9 +21,9 @@ mod tests;
 
 
 pub type BalanceOf<T, I = ()> =
-	<<T as pallet_uniques::Config<I>>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-pub type ClassIdOf<T, I = ()> = <T as pallet_uniques::Config<I>>::ClassId;
-pub type InstanceIdOf<T, I = ()> = <T as pallet_uniques::Config<I>>::InstanceId;
+	<<T as pallet_nft::Config<I>>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+pub type ClassIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::ClassId;
+pub type InstanceIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::InstanceId;
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen)]
 pub struct OrderDetails<
@@ -54,14 +49,11 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::config]
-	pub trait Config<I: 'static = ()>: frame_system::Config + pallet_uniques::Config<I> {
+	pub trait Config<I: 'static = ()>: frame_system::Config + pallet_nft::Config<I> {
 		/// The overarching event type.
 		type Event: From<Event<Self, I>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The basic amount of funds that must be reserved for an asset class.
 		type OrderDeposit: Get<BalanceOf<Self, I>>;
-		/// The module id, used for deriving its sovereign account ID.
-		#[pallet::constant]
-		type PalletId: Get<PalletId>;
 		/// The maximum amount of order an account owned
 		#[pallet::constant]
 		type MaxOrders: Get<u32>;
@@ -104,6 +96,8 @@ pub mod pallet {
 		TooManyOrders,
 		/// A sell order already expired
 		OrderExpired,
+        /// Assert is reserved
+        AssertReserved,
 		/// Bad storage State
 		BadState,
 	}
@@ -147,16 +141,14 @@ pub mod pallet {
 			deadline: Option<T::BlockNumber>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let owner =
-				<pallet_uniques::Pallet::<T, I> as Inspect<_>>::owner(&class_id, &instance_id)
-				.ok_or(Error::<T, I>::NotFound)?;
-			// TODO support approval
-			ensure!(who == owner, Error::<T, I>::NotOwn);
+			let (owner, reserved) = pallet_nft::Pallet::<T, I>::get_info(&class_id, &instance_id).ok_or(Error::<T, I>::NotFound)?;
+            ensure!(who == owner, Error::<T, I>::NotOwn);
+            ensure!(!reserved, Error::<T, I>::AssertReserved);
 			if let Some(ref deadline)  = deadline {
 				ensure!(<frame_system::Pallet<T>>::block_number() < *deadline, Error::<T, I>::InvalidDeadline);
 			}
 			T::Currency::reserve(&who, T::OrderDeposit::get())?;
-			<pallet_uniques::Pallet::<T, I> as Transfer<_>>::transfer(&class_id, &instance_id, &Self::account_id())?;
+			pallet_nft::Pallet::<T, I>::reserve(&class_id, &instance_id, &owner)?;
 			let order = OrderDetails {
 				owner: who.clone(),
 				deposit: T::OrderDeposit::get(),
@@ -178,7 +170,6 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			#[pallet::compact] class_id: T::ClassId,
 			#[pallet::compact] instance_id: T::InstanceId,
-			owner: T::AccountId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let order = Orders::<T, I>::try_get(class_id, instance_id).map_err(|_| Error::<T, I>::OrderNotFound)?;
@@ -187,27 +178,9 @@ pub mod pallet {
 			}
 			Self::delete_order(class_id, instance_id)?;
 			T::Currency::transfer(&who, &order.owner, order.price, ExistenceRequirement::KeepAlive)?;
-			<pallet_uniques::Pallet<T, I> as Transfer<_>>::transfer(&class_id, &instance_id, &owner)?;
-			Self::deposit_event(Event::Dealed(class_id, instance_id, owner));
-			Ok(())
-		}
-
-
-		/// Update the price of an order
-		#[pallet::weight(10_000)]
-		pub fn update_price(
-			origin: OriginFor<T>,
-			#[pallet::compact] class_id: T::ClassId,
-			#[pallet::compact] instance_id: T::InstanceId,
-			#[pallet::compact] price: BalanceOf<T, I>,
-		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			Orders::<T, I>::try_mutate(class_id, instance_id, |maybe_order| -> DispatchResult {
-				let order = maybe_order.as_mut().ok_or(Error::<T, I>::OrderNotFound)?;
-				ensure!(who == order.owner, Error::<T, I>::NotOwn);
-				order.price = price;
-				Ok(())
-			})?;
+			pallet_nft::Pallet::<T, I>::unreserve(&class_id, &instance_id)?;
+			pallet_nft::Pallet::<T, I>::do_transfer(&class_id, &instance_id, &order.owner, &who)?;
+			Self::deposit_event(Event::Dealed(class_id, instance_id, who));
 			Ok(())
 		}
 
@@ -221,7 +194,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let order = Orders::<T, I>::try_get(class_id, instance_id).map_err(|_| Error::<T, I>::OrderNotFound)?;
 			ensure!(who == order.owner, Error::<T, I>::NotOwn);
-			<pallet_uniques::Pallet<T, I> as Transfer<_>>::transfer(&class_id, &instance_id, &who)?;
+			pallet_nft::Pallet::<T, I>::unreserve(&class_id, &instance_id)?;
 			Self::delete_order(class_id, instance_id)?;
 			Self::deposit_event(Event::Removed(class_id, instance_id));
 			Ok(())
@@ -230,10 +203,6 @@ pub mod pallet {
 }
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
-	/// The account ID of the nft order pot.
-	pub fn account_id() -> T::AccountId {
-		T::PalletId::get().into_account()
-	}
 	/// Remove order
 	pub fn delete_order(class_id: ClassIdOf<T, I>, instance_id: InstanceIdOf<T, I>) -> DispatchResult {
 		Orders::<T, I>::try_mutate_exists(class_id, instance_id, |maybe_order| -> DispatchResult {

@@ -14,8 +14,9 @@ sp-runtime = { version = '3.0.0', path = '../../substrate/primitives/runtime', d
 frame-benchmarking = { version = '3.1.0', path = '../../substrate/frame/benchmarking', default-features = false, optional = true }
 frame-support = { version = '3.0.0', path = '../../substrate/frame/support', default-features = false }
 frame-system = { version = '3.0.0', path = '../../substrate/frame/system', default-features = false }
-pallet-uniques = { version = '3.0.0', path = '../../substrate/frame/uniques', default-features = false }
 max-encoded-len = { version = "3.0.0", path = '../../substrate/max-encoded-len', default-features = false, features = [ "derive" ] }
+
+pallet-nft = { version = '0.1.0', path = '../nft', default-features = false }
 
 [dev-dependencies]
 sp-std = { version = '3.0.0', path = '../../substrate/primitives/std' }
@@ -33,12 +34,12 @@ std = [
 	"frame-benchmarking/std",
 	"frame-support/std",
 	"frame-system/std",
-	"pallet-uniques/std",
+	"pallet-nft/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
 	"sp-runtime/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
-	"pallet-uniques/runtime-benchmarks",
+	"pallet-nft/runtime-benchmarks",
 ]
 try-runtime = ["frame-support/try-runtime"]
