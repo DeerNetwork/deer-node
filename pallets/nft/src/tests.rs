@@ -3,7 +3,7 @@
 use super::*;
 use crate::mock::*;
 use sp_std::convert::TryInto;
-use frame_support::{assert_ok, traits::Currency};
+use frame_support::{assert_ok, assert_noop, traits::Currency};
 
 fn assets() -> Vec<(u64, u32, u32)> {
 	let mut r: Vec<_> = Account::<Test>::iter().map(|x| x.0).collect();
@@ -50,12 +50,35 @@ fn basic_setup_works() {
 }
 
 #[test]
-fn mint_minting_should_work() {
+fn create_class_should_work() {
+	new_test_ext().execute_with(|| {
+		Balances::make_free_balance_be(&1, 100);
+		assert_ok!(Uniques::create(Origin::signed(1), 0));
+		assert_eq!(Balances::reserved_balance(&1), 2);
+        let c = Class::<Test>::get(0).unwrap();
+		assert_eq!(c.instances, 0);
+		assert_eq!(c.deposit, 2);
+		assert_eq!(c.owner, 1);
+		assert_noop!(Uniques::create(Origin::signed(1), 0), Error::<Test>::AlreadyExists);
+    });
+}
+
+#[test]
+fn mint_should_work() {
 	new_test_ext().execute_with(|| {
 		Balances::make_free_balance_be(&1, 100);
 		assert_ok!(Uniques::create(Origin::signed(1), 0));
 		assert_ok!(Uniques::mint(Origin::signed(1), 0, 42));
+		assert_eq!(Balances::reserved_balance(&1), 3);
+        let a = Asset::<Test>::get(0, 42).unwrap();
+		assert_eq!(a.owner, 1);
+		assert_eq!(a.deposit, 1);
+        let c = Class::<Test>::get(0).unwrap();
+		assert_eq!(c.instances, 1);
+		assert_eq!(c.deposit, 2);
 		assert_eq!(assets(), vec![(1, 0, 42)]);
+		assert_noop!(Uniques::mint(Origin::signed(1), 0, 42), Error::<Test>::AlreadyExists);
+		assert_noop!(Uniques::mint(Origin::signed(2), 0, 43), Error::<Test>::WrongClassOwner);
 	});
 }
 
@@ -66,25 +89,52 @@ fn transfer_should_work() {
 		Balances::make_free_balance_be(&2, 100);
 		assert_ok!(Uniques::create(Origin::signed(1), 0));
 		assert_ok!(Uniques::mint(Origin::signed(1), 0, 42));
+		assert_eq!(Balances::reserved_balance(&1), 3);
 		assert_ok!(Uniques::transfer(Origin::signed(1), 0, 42, 2));
+		assert_eq!(Balances::reserved_balance(&1), 2);
+		assert_eq!(Balances::reserved_balance(&2), 1);
 		assert_eq!(assets(), vec![(2, 0, 42)]);
 	});
 }
 
 #[test]
-fn set_attribute_should_work() {
+fn attribute_should_work() {
 	new_test_ext().execute_with(|| {
 		Balances::make_free_balance_be(&1, 100);
-		assert_ok!(Uniques::create(Origin::signed(1), 0));
-		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, None, bvec![0], bvec![0]));
-		assert_ok!(Uniques::mint(Origin::signed(1), 0, 42));
+		assert_ok!(Uniques::create(Origin::signed(1), 0)); // reserve 2
+		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, None, bvec![0], bvec![0])); // reserve (1 + 1) * 1 + 1
+		assert_ok!(Uniques::mint(Origin::signed(1), 0, 42)); // reserve 1
 		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0]));
-		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, None, bvec![0], bvec![0; 10]));
-		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0; 10]));
-		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, None, bvec![1], bvec![0; 10]));
-		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, Some(42), bvec![1], bvec![0; 10]));
-		assert_ok!(Uniques::clear_attribute(Origin::signed(1), 0, Some(42), bvec![0]));
+		assert_eq!(Balances::reserved_balance(&1), 9);
+		assert_eq!(attributes(0), vec![
+			(None, bvec![0], bvec![0]),
+			(Some(42), bvec![0], bvec![0]),
+		]);
+		assert_eq!(Class::<Test>::get(0).unwrap().deposit, 5);
+		assert_eq!(Asset::<Test>::get(0, 42).unwrap().deposit, 4);
+
+        // update attribute
+		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, None, bvec![0], bvec![0; 2]));
+		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0; 2]));
+		assert_eq!(attributes(0), vec![
+			(None, bvec![0], bvec![0; 2]),
+			(Some(42), bvec![0], bvec![0; 2]),
+		]);
+		assert_eq!(Balances::reserved_balance(&1), 11);
+
+        // multiple attirbutes
+		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, None, bvec![1], bvec![0]));
+		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, Some(42), bvec![1], bvec![0]));
+		assert_eq!(Balances::reserved_balance(&1), 17);
+		assert_eq!(Class::<Test>::get(0).unwrap().deposit, 9);
+		assert_eq!(Asset::<Test>::get(0, 42).unwrap().deposit, 8);
+
+        // clear attributes
 		assert_ok!(Uniques::clear_attribute(Origin::signed(1), 0, None, bvec![0]));
+		assert_ok!(Uniques::clear_attribute(Origin::signed(1), 0, Some(42), bvec![0]));
+		assert_eq!(Class::<Test>::get(0).unwrap().deposit, 5);
+		assert_eq!(Asset::<Test>::get(0, 42).unwrap().deposit, 4);
+		assert_eq!(Balances::reserved_balance(&1), 9);
 	});
 }
 
@@ -94,8 +144,13 @@ fn burn_works() {
 		Balances::make_free_balance_be(&1, 100);
 		assert_ok!(Uniques::create(Origin::signed(1), 0));
 		assert_ok!(Uniques::mint(Origin::signed(1), 0, 42));
+		assert_eq!(Balances::reserved_balance(&1), 3);
 		assert_eq!(assets(), vec![(1, 0, 42)]);
+		assert_ok!(Uniques::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0]));
 		assert_ok!(Uniques::burn(Origin::signed(1), 0, 42));
+		assert_eq!(Balances::reserved_balance(&1), 2);
+		assert_eq!(Class::<Test>::get(0).unwrap().instances, 0);
 		assert_eq!(assets(), vec![]);
+        assert_eq!(Attribute::<Test>::iter_prefix((0, Some(42),)).fold(0, |acc, _| acc + 1), 0);
 	});
 }

@@ -11,8 +11,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 // pub mod weights;
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 #[cfg(test)]
 pub mod mock;
 #[cfg(test)]
@@ -66,7 +66,7 @@ pub struct InstanceDetails<AccountId, DepositBalance> {
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::pallet_prelude::*;
+	use frame_support::{BoundedVec, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
 	use super::*;
 
@@ -193,12 +193,12 @@ pub mod pallet {
 	pub enum Error<T, I = ()> {
 		/// The given asset ID is unknown.
 		Unknown,
-		/// The asset instance ID has already been used for an asset.
+		/// The asset class Id or instance ID has already been used for an asset.
 		AlreadyExists,
+		/// The owner of class turned out to be different to what was expected.
+		WrongClassOwner,
 		/// The owner turned out to be different to what was expected.
 		WrongOwner,
-		/// The asset ID is already taken.
-		InUse,
 	}
 
 	#[pallet::hooks]
@@ -234,7 +234,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 
-			ensure!(!Class::<T, I>::contains_key(class), Error::<T, I>::InUse);
+			ensure!(!Class::<T, I>::contains_key(class), Error::<T, I>::AlreadyExists);
 
 			let deposit = T::ClassDeposit::get();
 			T::Currency::reserve(&owner, deposit)?;
@@ -274,11 +274,9 @@ pub mod pallet {
 
 			Class::<T, I>::try_mutate(&class, |maybe_class_details| -> DispatchResult {
 				let class_details = maybe_class_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
+				ensure!(class_details.owner == owner, Error::<T, I>::WrongClassOwner);
 
-				ensure!(class_details.owner == owner, Error::<T, I>::WrongOwner);
-
-				let instances = class_details.instances.checked_add(1)
-					.ok_or(ArithmeticError::Overflow)?;
+				let instances = class_details.instances.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 				class_details.instances = instances;
 
 				let deposit = T::InstanceDeposit::get();
@@ -319,6 +317,7 @@ pub mod pallet {
 				ensure!(details.owner == owner, Error::<T, I>::WrongOwner);
 				T::Currency::unreserve(&owner, details.deposit);
 				class_details.instances.saturating_dec();
+                Attribute::<T, I>::remove_prefix((class, Some(instance),), None);
 				Ok(())
 			})?;
 			Asset::<T, I>::remove(&class, &instance);
@@ -379,7 +378,7 @@ pub mod pallet {
 				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
 			} else {
 				let class_details = Class::<T, I>::get(&class).ok_or(Error::<T, I>::Unknown)?;
-				ensure!(&class_details.owner == &owner, Error::<T, I>::WrongOwner);
+				ensure!(&class_details.owner == &owner, Error::<T, I>::WrongClassOwner);
 			}
 			let attribute = Attribute::<T, I>::get((class, maybe_instance, &key));
 			let old_deposit = attribute.map_or(Zero::zero(), |m| m.1);
@@ -437,20 +436,20 @@ pub mod pallet {
 				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
 			} else {
 				let class_details = Class::<T, I>::get(&class).ok_or(Error::<T, I>::Unknown)?;
-				ensure!(&class_details.owner == &owner, Error::<T, I>::WrongOwner);
+				ensure!(&class_details.owner == &owner, Error::<T, I>::WrongClassOwner);
 			}
 			if let Some((_, deposit)) = Attribute::<T, I>::take((class, maybe_instance, &key)) {
 				if let Some(ref instance) = maybe_instance {
 					Asset::<T, I>::mutate(&class, instance, |maybe_details| -> DispatchResult {
 						let details = maybe_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-						let new_deposit = details.deposit.checked_sub(&deposit).ok_or(Error::<T, I>::Unknown)?;
+						let new_deposit = details.deposit.checked_sub(&deposit).ok_or(ArithmeticError::Overflow)?;
 						details.deposit = new_deposit;
 						Ok(())
 					})?;
 				} else {
 					Class::<T, I>::mutate(&class, |maybe_class_details| -> DispatchResult {
 						let details = maybe_class_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-						let new_deposit = details.deposit.checked_sub(&deposit).ok_or(Error::<T, I>::Unknown)?;
+						let new_deposit = details.deposit.checked_sub(&deposit).ok_or(ArithmeticError::Overflow)?;
 						details.deposit = new_deposit;
 						Ok(())
 					})?;
@@ -486,6 +485,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		Self::deposit_event(Event::Transferred(class, instance, owner, dest));
 		Ok(())
 	}
+
 	fn update_deposit(
 		target: &mut DepositBalanceOf<T, I>,
 		new: &DepositBalanceOf<T, I>,
@@ -493,7 +493,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	) ->  DispatchResult {
 		*target = target.checked_add(new)
 			.and_then(|sum| sum.checked_sub(old))
-			.ok_or(Error::<T, I>::Unknown)?;
+			.ok_or(ArithmeticError::Overflow)?;
 		Ok(())
 	}
 }

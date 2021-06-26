@@ -91,9 +91,8 @@ parameter_types! {
 	pub const KeyLimit: u32 = 50;
 	pub const ValueLimit: u32 = 50;
 	pub const StringLimit: u32 = 50;
-	pub const MetadataDepositBase: u64 = 1;
 	pub const AttributeDepositBase: u64 = 1;
-	pub const MetadataDepositPerByte: u64 = 1;
+	pub const DepositPerByte: u64 = 1;
 }
 
 impl Config for Test {
@@ -104,7 +103,7 @@ impl Config for Test {
 	type ClassDeposit = ClassDeposit;
 	type InstanceDeposit = InstanceDeposit;
 	type AttributeDepositBase = AttributeDepositBase;
-	type DepositPerByte = MetadataDepositPerByte;
+	type DepositPerByte = DepositPerByte;
 	type KeyLimit = KeyLimit;
 	type ValueLimit = ValueLimit;
 	type WeightInfo = ();
