@@ -1,5 +1,15 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+// pub mod weights;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+#[cfg(test)]
+pub mod mock;
+#[cfg(test)]
+mod tests;
+
+pub mod weights;
+
 use codec::{Encode, Decode};
 use sp_std::prelude::*;
 use sp_runtime::{RuntimeDebug};
@@ -8,16 +18,8 @@ use frame_support::{
 	traits::{Currency, ExistenceRequirement, ReservableCurrency, MaxEncodedLen},
 };
 
+pub use weights::WeightInfo;
 pub use pallet::*;
-
-#[cfg(test)]
-mod mock;
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
 
 pub type BalanceOf<T, I = ()> =
 	<<T as pallet_nft::Config<I>>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -51,11 +53,16 @@ pub mod pallet {
 	pub trait Config<I: 'static = ()>: frame_system::Config + pallet_nft::Config<I> {
 		/// The overarching event type.
 		type Event: From<Event<Self, I>> + IsType<<Self as frame_system::Config>::Event>;
+
 		/// The basic amount of funds that must be reserved for an asset class.
 		type OrderDeposit: Get<BalanceOf<Self, I>>;
+
 		/// The maximum amount of order an account owned
 		#[pallet::constant]
 		type MaxOrders: Get<u32>;
+
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::pallet]
@@ -127,7 +134,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T:Config<I>, I: 'static> Pallet<T, I> {
 		/// Create a order to sell a non-fungible asset
-		#[pallet::weight(10_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::sell())]
 		pub fn sell(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
@@ -160,7 +167,7 @@ pub mod pallet {
 		}
 
 		/// Create a order to buy a non-fungible asset
-		#[pallet::weight(10_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::deal())]
 		pub fn deal(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
@@ -180,7 +187,7 @@ pub mod pallet {
 		}
 
 		/// Remove an order
-		#[pallet::weight(10_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::remove())]
 		pub fn remove(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,

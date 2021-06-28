@@ -827,18 +827,18 @@ impl pallet_transaction_storage::Config for Runtime {
 	type WeightInfo = pallet_transaction_storage::weights::SubstrateWeight<Runtime>;
 }
 
-// parameter_types! {
-// 	pub const OrderDeposit: Balance = 5 * DOLLARS;
-// 	pub const NftOrderPalletId: PalletId = PalletId(*b"nftordr*");
-// 	pub const MaxOrders: u32 = 50;
-// }
+parameter_types! {
+	pub const OrderDeposit: Balance = 5 * DOLLARS;
+	pub const NftOrderPalletId: PalletId = PalletId(*b"nftordr*");
+	pub const MaxOrders: u32 = 50;
+}
 
-// impl pallet_nft_order::Config for Runtime {
-// 	type Event = Event;
-// 	type PalletId = NftOrderPalletId;
-// 	type OrderDeposit = OrderDeposit;
-// 	type MaxOrders = MaxOrders;
-// }
+impl pallet_nft_order::Config for Runtime {
+	type Event = Event;
+	type OrderDeposit = OrderDeposit;
+	type MaxOrders = MaxOrders;
+	type WeightInfo = pallet_nft_order::weights::SubstrateWeight<Runtime>;
+}
 
 
 construct_runtime!(

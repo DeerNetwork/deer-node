@@ -101,6 +101,7 @@ impl Config for Test {
 	type Event = Event;
 	type OrderDeposit = OrderDeposit;
 	type MaxOrders = MaxOrders;
+	type WeightInfo = ();
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
