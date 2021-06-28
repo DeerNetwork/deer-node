@@ -796,7 +796,7 @@ impl pallet_identity::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ClassDeposit: Balance = 100 * DOLLARS;
+	pub const ClassDeposit: Balance = 10 * DOLLARS;
 	pub const InstanceDeposit: Balance = 1 * DOLLARS;
 	pub const KeyLimit: u32 = 32;
 	pub const ValueLimit: u32 = 256;
@@ -828,7 +828,7 @@ impl pallet_transaction_storage::Config for Runtime {
 }
 
 parameter_types! {
-	pub const OrderDeposit: Balance = 5 * DOLLARS;
+	pub const OrderDeposit: Balance = 2 * DOLLARS;
 	pub const NftOrderPalletId: PalletId = PalletId(*b"nftordr*");
 	pub const MaxOrders: u32 = 50;
 }

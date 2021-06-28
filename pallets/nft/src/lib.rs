@@ -48,7 +48,7 @@ pub struct ClassDetails<
 > {
 	/// The owner of this class.
 	pub owner: AccountId,
-	/// The total balance deposited for this asset class. 
+	/// The total balance deposited for this asset class.
 	pub deposit: DepositBalance,
 	/// The total number of outstanding instances of this asset class.
 	pub instances: u32,
@@ -59,7 +59,7 @@ pub struct ClassDetails<
 pub struct InstanceDetails<AccountId, DepositBalance> {
 	/// The owner of this asset.
 	pub owner: AccountId,
-	/// The total balance deposited for this asset class. 
+	/// The total balance deposited for this asset class.
 	pub deposit: DepositBalance,
 	/// Whether the asset can be reserved or not.
     pub reserved: bool,
@@ -93,22 +93,28 @@ pub mod pallet {
 		type Currency: ReservableCurrency<Self::AccountId>;
 
 		/// The basic amount of funds that must be reserved for an asset class.
+		#[pallet::constant]
 		type ClassDeposit: Get<DepositBalanceOf<Self, I>>;
 
 		/// The basic amount of funds that must be reserved for an asset instance.
+		#[pallet::constant]
 		type InstanceDeposit: Get<DepositBalanceOf<Self, I>>;
 
 		/// The basic amount of funds that must be reserved when adding an attribute to an asset.
+		#[pallet::constant]
 		type AttributeDepositBase: Get<DepositBalanceOf<Self, I>>;
 
 		/// The additional funds that must be reserved for the number of bytes store in metadata,
 		/// either "normal" metadata or attribute metadata.
+		#[pallet::constant]
 		type DepositPerByte: Get<DepositBalanceOf<Self, I>>;
 
 		/// The maximum length of an attribute key.
+		#[pallet::constant]
 		type KeyLimit: Get<u32>;
 
 		/// The maximum length of an attribute value.
+		#[pallet::constant]
 		type ValueLimit: Get<u32>;
 
 		/// Weight information for extrinsics in this pallet.
@@ -212,7 +218,7 @@ pub mod pallet {
 	pub enum Error<T, I = ()> {
 		/// The given asset ID is nof found.
 		NotFound,
-		/// Unknown error 
+		/// Unknown error
 		Unknown,
 		/// The asset class Id or instance ID has already been used for an asset.
 		AlreadyExists,
@@ -378,7 +384,7 @@ pub mod pallet {
             })
 		}
 
-		/// Cancel transfer 
+		/// Cancel transfer
 		///
 		/// Arguments:
 		/// - `class`: The class of the asset to be transferred.
@@ -405,7 +411,7 @@ pub mod pallet {
             })
 		}
 
-		/// Accept transfer 
+		/// Accept transfer
 		///
 		/// Arguments:
 		/// - `class`: The class of the asset to be transferred.

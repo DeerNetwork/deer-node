@@ -55,6 +55,7 @@ pub mod pallet {
 		type Event: From<Event<Self, I>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// The basic amount of funds that must be reserved for an asset class.
+		#[pallet::constant]
 		type OrderDeposit: Get<BalanceOf<Self, I>>;
 
 		/// The maximum amount of order an account owned
