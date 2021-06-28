@@ -16,9 +16,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
-
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
 pub type BalanceOf<T, I = ()> =
 	<<T as pallet_nft::Config<I>>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -71,14 +70,12 @@ pub mod pallet {
 	)]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
-		/// Selling a nft asset, \[ class_id, instance_id, account_id \]
+		/// Selling a nft asset, \[ class, instance, account \]
 		Selling(T::ClassId, T::InstanceId, T::AccountId),
-		/// Make a deal with sell order, \[ class_id, instance_id, account_id \]
-		Dealed(T::ClassId, T::InstanceId, T::AccountId),
-		/// Order price updated \[ class_id, instance_id \]
-		UpdatedPrice(T::ClassId, T::InstanceId),
-		/// Removed an sell order , \[ class_id, instance_id \]
-		Removed(T::ClassId, T::InstanceId),
+		/// Make a deal with sell order, \[ class, instance, from, to \]
+		Dealed(T::ClassId, T::InstanceId, T::AccountId, T::AccountId),
+		/// Removed an sell order , \[ class, instance, account \]
+		Removed(T::ClassId, T::InstanceId, T::AccountId),
 	}
 
 	// Errors inform users that something went wrong.
@@ -98,8 +95,6 @@ pub mod pallet {
 		OrderExpired,
         /// Assert is reserved
         AssertReserved,
-		/// Bad storage State
-		BadState,
 	}
 
 	/// An index mapping from token to order.
@@ -135,20 +130,20 @@ pub mod pallet {
 		#[pallet::weight(10_000)]
 		pub fn sell(
 			origin: OriginFor<T>,
-			#[pallet::compact] class_id: T::ClassId,
-			#[pallet::compact] instance_id: T::InstanceId,
+			#[pallet::compact] class: T::ClassId,
+			#[pallet::compact] instance: T::InstanceId,
 			#[pallet::compact] price: BalanceOf<T, I>,
 			deadline: Option<T::BlockNumber>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let (owner, reserved) = pallet_nft::Pallet::<T, I>::get_info(&class_id, &instance_id).ok_or(Error::<T, I>::NotFound)?;
+			let (owner, reserved) = pallet_nft::Pallet::<T, I>::info(&class, &instance).ok_or(Error::<T, I>::NotFound)?;
             ensure!(who == owner, Error::<T, I>::NotOwn);
             ensure!(!reserved, Error::<T, I>::AssertReserved);
 			if let Some(ref deadline)  = deadline {
 				ensure!(<frame_system::Pallet<T>>::block_number() < *deadline, Error::<T, I>::InvalidDeadline);
 			}
 			T::Currency::reserve(&who, T::OrderDeposit::get())?;
-			pallet_nft::Pallet::<T, I>::reserve(&class_id, &instance_id, &owner)?;
+			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &owner)?;
 			let order = OrderDetails {
 				owner: who.clone(),
 				deposit: T::OrderDeposit::get(),
@@ -156,11 +151,11 @@ pub mod pallet {
 				deadline,
 			};
 			AccountOrders::<T, I>::try_mutate(&who, |ref mut orders| -> DispatchResult {
-				orders.try_push((class_id, instance_id)).map_err(|_| Error::<T, I>::TooManyOrders)?;
+				orders.try_push((class, instance)).map_err(|_| Error::<T, I>::TooManyOrders)?;
 				Ok(())
 			})?;
-			Orders::<T, I>::insert(class_id, instance_id, order);
-			Self::deposit_event(Event::Selling(class_id, instance_id, who));
+			Orders::<T, I>::insert(class, instance, order);
+			Self::deposit_event(Event::Selling(class, instance, who));
 			Ok(())
 		}
 
@@ -168,19 +163,19 @@ pub mod pallet {
 		#[pallet::weight(10_000)]
 		pub fn deal(
 			origin: OriginFor<T>,
-			#[pallet::compact] class_id: T::ClassId,
-			#[pallet::compact] instance_id: T::InstanceId,
+			#[pallet::compact] class: T::ClassId,
+			#[pallet::compact] instance: T::InstanceId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let order = Orders::<T, I>::try_get(class_id, instance_id).map_err(|_| Error::<T, I>::OrderNotFound)?;
+			let order = Orders::<T, I>::try_get(class, instance).map_err(|_| Error::<T, I>::OrderNotFound)?;
 			if let Some(ref deadline) = order.deadline {
 				ensure!(<frame_system::Pallet<T>>::block_number() <= *deadline, Error::<T, I>::OrderExpired);
 			}
-			Self::delete_order(class_id, instance_id)?;
+			Self::delete_order(class, instance)?;
 			T::Currency::transfer(&who, &order.owner, order.price, ExistenceRequirement::KeepAlive)?;
-			pallet_nft::Pallet::<T, I>::unreserve(&class_id, &instance_id)?;
-			pallet_nft::Pallet::<T, I>::do_transfer(&class_id, &instance_id, &order.owner, &who)?;
-			Self::deposit_event(Event::Dealed(class_id, instance_id, who));
+			pallet_nft::Pallet::<T, I>::unreserve(&class, &instance)?;
+			pallet_nft::Pallet::<T, I>::transfer(&class, &instance, &order.owner, &who)?;
+			Self::deposit_event(Event::Dealed(class, instance, order.owner.clone(), who));
 			Ok(())
 		}
 
@@ -188,15 +183,15 @@ pub mod pallet {
 		#[pallet::weight(10_000)]
 		pub fn remove(
 			origin: OriginFor<T>,
-			#[pallet::compact] class_id: T::ClassId,
-			#[pallet::compact] instance_id: T::InstanceId,
+			#[pallet::compact] class: T::ClassId,
+			#[pallet::compact] instance: T::InstanceId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let order = Orders::<T, I>::try_get(class_id, instance_id).map_err(|_| Error::<T, I>::OrderNotFound)?;
+			let order = Orders::<T, I>::try_get(class, instance).map_err(|_| Error::<T, I>::OrderNotFound)?;
 			ensure!(who == order.owner, Error::<T, I>::NotOwn);
-			pallet_nft::Pallet::<T, I>::unreserve(&class_id, &instance_id)?;
-			Self::delete_order(class_id, instance_id)?;
-			Self::deposit_event(Event::Removed(class_id, instance_id));
+			pallet_nft::Pallet::<T, I>::unreserve(&class, &instance)?;
+			Self::delete_order(class, instance)?;
+			Self::deposit_event(Event::Removed(class, instance, who));
 			Ok(())
 		}
 	}
@@ -204,12 +199,12 @@ pub mod pallet {
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	/// Remove order
-	pub fn delete_order(class_id: ClassIdOf<T, I>, instance_id: InstanceIdOf<T, I>) -> DispatchResult {
-		Orders::<T, I>::try_mutate_exists(class_id, instance_id, |maybe_order| -> DispatchResult {
+	pub fn delete_order(class: ClassIdOf<T, I>, instance: InstanceIdOf<T, I>) -> DispatchResult {
+		Orders::<T, I>::try_mutate_exists(class, instance, |maybe_order| -> DispatchResult {
 			let order = maybe_order.as_mut().ok_or(Error::<T, I>::OrderNotFound)?;
 			T::Currency::unreserve(&order.owner, order.deposit);
 			AccountOrders::<T, I>::try_mutate(&order.owner, |orders| -> DispatchResult {
-				if let Some(idx) = orders.iter().position(|&v| v.0 == class_id && v.1 == instance_id) {
+				if let Some(idx) = orders.iter().position(|&v| v.0 == class && v.1 == instance) {
 					orders.remove(idx);
 				}
 				Ok(())

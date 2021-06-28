@@ -91,7 +91,8 @@ fn transfer_should_work() {
 		assert_ok!(NFT::create(Origin::signed(1), 0));
 		assert_ok!(NFT::mint(Origin::signed(1), 0, 42));
 		assert_eq!(Balances::reserved_balance(&1), 3);
-		assert_ok!(NFT::transfer(Origin::signed(1), 0, 42, 2));
+		assert_ok!(NFT::ready_transfer(Origin::signed(1), 0, 42, 2));
+		assert_ok!(NFT::accept_transfer(Origin::signed(2), 0, 42));
 		assert_eq!(Balances::reserved_balance(&1), 2);
 		assert_eq!(Balances::reserved_balance(&2), 1);
 		assert_eq!(assets(), vec![(2, 0, 42)]);
@@ -165,7 +166,7 @@ fn reserve_should_work() {
 		assert_ok!(NFT::mint(Origin::signed(1), 0, 42));
 		assert_ok!(NFT::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0]));
 		assert_ok!(NFT::reserve(&0, &42, &1));
-		assert_err!(NFT::transfer(Origin::signed(1), 0, 42, 2), Error::<Test>::AlreadyReserved);
+		assert_err!(NFT::ready_transfer(Origin::signed(1), 0, 42, 2), Error::<Test>::AlreadyReserved);
 		assert_err!(NFT::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0]), Error::<Test>::AlreadyReserved);
 		assert_err!(NFT::clear_attribute(Origin::signed(1), 0, Some(42), bvec![0]), Error::<Test>::AlreadyReserved);
 		assert_err!(NFT::burn(Origin::signed(1), 0, 42), Error::<Test>::AlreadyReserved);

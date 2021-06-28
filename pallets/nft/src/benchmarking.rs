@@ -9,7 +9,7 @@ use frame_benchmarking::{
 };
 use frame_support::{traits::Get, BoundedVec};
 
-use crate::Pallet as Uniques;
+use crate::Pallet as NFT;
 
 const SEED: u32 = 0;
 
@@ -19,7 +19,7 @@ fn create_class<T: Config<I>, I: 'static>()
 	let caller: T::AccountId = whitelisted_caller();
 	let class = Default::default();
 	T::Currency::make_free_balance_be(&caller, DepositBalanceOf::<T, I>::max_value());
-	assert!(Uniques::<T, I>::create(
+	assert!(NFT::<T, I>::create(
 		SystemOrigin::Signed(caller.clone()).into(),
 		class,
 	).is_ok());
@@ -34,7 +34,7 @@ fn mint_instance<T: Config<I>, I: 'static>(index: u16)
 		whitelist_account!(caller);
 	}
 	let instance = index.into();
-	assert!(Uniques::<T, I>::mint(
+	assert!(NFT::<T, I>::mint(
 		SystemOrigin::Signed(caller.clone()).into(),
 		Default::default(),
 		instance,
@@ -50,7 +50,7 @@ fn add_instance_attribute<T: Config<I>, I: 'static>(instance: T::InstanceId)
 		whitelist_account!(caller);
 	}
 	let key: BoundedVec<_, _> = vec![0; T::KeyLimit::get() as usize].try_into().unwrap();
-	assert!(Uniques::<T, I>::set_attribute(
+	assert!(NFT::<T, I>::set_attribute(
 		SystemOrigin::Signed(caller.clone()).into(),
 		Default::default(),
 		Some(instance),
@@ -93,15 +93,38 @@ benchmarks_instance_pallet! {
 		assert_last_event::<T, I>(Event::Burned(class, instance, caller).into());
 	}
 
-	transfer {
+	ready_transfer {
 		let (class, caller) = create_class::<T, I>();
 		let (instance, ..) = mint_instance::<T, I>(Default::default());
-
 		let target: T::AccountId = account("target", 0, SEED);
 		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
-
 		let target_lookup = T::Lookup::unlookup(target.clone());
 	}: _(SystemOrigin::Signed(caller.clone()), class, instance, target_lookup)
+	verify {
+		assert_last_event::<T, I>(Event::ReadyTransfer(class, instance, caller, target).into());
+	}
+
+	cancel_transfer {
+		let (class, caller) = create_class::<T, I>();
+		let (instance, ..) = mint_instance::<T, I>(Default::default());
+		let target: T::AccountId = account("target", 0, SEED);
+		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
+		let target_lookup = T::Lookup::unlookup(target.clone());
+        assert!(NFT::<T, I>::ready_transfer(SystemOrigin::Signed(caller.clone()).into(), class, instance, target_lookup).is_ok());
+	}: _(SystemOrigin::Signed(caller.clone()), class, instance)
+	verify {
+		assert_last_event::<T, I>(Event::CancelTransfer(class, instance, caller).into());
+	}
+
+	accept_transfer {
+		let (class, caller) = create_class::<T, I>();
+		let (instance, ..) = mint_instance::<T, I>(Default::default());
+		let target: T::AccountId = account("target", 0, SEED);
+        whitelist_account!(target);
+		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
+		let target_lookup = T::Lookup::unlookup(target.clone());
+        assert!(NFT::<T, I>::ready_transfer(SystemOrigin::Signed(caller.clone()).into(), class, instance, target_lookup).is_ok());
+	}: _(SystemOrigin::Signed(target.clone()), class, instance)
 	verify {
 		assert_last_event::<T, I>(Event::Transferred(class, instance, caller, target).into());
 	}
@@ -126,4 +149,4 @@ benchmarks_instance_pallet! {
 	}
 }
 
-impl_benchmark_test_suite!(Uniques, crate::mock::new_test_ext(), crate::mock::Test);
+impl_benchmark_test_suite!(NFT, crate::mock::new_test_ext(), crate::mock::Test);

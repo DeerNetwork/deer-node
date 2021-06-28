@@ -21,7 +21,7 @@ fn sell_should_work() {
 		assert_eq!(Balances::reserved_balance(&1), 3);
 		assert_ok!(NFTOrder::sell(Origin::signed(1), 0, 42, 10, None));
 		assert_eq!(Balances::reserved_balance(&1), 13);
-        assert_eq!(NFT::get_info(&0, &42), Some((1, true)));
+        assert_eq!(NFT::info(&0, &42), Some((1, true)));
 
         // should not sell twice
         assert_err!(NFTOrder::sell(Origin::signed(1), 0, 42, 10, None), Error::<Test>::AssertReserved);
@@ -32,7 +32,8 @@ fn sell_should_work() {
         // should not sell asset you do not owned
         Balances::make_free_balance_be(&2, 100);
         assert_ok!(NFT::mint(Origin::signed(1), 0, 43));
-        assert_ok!(NFT::transfer(Origin::signed(1), 0, 43, 2));
+        assert_ok!(NFT::ready_transfer(Origin::signed(1), 0, 43, 2));
+        assert_ok!(NFT::accept_transfer(Origin::signed(2), 0, 43));
         assert_err!(NFTOrder::sell(Origin::signed(1), 0, 43, 10, None), Error::<Test>::NotOwn);
 
         // should work with deadline
@@ -58,7 +59,7 @@ fn deal_should_work() {
 		assert_ok!(NFTOrder::deal(Origin::signed(2), 0, 42));
 		assert_eq!(Balances::reserved_balance(&1), 2);
         assert_eq!(Balances::reserved_balance(&2), 1);
-        assert_eq!(NFT::get_info(&0, &42), Some((2, false)));
+        assert_eq!(NFT::info(&0, &42), Some((2, false)));
 
         // should fail when asset is not sell
         assert_ok!(NFT::mint(Origin::signed(1), 0, 43));
@@ -82,6 +83,6 @@ fn remove_should_work() {
 		assert_eq!(Balances::reserved_balance(&1), 13);
 		assert_ok!(NFTOrder::remove(Origin::signed(1), 0, 42));
 		assert_eq!(Balances::reserved_balance(&1), 3);
-        assert_eq!(NFT::get_info(&0, &42), Some((1, false)));
+        assert_eq!(NFT::info(&0, &42), Some((1, false)));
 	});
 }

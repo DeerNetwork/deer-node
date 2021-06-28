@@ -875,7 +875,7 @@ construct_runtime!(
 		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>},
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
 		NFT: pallet_nft::{Pallet, Call, Storage, Event<T>},
-		// NFTOrder: pallet_nft_order::{Pallet, Call, Storage, Event<T>},
+		NFTOrder: pallet_nft_order::{Pallet, Call, Storage, Event<T>},
 		TransactionStorage: pallet_transaction_storage::{Pallet, Call, Storage, Inherent, Config<T>, Event<T>},
 	}
 );
@@ -1151,7 +1151,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_indices, Indices);
 			add_benchmark!(params, batches, pallet_membership, TechnicalMembership);
 			add_benchmark!(params, batches, pallet_nft, NFT);
-			// add_benchmark!(params, batches, pallet_nft_order, NFTOrder);
+			add_benchmark!(params, batches, pallet_nft_order, NFTOrder);
 			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
 			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
