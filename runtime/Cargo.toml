@@ -51,7 +51,7 @@ pallet-transaction-payment-rpc-runtime-api = { version = '3.0.0', path = '../sub
 pallet-transaction-storage = { version = '3.0.0', path = '../substrate/frame/transaction-storage', default-features = false  }
 pallet-treasury = { version = "3.0.0", default-features = false, path = "../substrate/frame/treasury" }
 pallet-utility = { version = '3.0.0', path = '../substrate/frame/utility', default-features = false }
-nft360-primitives = { version = "0.1.0", default-features = false, path = "../primitives" }
+node-primitives = { package = "nft360-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
 sp-api = { version = '3.0.0', path = '../substrate/primitives/api', default-features = false }
 sp-authority-discovery = { version = "3.0.0", default-features = false, path = "../substrate/primitives/authority-discovery" }
 sp-block-builder = { version = '3.0.0', path = '../substrate/primitives/block-builder', default-features = false }

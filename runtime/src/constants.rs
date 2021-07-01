@@ -2,7 +2,7 @@
 
 /// Money matters.
 pub mod currency {
-	use nft360_primitives::Balance;
+	use node_primitives::Balance;
 
 	pub const UNITS: Balance = 10_000_000_000;
 	pub const DOLLARS: Balance = UNITS;
@@ -16,7 +16,7 @@ pub mod currency {
 
 /// Time.
 pub mod time {
-	use nft360_primitives::{Moment, BlockNumber};
+	use node_primitives::{Moment, BlockNumber};
 
 	/// Since BABE is probabilistic this is the average expected block time that
 	/// we are targeting. Blocks will be produced at a minimum duration defined

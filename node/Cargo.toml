@@ -1,5 +1,5 @@
 [package]
-name = 'nft360-cli'
+name = 'nft360'
 version = '0.1.0'
 build = 'build.rs'
 edition = '2018'
@@ -71,9 +71,9 @@ pallet-staking = { version = "3.0.0", path = "../substrate/frame/staking" }
 pallet-grandpa = { version = "3.1.0", path = "../substrate/frame/grandpa" }
 
 # node-specific dependencies
-nft360-runtime = { version = "0.1.0", path = "../runtime" }
-nft360-rpc = { version = "0.1.0", path = "../rpc" }
-nft360-primitives = { version = "0.1.0", path = "../primitives" }
+node-runtime = { package = "nft360-runtime", version = "0.1.0", path = "../runtime" }
+node-rpc = { package = "nft360-rpc", version = "0.1.0", path = "../rpc" }
+node-primitives = { package = "nft360-primitives", version = "0.1.0", path = "../primitives" }
 
 # CLI-specific dependencies
 sc-cli = { version = "0.9.0", optional = true, path = "../substrate/client/cli" }
@@ -113,12 +113,7 @@ frame-benchmarking-cli = { version = "3.0.0", optional = true, path = "../substr
 substrate-build-script-utils = { version = "3.0.0", optional = true, path = "../substrate/utils/build-script-utils" }
 substrate-frame-cli = { version = "3.0.0", optional = true, path = "../substrate/utils/frame/frame-utilities-cli" }
 try-runtime-cli = { version = "0.9.0", optional = true, path = "../substrate/utils/frame/try-runtime/cli" }
-
-[build-dependencies.sc-cli]
-version = "0.9.0"
-package = "sc-cli"
-path = "../substrate/client/cli"
-optional = true
+sc-cli = { version = "0.9.0", optional = true, path = "../substrate/client/cli"  }
 
 [features]
 default = [ "cli" ]
@@ -139,12 +134,12 @@ cli = [
 	"try-runtime-cli",
 ]
 runtime-benchmarks = [
-	"nft360-runtime/runtime-benchmarks",
+	"node-runtime/runtime-benchmarks",
 	"frame-benchmarking-cli",
 ]
 # Enable features that allow the runtime to be tried and debugged. Name might be subject to change
 # in the near future.
 # try-runtime = [
-# 	"nft360-runtime/try-runtime",
+# 	"node-runtime/try-runtime",
 # 	"try-runtime-cli",
 # ]

@@ -1,6 +1,6 @@
 use crate::{chain_spec, service, cli::{Cli, Subcommand}};
 use crate::executor::Executor;
-use nft360_runtime::Block;
+use node_runtime::Block;
 use sc_cli::{Result, SubstrateCli, RuntimeVersion, Role, ChainSpec};
 use sc_service::PartialComponents;
 use crate::service::new_partial;
@@ -45,7 +45,7 @@ impl SubstrateCli for Cli {
 	}
 
 	fn native_runtime_version(_: &Box<dyn ChainSpec>) -> &'static RuntimeVersion {
-		&nft360_runtime::VERSION
+		&node_runtime::VERSION
 	}
 }
 

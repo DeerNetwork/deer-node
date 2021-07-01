@@ -3895,7 +3895,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nft360-cli"
+name = "nft360"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",

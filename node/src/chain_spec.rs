@@ -3,13 +3,13 @@
 use sc_chain_spec::ChainSpecExtension;
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use serde::{Serialize, Deserialize};
-use nft360_runtime::{
+use node_runtime::{
 	GenesisConfig, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, CouncilConfig,
 	DemocracyConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SudoConfig, SystemConfig, Block,
 	TechnicalCommitteeConfig, wasm_binary_unwrap, MAX_NOMINATIONS,
 };
-use nft360_runtime::constants::currency::*;
+use node_runtime::constants::currency::*;
 use sc_service::ChainType;
 use hex_literal::hex;
 use grandpa_primitives::{AuthorityId as GrandpaId};
@@ -18,7 +18,7 @@ use pallet_im_online::sr25519::{AuthorityId as ImOnlineId};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_runtime::{Perbill, traits::{Verify, IdentifyAccount}};
 
-pub use nft360_primitives::{AccountId, Balance, Signature};
+pub use node_primitives::{AccountId, Balance, Signature};
 
 type AccountPublic = <Signature as Verify>::Signer;
 
@@ -283,7 +283,7 @@ pub fn testnet_genesis(
 		},
 		babe: BabeConfig {
 			authorities: vec![],
-			epoch_config: Some(nft360_runtime::BABE_GENESIS_EPOCH_CONFIG),
+			epoch_config: Some(node_runtime::BABE_GENESIS_EPOCH_CONFIG),
 		},
 		im_online: ImOnlineConfig {
 			keys: vec![],

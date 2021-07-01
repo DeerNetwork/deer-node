@@ -26,8 +26,8 @@ use sp_core::{
 	u32_trait::{_1, _2, _3, _4, _5},
 	OpaqueMetadata,
 };
-pub use nft360_primitives::{AccountId, Signature};
-use nft360_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
+pub use node_primitives::{AccountId, Signature};
+use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
 use sp_runtime::{
 	Permill, Perbill, Perquintill, Percent, ApplyExtrinsicResult, impl_opaque_keys, generic,
@@ -844,7 +844,7 @@ impl pallet_nft_order::Config for Runtime {
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = nft360_primitives::Block,
+		NodeBlock = node_primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},

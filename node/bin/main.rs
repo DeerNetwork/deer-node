@@ -1,3 +1,3 @@
 fn main() -> sc_cli::Result<()> {
-	nft360_cli::run()
+	nft360::run()
 }
