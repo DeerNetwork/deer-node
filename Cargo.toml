@@ -3,6 +3,7 @@ panic = 'unwind'
 
 [workspace]
 exclude = [
+	"vendors/*",
 	"substrate",
 ]
 
