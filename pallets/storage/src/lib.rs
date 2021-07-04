@@ -17,7 +17,7 @@ use sp_std::{prelude::*, collections::{btree_set::BTreeSet, btree_map::BTreeMap}
 use sp_runtime::{RuntimeDebug, ArithmeticError, traits::{Zero, StaticLookup, Saturating, CheckedAdd, CheckedSub}};
 use codec::{Encode, Decode, HasCompact};
 use frame_support::{
-	ensure,
+	ensure, BoundedVec,
 	traits::{Currency, ReservableCurrency},
 	dispatch::DispatchResult,
 };
@@ -65,16 +65,37 @@ pub struct NodeInfo {
 	pub slash_defer_rounds: ReportRound,
 }
 
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Default, RuntimeDebug)]
 pub struct StorageStats {
 	pub used: u128,
 	pub free: u128,
 	pub files_size: u128,
 }
 
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+pub struct OrderInfo<Balance, BlockNumber> {
+    pub cid: RootId,
+    pub file_size: u64,
+    pub duration: BlockNumber,
+    pub reserve: Balance,
+}
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+pub struct FileInfo<AccountId, BlockNumber> {
+    pub file_size: u64,
+    pub orders: Vec<AccountId>,
+    // pub file_amount: Balance,
+    pub expire: BlockNumber,
+    pub replicas: Vec<AccountId>,
+}
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+pub struct StashInfo<AccountId, Balance> {
+    pub stash: AccountId,
+    pub amount: Balance,
+}
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{BoundedVec, pallet_prelude::*};
+	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use super::*;
 
@@ -94,13 +115,16 @@ pub mod pallet {
 		type SlashDeferDuration: Get<ReportRound>;
 
 		#[pallet::constant]
-		type BlocksPerRound: Get<BlockNumberFor<Self>>;
+		type RoundDuration: Get<BlockNumberFor<Self>>;
+
+		#[pallet::constant]
+		type RoundWindowSize: Get<BlockNumberFor<Self>>;
 
 		#[pallet::constant]
 		type FileDuration: Get<BlockNumberFor<Self>>;
 
 		#[pallet::constant]
-		type FileReplica: Get<u32>;
+		type MaxFileReplica: Get<u32>;
 
 		#[pallet::constant]
 		type FilePrice: Get<BalanceOf<Self>>;
@@ -110,6 +134,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type MaxFileSize: Get<u64>;
+
+		#[pallet::constant]
+		type MinStashBalance: Get<BalanceOf<Self>>;
 	}
 
 	#[pallet::type_value]
@@ -121,8 +148,8 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
-	#[pallet::getter(fn enclave)]
-	pub type Enclave<T: Config> = StorageMap<
+	#[pallet::getter(fn enclaves)]
+	pub type Enclaves<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		EnclaveId,
@@ -130,8 +157,8 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn node)]
-	pub type Node<T: Config> = StorageMap<
+	#[pallet::getter(fn nodes)]
+	pub type Nodes<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
 		T::AccountId,
@@ -139,8 +166,8 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn register)]
-	pub type Register<T: Config> = StorageMap<
+	#[pallet::getter(fn registers)]
+	pub type Registers<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		PubKey,
@@ -148,8 +175,8 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn reporter)]
-	pub type Reporter<T: Config> = StorageMap<
+	#[pallet::getter(fn reporters)]
+	pub type Reporters<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		PubKey,
@@ -165,30 +192,64 @@ pub mod pallet {
 	pub type Stats<T: Config> = StorageValue<_, StorageStats, ValueQuery, StorageStatsOnEmpty>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn reported_in_round)]
-	pub type ReportedInRound<T: Config> = StorageDoubleMap<
+	#[pallet::getter(fn round_reports)]
+	pub type RoundReports<T: Config> = StorageDoubleMap<
 		_,
 		Twox64Concat, PubKey,
 		Twox64Concat, ReportRound,
 		bool,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn orders)]
+	pub type Orders<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat, T::AccountId,
+		Twox64Concat, RootId,
+		OrderInfo<BalanceOf<T>, T::BlockNumber>,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn files)]
+	pub type Files<T: Config> = StorageMap<
+		_,
+		Twox64Concat, RootId,
+		FileInfo<T::AccountId, T::BlockNumber>,
+	>;
+
+
+	#[pallet::storage]
+	#[pallet::getter(fn replicas)]
+	pub type Replicas<T: Config> = StorageMap<
+		_,
+		Twox64Concat, RootId,
+		FileInfo<T::AccountId, T::BlockNumber>,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn stashs)]
+	pub type Stashs<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat, T::AccountId,
+		StashInfo<T::AccountId, BalanceOf<T>>,
+	>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
+        SetEnclave(EnclaveId, T::BlockNumber)
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
-
+        InvalidEnclaveExpire,
 	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
-			if (now % T::BlocksPerRound::get()).is_zero() {
+			if (now % T::RoundDuration::get()).is_zero() {
 				Self::update_nodes();
 			}
 			// TODO: weights
@@ -205,6 +266,23 @@ pub mod pallet {
 			enclave: EnclaveId,
 			expire: T::BlockNumber,
 		) -> DispatchResult {
+            ensure_root(origin)?;
+            if let Some(old_expire) = Self::enclaves(&enclave) {
+                ensure!(expire < old_expire, Error::<T>::InvalidEnclaveExpire);
+            }
+            Enclaves::<T>::insert(&enclave, &expire);
+            Self::deposit_event(Event::<T>::SetEnclave(enclave, expire));
+
+            Ok(())
+		}
+
+
+		#[pallet::weight(1_000_000)]
+		pub fn set_stash(
+			origin: OriginFor<T>,
+			controller: <T::Lookup as StaticLookup>::Source,
+			#[pallet::compact] value: BalanceOf<T>,
+		) -> DispatchResult {
 			todo!()
 		}
 
@@ -214,10 +292,18 @@ pub mod pallet {
 			cert: Vec<u8>,
 			body: Vec<u8>,
 			sig: Vec<u8>,
-			account: Vec<u8>,
 			checksum: Vec<u8>,
 		) -> DispatchResult {
-			todo!()
+            let who = ensure_signed(origin)?;
+            let curr_bn = <frame_system::Pallet<T>>::block_number();
+            let legal_enclaves: Vec<EnclaveId> = <Enclaves<T>>::iter()
+                .filter(|(_, bn)| bn > &curr_bn)
+                .map(|(v, _)| v)
+                .collect();
+            
+            let applier = who.encode();
+
+            Ok(())
 		}
 
 		#[pallet::weight(1_000_000)]
@@ -238,15 +324,6 @@ pub mod pallet {
 			todo!()
 		}
 
-		#[pallet::weight(1_000_000)]
-		pub fn set_stash(
-			origin: OriginFor<T>,
-			controller: <T::Lookup as StaticLookup>::Source,
-			#[pallet::compact] value: BalanceOf<T>,
-		) -> DispatchResult {
-			todo!()
-		}
-
 		#[pallet::weight(0)]
 		pub fn report_offline(
 			origin: OriginFor<T>,
@@ -257,7 +334,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(1_000_000)]
-		pub fn add_order(
+		pub fn save_file(
 			origin: OriginFor<T>,
 			cid: RootId,
 			file_size: u64,
@@ -268,7 +345,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(1_000_000)]
-		pub fn remove_order(
+		pub fn unsave_file(
 			origin: OriginFor<T>,
 			cid: RootId,
 		) -> DispatchResult {
@@ -283,3 +360,4 @@ impl<T: Config> Pallet<T> {
 
 	}
 }
+
