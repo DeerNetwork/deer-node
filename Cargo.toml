@@ -14,3 +14,5 @@ members = [
     'pallets/*',
     'runtime',
 ]
+
+resolver = "2"
