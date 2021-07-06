@@ -16,22 +16,25 @@ pub use constants::*;
 // pub mod weights;
 
 
-use sp_std::{prelude::*};
+use sp_std::{
+	prelude::*,
+	collections::btree_map::BTreeMap,
+	collections::btree_set::BTreeSet,
+};
 use sp_runtime::{
 	RuntimeDebug, SaturatedConversion,
-	traits::{Zero, StaticLookup, Saturating, AccountIdConversion}
+	traits::{Zero, One, StaticLookup, Saturating, AccountIdConversion}
 };
 use codec::{Encode, Decode};
 use frame_support::{
-	traits::{Currency, ReservableCurrency, ExistenceRequirement, UnixTime},
+	traits::{Currency, ReservableCurrency, ExistenceRequirement, UnixTime, Get},
 };
-use frame_system::{Config as SystemConfig};
+use frame_system::{Config as SystemConfig, pallet_prelude::BlockNumberFor};
 use p256::ecdsa::{VerifyingKey, signature::{Verifier, Signature}};
 
 pub type RootId = Vec<u8>;
 pub type EnclaveId = Vec<u8>;
 pub type PubKey = Vec<u8>;
-pub type ReportRound = u64;
 pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance;
 
 // pub use weights::WeightInfo;
@@ -59,16 +62,15 @@ pub struct NodeInfo<BlockNumber> {
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Default, RuntimeDebug)]
-pub struct StorageStats {
-	pub used: u128,
-	pub reserved: u128,
+pub struct StatsInfo {
+	pub used_size: u128,
+	pub reserved_size: u128,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct OrderInfo<AccountId, Balance, BlockNumber> {
     pub file_size: u64,
-	pub to_renew_at: Option<BlockNumber>,
-    pub duration: BlockNumber,
+	pub expire_at: Option<BlockNumber>,
     pub reserve: Balance,
     pub replicas: Vec<AccountId>,
 }
@@ -78,6 +80,12 @@ pub struct StashInfo<AccountId, Balance> {
     pub stasher: AccountId,
     pub lock: Balance,
 	pub free: Balance,
+}
+
+#[derive(PartialEq, Encode, Decode, Default, RuntimeDebug)]
+pub struct RoundRewardPoints<AccountId: Ord> {
+	total: u128,
+	individual: BTreeMap<AccountId, u64>,
 }
 
 #[frame_support::pallet]
@@ -101,13 +109,10 @@ pub mod pallet {
 		type UnixTime: UnixTime;
 
 		#[pallet::constant]
-		type SlashDeferDuration: Get<ReportRound>;
+		type SlashDeferDuration: Get<u64>;
 
 		#[pallet::constant]
 		type RoundDuration: Get<BlockNumberFor<Self>>;
-
-		#[pallet::constant]
-		type RoundWindowSize: Get<BlockNumberFor<Self>>;
 
 		#[pallet::constant]
 		type FileDuration: Get<BlockNumberFor<Self>>;
@@ -129,10 +134,15 @@ pub mod pallet {
 	}
 
 	#[pallet::type_value]
-	pub fn RoundOnEmpty() -> ReportRound { 0 }
+	pub fn CurrentRoundAtOnEmpty<T: Config>() -> BlockNumberFor<T> { Zero::zero() }
 
 	#[pallet::type_value]
-	pub fn StorageStatsOnEmpty() -> StorageStats {
+	pub fn ReportedInRoundOnEmpty<T: Config>() -> BTreeSet<T::AccountId> {
+		Default::default()
+	}
+
+	#[pallet::type_value]
+	pub fn OnEmpty() -> StatsInfo {
 		Default::default()
 	}
 
@@ -161,15 +171,22 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	pub type Round<T: Config> = StorageValue<_, ReportRound, ValueQuery, RoundOnEmpty>;
+	pub type CurrentRoundAt<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery, CurrentRoundAtOnEmpty<T>>;
 
 	#[pallet::storage]
-	pub type Stats<T: Config> = StorageValue<_, StorageStats, ValueQuery, StorageStatsOnEmpty>;
-
-	#[pallet::storage]
-	pub type Orders<T: Config> = StorageDoubleMap<
+	pub type ReportedInRound<T: Config> = StorageMap<
 		_,
-		Blake2_128Concat, T::AccountId,
+		Twox64Concat, BlockNumberFor<T>,
+		BTreeSet<T::AccountId>,
+		ValueQuery, ReportedInRoundOnEmpty<T>,
+	>;
+
+	#[pallet::storage]
+	pub type Stats<T: Config> = StorageValue<_, StatsInfo, ValueQuery, OnEmpty>;
+
+	#[pallet::storage]
+	pub type Orders<T: Config> = StorageMap<
+		_,
 		Twox64Concat, RootId,
 		OrderInfo<T::AccountId, BalanceOf<T>, T::BlockNumber>,
 	>;
@@ -189,6 +206,17 @@ pub mod pallet {
 		StashInfo<T::AccountId, BalanceOf<T>>,
 	>;
 
+	#[pallet::storage]
+	pub type RoundsRewardPoints<T: Config> = StorageMap<
+		_,
+		Twox64Concat, BlockNumberFor<T>,
+		RoundRewardPoints<T::AccountId>,
+		ValueQuery,
+	>;
+
+	#[pallet::storage]
+	pub type RoundsReward<T: Config> = StorageMap<_, Twox64Concat, BlockNumberFor<T>, BalanceOf<T>>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
@@ -197,9 +225,8 @@ pub mod pallet {
 		NodeRegisted(T::AccountId, PubKey),
 		NodeUpgraded(T::AccountId, PubKey),
 		NodeReported(T::AccountId, PubKey),
-		OrderInited(T::AccountId, RootId),
-		OrderChanged(T::AccountId, RootId),
-		OrderRemoved(T::AccountId, RootId),
+		OrderCreated(RootId, T::AccountId),
+		OrderChanged(RootId, T::AccountId),
 	}
 
 	#[pallet::error]
@@ -211,6 +238,7 @@ pub mod pallet {
 		InvalidIASSigningCert,
 		InvalidIASBody,
 		InvalidEnclave,
+		InvalidReportBlock,
 		InvalidVerifyP256Sig,
 		IllegalSotrageReport,
 		UnregisterNode,
@@ -220,13 +248,14 @@ pub mod pallet {
 		InvalidReportedNode,
 		InvalidReportedData,
 		FileTooLarge,
-		FileSizeNotCorrect,
+		NotEnoughReserve,
 	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
 			if (now % T::RoundDuration::get()).is_zero() {
+				Self::may_round_end();
 			}
 			// TODO: weights
 			0
@@ -290,6 +319,15 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(1_000_000)]
+		pub fn reward_round(
+			origin: OriginFor<T>,
+			round: BlockNumberFor<T>,
+			controller: T::AccountId,
+		) -> DispatchResult {
+			todo!()
+		}
+
+		#[pallet::weight(1_000_000)]
 		pub fn register_node(
 			origin: OriginFor<T>,
 			cert: Vec<u8>,
@@ -319,7 +357,7 @@ pub mod pallet {
 			let json_body: serde_json::Value = serde_json::from_slice(&body).map_err(|_| Error::<T>::InvalidIASBody)?;
 			if let serde_json::Value::String(isv_body) = &json_body["isvEnclaveQuoteBody"] {
 				let isv_body = base64::decode(isv_body).map_err(|_| Error::<T>::InvalidIASBody)?;
-				let now_at = <frame_system::Pallet<T>>::block_number();
+				let now_at = Self::get_now_bn();
 				let enclave = &isv_body[112..144].to_vec();
 				ensure!(<Enclaves<T>>::iter().find(|(id, bn)| { bn > &now_at && id ==  enclave }).is_some(), Error::<T>::InvalidEnclave);
 				let key = &isv_body[368..].to_vec();
@@ -344,10 +382,12 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			key1: PubKey,
 			key2: PubKey,
+            bn: BlockNumberFor<T>,
+            bh: Vec<u8>,
 			reserved_size: u64,
 			used_size: u64,
-			added_files: Vec<(RootId, u64)>,
-			deleted_files: Vec<(RootId, u64)>,
+			added_files: Vec<(RootId, u64, u64)>,
+			deleted_files: Vec<(RootId, u64, u64)>,
 			reserved_root: RootId,
 			used_root: RootId,
 			sig: Vec<u8>,
@@ -358,21 +398,23 @@ pub mod pallet {
 				Error::<T>::IllegalSotrageReport
 			);
 			let enclave = Registers::<T>::try_get(&key1).map_err(|_| Error::<T>::UnregisterNode)?;
-			let now_at = <frame_system::Pallet<T>>::block_number();
+			let now_at = Self::get_now_bn();
 			let enclave_bn = Enclaves::<T>::get(&enclave).ok_or(Error::<T>::InvalidEnclave)?;
 			ensure!(now_at <= enclave_bn, Error::<T>::InvalidEnclave);
 
-			let round_duration = T::RoundDuration::get();
-			let round_window_size = T::RoundWindowSize::get();
-
 			let maybe_node_info: Option<NodeInfo<_>> = Nodes::<T>::get(&controller);
-			if let Some(node_info) = &maybe_node_info {
-				ensure!(
-					node_info.last_reported_at.saturating_add(round_duration) > now_at.saturating_sub(round_window_size) ||
-					now_at.saturating_sub(node_info.last_reported_at) > round_duration,
-					Error::<T>::InvalidReportTime,
-				);
+			if let Some(_) = &maybe_node_info {
+				if ReportedInRound::<T>::get(bn).contains(&controller) {
+                    log!(
+                        trace,
+                        "🔒 Already reported with same pub key {:?} in the same slot {:?}.",
+                        key1,
+                        bn,
+                    );
+					return Ok(());
+				}
 			}
+			ensure!(Self::verify_bn_and_bh(bn, &bh), Error::<T>::InvalidReportBlock);
 			ensure!(
 				verify_report_storage(
 					&key1,
@@ -404,8 +446,8 @@ pub mod pallet {
 			} else {
 				if let Some(node_info) = &maybe_node_info {
 					ensure!(&node_info.key == &key1, Error::<T>::InvalidReportedNode);
-					let inc_size = added_files.iter().fold(0, |acc, (_, v)| acc + *v);
-					let dec_size = deleted_files.iter().fold(0, |acc, (_, v)| acc + *v);
+					let inc_size = added_files.iter().fold(0, |acc, (_, v, _)| acc + *v);
+					let dec_size = deleted_files.iter().fold(0, |acc, (_, v, _)| acc + *v);
 					let is_size_eq = if inc_size == 0 && dec_size == 0 {
 						used_size == node_info.used_size
 					} else {
@@ -415,7 +457,14 @@ pub mod pallet {
 				}
 			}
 
-			// TODO iter added_files and deleted_files
+			for (cid, ..) in added_files.iter() {
+				Self::add_file(&controller, cid);
+			}
+
+			for (cid, ..) in deleted_files.iter() {
+				Self::delete_file(&controller, cid);
+			}
+
 			let new_node_info = NodeInfo {
 				last_reported_at: now_at,
 				key: key1.clone(),
@@ -424,18 +473,11 @@ pub mod pallet {
 				used_size,
 				reserved_size,
 			};
+
+			ReportedInRound::<T>::mutate(bn, |v| v.insert(controller.clone()));
 			Nodes::<T>::insert(controller.clone(), new_node_info);
 			Self::deposit_event(Event::<T>::NodeReported(controller, key1));
 			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		pub fn report_offline(
-			origin: OriginFor<T>,
-			stash: T::AccountId,
-			at: T::BlockNumber
-		) -> DispatchResult {
-			todo!()
 		}
 
 		#[pallet::weight(1_000_000)]
@@ -443,53 +485,34 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			cid: RootId,
 			file_size: u64,
-			duration: T::BlockNumber,
+			reserve: BalanceOf<T>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(file_size < T::MaxFileSize::get(), Error::<T>::FileTooLarge);
-			if let Some(ref order_info) = Orders::<T>::get(&who, &cid) {
-				let (new_reserve, new_duration) = if let Some(to_renew_at) = &order_info.to_renew_at {
-					let now_at = <frame_system::Pallet<T>>::block_number();
-					let paid_duration = to_renew_at.saturating_sub(now_at);
-					if paid_duration > duration {
-						(Zero::zero(), Zero::zero())
-					} else {
-						Self::get_file_reserve(file_size, duration.saturating_sub(paid_duration))
-					}
-				} else {
-					Self::get_file_reserve(file_size, duration)
-				};
-				if new_reserve > order_info.reserve {
-					T::Currency::transfer(&who, &Self::account_id(), new_reserve.saturating_sub(order_info.reserve), ExistenceRequirement::KeepAlive)?;
-				} else if new_reserve < order_info.reserve {
-					T::Currency::transfer(&Self::account_id(), &who, order_info.reserve.saturating_sub(new_reserve), ExistenceRequirement::KeepAlive)?;
-				}
-				if new_duration.is_zero() && new_reserve.is_zero() && order_info.to_renew_at.is_none() {
-					Orders::<T>::remove(who.clone(), cid.clone());
-					Self::deposit_event(Event::<T>::OrderRemoved(who, cid));
-				} else {
-					Orders::<T>::insert(who.clone(), cid.clone(), OrderInfo {
-						duration: new_duration,
-						file_size,
-						replicas: order_info.replicas.clone(),
-						to_renew_at: order_info.to_renew_at.clone(),
-						reserve: new_reserve,
-					});
-					Self::deposit_event(Event::<T>::OrderChanged(who, cid));
-				}
+			if let Some(mut order_info) = Orders::<T>::get(&cid) {
+				order_info.reserve = order_info.reserve.saturating_add(reserve);
+				Orders::<T>::insert(cid.clone(), order_info);
+				Self::deposit_event(Event::<T>::OrderChanged(cid, who));
 			} else {
-				let (reserve, new_duration) = Self::get_file_reserve(file_size, duration);
-				T::Currency::transfer(&who, &Self::account_id(), reserve, ExistenceRequirement::KeepAlive)?;
-				Orders::<T>::insert(who.clone(), cid.clone(), OrderInfo {
-					duration: new_duration,
+				let min_reserve = Self::get_min_reserve(file_size);
+				ensure!(reserve >= min_reserve, Error::<T>::NotEnoughReserve);
+				Orders::<T>::insert(cid.clone(), OrderInfo {
 					file_size,
-					replicas: vec![],
-					to_renew_at: None,
+					expire_at: None,
 					reserve,
+					replicas: vec![],
 				});
-				Self::deposit_event(Event::<T>::OrderInited(who, cid));
+				Self::deposit_event(Event::<T>::OrderCreated(cid, who));
 			}
 			Ok(())
+		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn refresh_order(
+			origin: OriginFor<T>,
+			cid: RootId,
+		) -> DispatchResult {
+			todo!()
 		}
 	}
 }
@@ -500,8 +523,72 @@ impl<T: Config> Pallet<T> {
 		PALLET_ID.into_account()
 	}
 
-	fn get_file_reserve(file_size: u64, duration: T::BlockNumber) -> (BalanceOf<T>, T::BlockNumber) {
+	fn may_round_end() {
+		let round_at = Self::round_bn(Self::get_now_bn());
+		let current_round_at = CurrentRoundAt::<T>::get();
+
+		if round_at == current_round_at {
+			return;
+		}
+
+		let mut stats: StatsInfo = Default::default();
+		let mut individual_points: BTreeMap<T::AccountId, u64> = BTreeMap::new();
+
+		for controller in ReportedInRound::<T>::get(&current_round_at).iter() {
+			if let Some(ref node_info) = Nodes::<T>::get(controller) {
+				stats.used_size = stats.used_size.saturating_add(node_info.used_size as u128);
+				stats.reserved_size = stats.reserved_size.saturating_add(node_info.reserved_size as u128);
+				individual_points.insert(controller.clone(), node_info.used_size.saturating_add(node_info.reserved_size));
+			}
+		}
+
+		// TODO: clear round_in_depth
+
+		RoundsReward::<T>::insert(current_round_at, Self::calculate_round_reward(current_round_at));
+		RoundsRewardPoints::<T>::insert(current_round_at, RoundRewardPoints {
+			total: stats.used_size.saturating_add(stats.reserved_size),
+			individual: individual_points,
+		});
+		Stats::<T>::mutate(|v| *v = stats);
+		CurrentRoundAt::<T>::mutate(|v| *v = round_at);
+	}
+
+	fn add_file(account: &T::AccountId, cid: &RootId) {
+		if let Some(mut order) = Orders::<T>::get(cid) {
+
+		}
+	}
+
+	fn delete_file(account: &T::AccountId, cid: &RootId) {
+
+	}
+
+	fn get_min_reserve(file_size: u64) -> BalanceOf<T> {
 		todo!()
+	}
+
+	fn calculate_round_reward(bn: BlockNumberFor<T>) -> BalanceOf<T> {
+		todo!()
+	}
+
+	fn verify_bn_and_bh(bn: BlockNumberFor<T>, bh: &Vec<u8>) -> bool {
+        let hash = <frame_system::Pallet<T>>::block_hash(bn)
+            .as_ref()
+            .to_vec();
+		if &hash != bh {
+			return false;
+		}
+		bn == One::one() || bn == Self::round_bn(Self::get_now_bn())
+	}
+
+	fn round_bn(bn: BlockNumberFor<T>) -> BlockNumberFor<T> {
+		let round_duration = T::RoundDuration::get();
+		let idx = bn / round_duration;
+		idx * round_duration
+	}
+
+	fn get_now_bn() -> BlockNumberFor<T> {
+		<frame_system::Pallet<T>>::block_number()
 	}
 }
 
@@ -510,8 +597,8 @@ pub fn verify_report_storage(
 	key2: &PubKey,
 	reserved_size: u64,
 	used_size: u64,
-	added_files: &Vec<(RootId, u64)>,
-	deleted_files: &Vec<(RootId, u64)>,
+	added_files: &Vec<(RootId, u64, u64)>,
+	deleted_files: &Vec<(RootId, u64, u64)>,
 	reserved_root: &RootId,
 	used_root: &RootId,
 	sig: &Vec<u8>,
@@ -565,7 +652,7 @@ pub fn encode_u64(number: u64) -> Vec<u8> {
     encoded_number
 }
 
-pub fn encode_files(fs: &Vec<(Vec<u8>, u64)>) -> Vec<u8> {
+pub fn encode_files(fs: &Vec<(Vec<u8>, u64, u64)>) -> Vec<u8> {
     // "["
     let open_square_brackets_bytes: Vec<u8> = [91].to_vec();
     // "{\"cid\":\""
@@ -580,7 +667,7 @@ pub fn encode_files(fs: &Vec<(Vec<u8>, u64)>) -> Vec<u8> {
     let close_square_brackets_bytes: Vec<u8> = [93].to_vec();
     let mut rst: Vec<u8> = open_square_brackets_bytes.clone();
     let len = fs.len();
-    for (pos, (cid, size)) in fs.iter().enumerate() {
+    for (pos, (cid, size, ..)) in fs.iter().enumerate() {
         rst.extend(cid_bytes.clone());
         rst.extend(cid.clone());
         rst.extend(size_bytes.clone());
