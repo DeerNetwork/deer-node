@@ -19,12 +19,8 @@ pub use constants::*;
 use sp_std::{
 	prelude::*,
 	collections::btree_map::BTreeMap,
-	collections::btree_set::BTreeSet,
 };
-use sp_runtime::{
-	RuntimeDebug, SaturatedConversion, Perbill,
-	traits::{Zero, One, StaticLookup, Saturating, AccountIdConversion}
-};
+use sp_runtime::{Perbill, RuntimeDebug, SaturatedConversion, traits::{Zero, One, StaticLookup, Saturating, AccountIdConversion}};
 use codec::{Encode, Decode};
 use frame_support::{
 	traits::{Currency, ReservableCurrency, ExistenceRequirement, UnixTime, Get},
@@ -69,18 +65,23 @@ pub struct StatsInfo {
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
-pub struct OrderInfo<AccountId, Balance, BlockNumber> {
-    pub file_size: u64,
-	pub expire_at: Option<BlockNumber>,
-    pub reserve: Balance,
-    pub replicas: Vec<AccountId>,
+pub struct FileOrder<AccountId, Balance, BlockNumber> {
+	pub amount: Balance,
+	pub expire_at: BlockNumber,
+	pub nodes: Vec<AccountId>,
 }
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+pub struct StoreFile<Balance> {
+	pub reserve: Balance,
+	pub file_size: u64,
+}
+
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct StashInfo<AccountId, Balance> {
     pub stasher: AccountId,
-    pub lock: Balance,
-	pub free: Balance,
+    pub amount: Balance,
     pub claimed_round: RoundIndex,
 }
 
@@ -118,16 +119,16 @@ pub mod pallet {
 		type RoundDuration: Get<BlockNumberFor<Self>>;
 
 		#[pallet::constant]
-		type FileDuration: Get<BlockNumberFor<Self>>;
+		type FileOrderRounds: Get<u32>;
 
 		#[pallet::constant]
 		type MaxFileReplica: Get<u32>;
 
 		#[pallet::constant]
-		type FilePrice: Get<BalanceOf<Self>>;
+		type FileBasePrice: Get<BalanceOf<Self>>;
 
 		#[pallet::constant]
-		type MaxTrashSize: Get<u128>;
+		type FileBytePrice: Get<BalanceOf<Self>>;
 
 		#[pallet::constant]
 		type MaxFileSize: Get<u64>;
@@ -141,11 +142,6 @@ pub mod pallet {
 
 	#[pallet::type_value]
 	pub fn CurrentRoundOnEmpty() -> RoundIndex { 0 }
-
-	#[pallet::type_value]
-	pub fn ReportedInRoundOnEmpty<T: Config>() -> BTreeSet<T::AccountId> {
-		Default::default()
-	}
 
 	#[pallet::type_value]
 	pub fn OnEmpty() -> StatsInfo {
@@ -188,21 +184,28 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	pub type RoundsReport<T: Config> = StorageMap<
+	pub type RoundsReport<T: Config> = StorageDoubleMap<
 		_,
 		Twox64Concat, RoundIndex,
-		BTreeSet<T::AccountId>,
-		ValueQuery, ReportedInRoundOnEmpty<T>,
+		Blake2_128Concat, T::AccountId,
+		bool, ValueQuery,
 	>;
 
 	#[pallet::storage]
 	pub type Stats<T: Config> = StorageValue<_, StatsInfo, ValueQuery, OnEmpty>;
 
 	#[pallet::storage]
-	pub type Orders<T: Config> = StorageMap<
+	pub type StoreFiles<T: Config> = StorageMap<
 		_,
 		Twox64Concat, RootId,
-		OrderInfo<T::AccountId, BalanceOf<T>, T::BlockNumber>,
+		StoreFile<BalanceOf<T>>,
+	>;
+
+	#[pallet::storage]
+	pub type FileOrders<T: Config> = StorageMap<
+		_,
+		Twox64Concat, RootId,
+		FileOrder<T::AccountId, BalanceOf<T>, BlockNumberFor<T>>,
 	>;
 
 	#[pallet::storage]
@@ -229,8 +232,9 @@ pub mod pallet {
 		NodeUpgraded(T::AccountId, PubKey),
 		NodeReported(T::AccountId, PubKey),
         NodeWithdrawn(T::AccountId, BalanceOf<T>),
-		OrderCreated(RootId, T::AccountId),
-		OrderChanged(RootId, T::AccountId),
+		StoreFileRequested(RootId, T::AccountId),
+		StoreFileCharged(RootId, T::AccountId),
+		StoreFileRemoved(RootId),
 	}
 
 	#[pallet::error]
@@ -297,22 +301,19 @@ pub mod pallet {
 
 			if let Some(mut info) = Stashs::<T>::get(&controller) {
 				ensure!(&info.stasher == &stasher, Error::<T>::InvalidStashPair);
-				let total = info.lock.saturating_add(info.free);
-				if total >= stash_balance {
-					info.free = total.saturating_sub(stash_balance);
-					info.lock = stash_balance;
+				if info.amount >= stash_balance {
+					info.amount = info.amount.saturating_sub(stash_balance);
 				} else {
-					let lack = stash_balance.saturating_sub(total);
+					let lack = stash_balance.saturating_sub(info.amount);
 					T::Currency::transfer(&stasher, &Self::account_id(), lack, ExistenceRequirement::KeepAlive)?;
-					info.lock = stash_balance;
+					info.amount = stash_balance;
 				}
 				Stashs::<T>::insert(controller, info);
 			} else {
 				T::Currency::transfer(&stasher, &Self::account_id(), stash_balance, ExistenceRequirement::KeepAlive)?;
 				Stashs::<T>::insert(controller, StashInfo {
 					stasher,
-					lock: stash_balance,
-					free: Zero::zero(),
+					amount: stash_balance,
                     claimed_round: CurrentRound::<T>::get(),
 				});
 			}
@@ -342,19 +343,18 @@ pub mod pallet {
             if !total_reward_amount.is_zero() {
                 T::Currency::deposit_creating(&Self::account_id(), total_reward_amount);
             }
-            let total_amount: BalanceOf<T> = stash_info.free.saturating_add(stash_info.lock).saturating_add(total_reward_amount);
+            let total_amount: BalanceOf<T> = stash_info.amount.saturating_add(total_reward_amount);
 			let stash_balance = T::StashBalance::get();
             let free_amount = if total_amount >= stash_balance {
-                stash_info.lock = stash_balance;
+				stash_info.amount = stash_balance;
                 total_amount.saturating_sub(stash_balance)
             } else {
-                stash_info.lock = total_amount;
+				stash_info.amount = total_amount;
                 Zero::zero()
             };
             if !free_amount.is_zero() {
                 T::Currency::transfer(&Self::account_id(), &stasher, free_amount, ExistenceRequirement::KeepAlive)?;
             }
-            stash_info.free = free_amount;
             Stashs::<T>::insert(controller.clone(), stash_info);
             Self::deposit_event(Event::<T>::NodeWithdrawn(controller, free_amount));
             Ok(())
@@ -419,11 +419,12 @@ pub mod pallet {
             bh: Vec<u8>,
 			reserved_size: u64,
 			used_size: u64,
-			added_files: Vec<(RootId, u64, u64)>,
-			deleted_files: Vec<(RootId, u64, u64)>,
 			reserved_root: RootId,
 			used_root: RootId,
 			sig: Vec<u8>,
+			added_files: Vec<(RootId, u64, u64)>,
+			deleted_files: Vec<(RootId, u64, u64)>,
+			settle_files: Vec<RootId>,
 		) -> DispatchResult {
 			let controller = ensure_signed(origin)?;
             ensure!(
@@ -441,7 +442,7 @@ pub mod pallet {
             let current_round = CurrentRound::<T>::get();
 			let maybe_node_info: Option<NodeInfo<_>> = Nodes::<T>::get(&controller);
 			if let Some(_) = &maybe_node_info {
-				if RoundsReport::<T>::get(current_round).contains(&controller) {
+				if RoundsReport::<T>::get(current_round, &controller) {
                     log!(
                         trace,
                         "🔒 Already reported with same pub key {:?} in the same slot {:?}.",
@@ -493,12 +494,15 @@ pub mod pallet {
 				}
 			}
 
-			for (cid, ..) in added_files.iter() {
-				Self::add_file(&controller, cid);
+			for (cid, file_size, ..) in added_files.iter() {
+				Self::add_file(&controller, cid, *file_size);
 			}
 
 			for (cid, ..) in deleted_files.iter() {
 				Self::delete_file(&controller, cid);
+			}
+			for cid in settle_files.iter() {
+				Self::settle_file(&controller, cid);
 			}
 
 			let new_node_info = NodeInfo {
@@ -510,14 +514,14 @@ pub mod pallet {
 				reserved_size,
 			};
 
-			RoundsReport::<T>::mutate(current_round, |v| v.insert(controller.clone()));
+			RoundsReport::<T>::insert(current_round, controller.clone(), true);
 			Nodes::<T>::insert(controller.clone(), new_node_info);
 			Self::deposit_event(Event::<T>::NodeReported(controller, key1));
 			Ok(())
 		}
 
 		#[pallet::weight(1_000_000)]
-		pub fn set_order(
+		pub fn store_file(
 			origin: OriginFor<T>,
 			cid: RootId,
 			file_size: u64,
@@ -525,32 +529,24 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(file_size < T::MaxFileSize::get(), Error::<T>::FileTooLarge);
-			if let Some(mut order_info) = Orders::<T>::get(&cid) {
-				order_info.reserve = order_info.reserve.saturating_add(reserve);
+			if let Some(mut file) = StoreFiles::<T>::get(&cid) {
+				file.reserve = file.reserve.saturating_add(reserve);
+				let min_reserve = Self::get_file_order_balance(file.file_size);
+				ensure!(file.reserve >= min_reserve, Error::<T>::NotEnoughReserve);
                 T::Currency::transfer(&who, &Self::account_id(), reserve, ExistenceRequirement::KeepAlive)?;
-				Orders::<T>::insert(cid.clone(), order_info);
-				Self::deposit_event(Event::<T>::OrderChanged(cid, who));
+				StoreFiles::<T>::insert(cid.clone(), file);
+				Self::deposit_event(Event::<T>::StoreFileCharged(cid, who));
 			} else {
-				let min_reserve = Self::get_min_reserve(file_size);
+				let min_reserve = Self::get_file_order_balance(file_size);
 				ensure!(reserve >= min_reserve, Error::<T>::NotEnoughReserve);
                 T::Currency::transfer(&who, &Self::account_id(), reserve, ExistenceRequirement::KeepAlive)?;
-				Orders::<T>::insert(cid.clone(), OrderInfo {
-					file_size,
-					expire_at: None,
+				StoreFiles::<T>::insert(cid.clone(), StoreFile {
 					reserve,
-					replicas: vec![],
+					file_size,
 				});
-				Self::deposit_event(Event::<T>::OrderCreated(cid, who));
+				Self::deposit_event(Event::<T>::StoreFileRequested(cid, who));
 			}
 			Ok(())
-		}
-
-		#[pallet::weight(1_000_000)]
-		pub fn refresh_order(
-			origin: OriginFor<T>,
-			cid: RootId,
-		) -> DispatchResult {
-			todo!()
 		}
 	}
 }
@@ -570,14 +566,13 @@ impl<T: Config> Pallet<T> {
 		let mut individual_points: BTreeMap<T::AccountId, u64> = BTreeMap::new();
 
 
-		for controller in RoundsReport::<T>::get(&current_round).iter() {
+		for (ref controller, _) in RoundsReport::<T>::iter_prefix(&current_round) {
 			if let Some(ref node_info) = Nodes::<T>::get(controller) {
 				stats.used_size = stats.used_size.saturating_add(node_info.used_size as u128);
 				stats.reserved_size = stats.reserved_size.saturating_add(node_info.reserved_size as u128);
 				individual_points.insert(controller.clone(), node_info.used_size.saturating_add(node_info.reserved_size));
 			}
 		}
-
 
         Self::clear_round_information(to_remove_round);
 		RoundsReward::<T>::insert(current_round, RoundRewardInfo {
@@ -590,24 +585,97 @@ impl<T: Config> Pallet<T> {
 		Stats::<T>::mutate(|v| *v = stats);
 	}
 
-	fn add_file(account: &T::AccountId, cid: &RootId) {
-		if let Some(mut order) = Orders::<T>::get(cid) {
-
-		}
-	}
-
     fn clear_round_information(round: RoundIndex) {
-        RoundsReport::<T>::remove(round);
+        RoundsReport::<T>::remove_prefix(round, None);
         RoundsReward::<T>::remove(round);
         RoundsBlockNumber::<T>::remove(round);
     }
 
-	fn delete_file(account: &T::AccountId, cid: &RootId) {
-
+	fn add_file(account: &T::AccountId, cid: &RootId, file_size: u64) {
+		if let Some(mut order) = FileOrders::<T>::get(cid) {
+			let current_round = CurrentRound::<T>::get();
+			let mut new_nodes = vec![];
+			let mut exist = false;
+			for node in order.nodes.iter() {
+				if RoundsReport::<T>::get(current_round, node) {
+					new_nodes.push(node.clone());
+				}
+				if node == account {
+					exist = true;
+				}
+			}
+			if !exist && (new_nodes.len() as u32) < T::MaxFileReplica::get() {
+				new_nodes.push(account.clone());
+			}
+			order.nodes = new_nodes;
+			FileOrders::<T>::insert(cid, order);
+		} else {
+			Self::settle_file_order(cid, vec![account.clone()], Some(file_size))
+		}
 	}
 
-	fn get_min_reserve(file_size: u64) -> BalanceOf<T> {
-		todo!()
+	fn delete_file(account: &T::AccountId, cid: &RootId) {
+		if let Some(mut order) = FileOrders::<T>::get(cid) {
+			if let Ok(idx) = order.nodes.binary_search(account) {
+				order.nodes.remove(idx);
+				FileOrders::<T>::insert(cid, order);
+			}
+		}
+	}
+
+	fn settle_file(account: &T::AccountId, cid: &RootId) {
+		if let Some(order) = FileOrders::<T>::get(cid) {
+			if Self::now_bn() < order.expire_at {
+				return;
+			}
+			let reward_amount = Perbill::from_rational(1, order.nodes.len() as u32 + 1) * order.amount;
+			for node in order.nodes.iter() {
+				if let Some(mut stash_info) = Stashs::<T>::get(node) {
+					stash_info.amount = stash_info.amount.saturating_add(reward_amount);
+					if node == account {
+						stash_info.amount = stash_info.amount.saturating_add(reward_amount);
+					}
+				}
+			}
+			Self::settle_file_order(cid, order.nodes.clone(), None);
+		}
+	}
+
+	fn settle_file_order(cid: &RootId, nodes: Vec<T::AccountId>, file_size: Option<u64>) {
+		if let Some(mut file) = StoreFiles::<T>::get(cid) {
+			let min_amount = Self::get_file_order_balance(file_size.unwrap_or(file.file_size));
+			let (order_amount, new_reserve) = if file.reserve > min_amount {
+				(min_amount, file.reserve.saturating_sub(min_amount))
+			} else {
+				(file.reserve, Zero::zero())
+			};
+			if order_amount.is_zero() {
+				StoreFiles::<T>::remove(cid);
+				FileOrders::<T>::remove(cid);
+				Self::deposit_event(Event::<T>::StoreFileRemoved(cid.clone()));
+			} else {
+				FileOrders::<T>::insert(cid, FileOrder {
+					amount: order_amount,
+					expire_at: Self::get_file_order_expire(),
+					nodes,
+				});
+				file.reserve = new_reserve;
+				if let Some(file_size) = file_size {
+					file.file_size = file_size;
+				}
+				StoreFiles::<T>::insert(cid, file);
+			}
+		}
+	}
+
+	fn get_file_order_balance(file_size: u64) -> BalanceOf<T> {
+		T::FileBytePrice::get().saturating_mul(file_size.saturated_into()).saturating_add(T::FileBasePrice::get())
+	}
+
+	fn get_file_order_expire() -> BlockNumberFor<T> {
+		let now_at = Self::now_bn();
+		let rounds = T::FileOrderRounds::get();
+		now_at.saturating_add(T::RoundDuration::get().saturating_mul(rounds.saturated_into()))
 	}
 
 	fn calculate_round_reward() -> BalanceOf<T> {
@@ -621,7 +689,7 @@ impl<T: Config> Pallet<T> {
 		if &hash != bh {
 			return false;
 		}
-		bn == One::one() || bn == Self::get_current_round_bn() 
+		bn == One::one() || bn == Self::get_current_round_bn()
 	}
 
     fn get_current_round_bn() -> BlockNumberFor<T> {
