@@ -700,27 +700,41 @@ impl<T: Config> Pallet<T> {
 
 	fn settle_file_order(cid: &RootId, nodes: Vec<T::AccountId>, file_size: Option<u64>) {
 		if let Some(mut file) = StoreFiles::<T>::get(cid) {
-			let min_amount = Self::get_file_order_balance(file_size.unwrap_or(file.file_size));
-			let (order_fee, new_reserved) = if file.reserved > min_amount {
-				(min_amount, file.reserved.saturating_sub(min_amount))
+			let expect_order_fee = Self::get_file_order_balance(file_size.unwrap_or(file.file_size));
+			if let Some(file_size) = file_size {
+				// user underreported the file size
+				if file.file_size < file_size && file.reserved < expect_order_fee {
+					StoragePotReserved::<T>::mutate(|reserved| *reserved = reserved.saturating_add(file.reserved));
+					Self::clear_store_file(cid);
+					return;
+				}
+				file.file_size = file_size;
+			}
+			let (mut order_fee, new_reserved) = if file.reserved > expect_order_fee {
+				(expect_order_fee, file.reserved.saturating_sub(expect_order_fee))
 			} else {
 				(file.reserved, Zero::zero())
 			};
 			if order_fee.is_zero() {
-				StoreFiles::<T>::remove(cid);
-				FileOrders::<T>::remove(cid);
-				Self::deposit_event(Event::<T>::StoreFileRemoved(cid.clone()));
+				Self::clear_store_file(cid);
 			} else {
-				// FIXME: maybe complete order_fee with StoragePotReserved
+				if order_fee < expect_order_fee {
+					let lack_fee = expect_order_fee.saturating_sub(order_fee);
+					let pot_reserved = StoragePotReserved::<T>::get();
+					if pot_reserved > lack_fee {
+						order_fee = expect_order_fee;
+						StoragePotReserved::<T>::mutate(|reserved| *reserved = reserved.saturating_sub(lack_fee));
+					} else {
+						order_fee = order_fee.saturating_add(pot_reserved);
+						StoragePotReserved::<T>::mutate(|reserved| *reserved = Zero::zero());
+					}
+				}
 				FileOrders::<T>::insert(cid, FileOrder {
 					fee: order_fee,
 					expire_at: Self::get_file_order_expire(),
 					replicas: nodes,
 				});
 				file.reserved = new_reserved;
-				if let Some(file_size) = file_size {
-					file.file_size = file_size;
-				}
 				StoreFiles::<T>::insert(cid, file);
 			}
 		}
@@ -756,6 +770,12 @@ impl<T: Config> Pallet<T> {
 			Stashs::<T>::insert(offline_node, stash_info);
 			StoragePotReserved::<T>::mutate(|reserved| *reserved = reserved.saturating_add(reserved_reward));
 		}
+	}
+
+	fn clear_store_file(cid: &RootId) {
+		StoreFiles::<T>::remove(cid);
+		FileOrders::<T>::remove(cid);
+		Self::deposit_event(Event::<T>::StoreFileRemoved(cid.clone()));
 	}
 
 	fn get_file_order_balance(file_size: u64) -> BalanceOf<T> {
