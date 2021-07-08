@@ -146,6 +146,9 @@ pub mod pallet {
 		type MaxFileReplicas: Get<u32>;
 
 		#[pallet::constant]
+		type MaxFileSize: Get<u64>;
+
+		#[pallet::constant]
 		type FileBasePrice: Get<BalanceOf<Self>>;
 
 		#[pallet::constant]
@@ -286,6 +289,7 @@ pub mod pallet {
 		InvalidReportedNode,
 		InvalidReportedData,
 		NotEnoughReserved,
+		InvalidFileSize,
 	}
 
 	#[pallet::hooks]
@@ -598,6 +602,9 @@ pub mod pallet {
 			reserved: BalanceOf<T>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
+
+			ensure!(file_size > 0 && file_size <= T::MaxFileSize::get(), Error::<T>::InvalidFileSize);
+
 			if let Some(mut file) = StoreFiles::<T>::get(&cid) {
 				file.reserved = file.reserved.saturating_add(reserved);
 				let min_reserved = Self::store_file_balance(file.file_size);
@@ -816,7 +823,11 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn store_file_bytes_balance(file_size: u64) -> BalanceOf<T> {
-		T::FileBytePrice::get().saturating_mul(file_size.max(STORE_FILE_MIN_SIZE).saturated_into())
+		let mut file_size_in_mega = file_size / 1_048_576;
+		if file_size_in_mega % 1_048_576 != 0 {
+			file_size_in_mega += 1;
+		}
+		T::FileBytePrice::get().saturating_mul(file_size_in_mega.saturated_into())
 	}
 
 	fn get_file_order_expire() -> BlockNumberFor<T> {

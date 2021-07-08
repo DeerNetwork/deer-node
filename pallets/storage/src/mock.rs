@@ -62,7 +62,7 @@ construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Storage: pallet_storage::{Pallet, Call, Storage, Event<T>},
+		FileStorage: pallet_storage::{Pallet, Call, Storage, Event<T>},
 	}
 );
 
@@ -130,6 +130,7 @@ parameter_types! {
 	pub const RoundDuration: BlockNumber = 10;
 	pub const FileOrderRounds: u32 = 6;
 	pub const MaxFileReplicas: u32 = 3;
+	pub const MaxFileSize: u64 = 137_438_953_472; // 128G
 	pub const FileBasePrice: Balance = 1_000;
 	pub const FileBytePrice: Balance = 1;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
@@ -148,6 +149,7 @@ impl Config for Test {
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
 	type MaxFileReplicas = MaxFileReplicas;
+	type MaxFileSize = MaxFileSize;
 	type FileBasePrice = FileBasePrice;
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
@@ -194,7 +196,7 @@ impl ExtBuilder {
 pub fn run_to_block(n: BlockNumber) {
 	for b in (System::block_number() + 1)..=n {
 		System::set_block_number(b);
-		<Storage as Hooks<u64>>::on_initialize(b);
+		<FileStorage as Hooks<u64>>::on_initialize(b);
 		Timestamp::set_timestamp(System::block_number() * BLOCK_TIME + INIT_TIMESTAMP);
 	}
 }
