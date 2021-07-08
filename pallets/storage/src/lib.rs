@@ -48,6 +48,16 @@ macro_rules! log {
 	};
 }
 
+pub trait RoundPayout<Balance> {
+	fn round_payout(total_size: u128) -> Balance;
+}
+
+impl<Balance: Default> RoundPayout<Balance> for () {
+	fn round_payout(_total_size: u128) -> Balance {
+		Default::default()
+	}
+}
+
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct NodeInfo<BlockNumber> {
 	pub last_reported_at: BlockNumber,
@@ -66,30 +76,32 @@ pub struct StatsInfo {
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct FileOrder<AccountId, Balance, BlockNumber> {
-	pub amount: Balance,
+	pub fee: Balance,
 	pub expire_at: BlockNumber,
-	pub nodes: Vec<AccountId>,
+	pub replicas: Vec<AccountId>,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct StoreFile<Balance> {
-	pub reserve: Balance,
+	pub reserved: Balance,
 	pub file_size: u64,
 }
 
-
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
-pub struct StashInfo<AccountId, Balance> {
+pub struct StashInfo<AccountId, Balance, BlockNumber> {
     pub stasher: AccountId,
-    pub amount: Balance,
+	pub key: Option<PubKey>,
+    pub deposit: Balance,
     pub claimed_round: RoundIndex,
+	pub slash_defer_at: BlockNumber,
 }
 
 #[derive(PartialEq, Encode, Decode, Default, RuntimeDebug)]
 pub struct RoundRewardInfo<AccountId: Ord, Balance> {
-	total: u128,
+	total_size: u128,
 	individual: BTreeMap<AccountId, u64>,
-    amount: Balance,
+    mine_reward: Balance,
+    store_reward: Balance,
 }
 
 #[frame_support::pallet]
@@ -112,8 +124,16 @@ pub mod pallet {
 
 		type UnixTime: UnixTime;
 
+		type RoundPayout: RoundPayout<BalanceOf<Self>>;
+
 		#[pallet::constant]
 		type SlashDeferDuration: Get<u64>;
+
+		#[pallet::constant]
+		type SlashBalance: Get<BalanceOf<Self>>;
+
+		#[pallet::constant]
+		type SlashRewardRatio: Get<Perbill>;
 
 		#[pallet::constant]
 		type RoundDuration: Get<BlockNumberFor<Self>>;
@@ -131,6 +151,9 @@ pub mod pallet {
 		type FileBytePrice: Get<BalanceOf<Self>>;
 
 		#[pallet::constant]
+		type StoreRewardRatio: Get<Perbill>;
+
+		#[pallet::constant]
 		type MaxFileSize: Get<u64>;
 
 		#[pallet::constant]
@@ -140,13 +163,6 @@ pub mod pallet {
         type HistoryRoundDepth: Get<RoundIndex>;
 	}
 
-	#[pallet::type_value]
-	pub fn CurrentRoundOnEmpty() -> RoundIndex { 0 }
-
-	#[pallet::type_value]
-	pub fn OnEmpty() -> StatsInfo {
-		Default::default()
-	}
 
 	#[pallet::storage]
 	pub type Enclaves<T: Config> = StorageMap<
@@ -155,6 +171,9 @@ pub mod pallet {
 		EnclaveId,
 		BlockNumberFor<T>,
 	>;
+
+	#[pallet::storage]
+	pub type StoragePotReserved<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::storage]
 	pub type Nodes<T: Config> = StorageMap<
@@ -173,7 +192,7 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	pub type CurrentRound<T: Config> = StorageValue<_, RoundIndex, ValueQuery, CurrentRoundOnEmpty>;
+	pub type CurrentRound<T: Config> = StorageValue<_, RoundIndex, ValueQuery>;
 
 	#[pallet::storage]
 	pub type RoundsBlockNumber<T: Config> = StorageMap<
@@ -192,7 +211,7 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	pub type Stats<T: Config> = StorageValue<_, StatsInfo, ValueQuery, OnEmpty>;
+	pub type Stats<T: Config> = StorageValue<_, StatsInfo, ValueQuery>;
 
 	#[pallet::storage]
 	pub type StoreFiles<T: Config> = StorageMap<
@@ -212,7 +231,7 @@ pub mod pallet {
 	pub type Stashs<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat, T::AccountId,
-		StashInfo<T::AccountId, BalanceOf<T>>,
+		StashInfo<T::AccountId, BalanceOf<T>, BlockNumberFor<T>>,
 	>;
 
 	#[pallet::storage]
@@ -221,6 +240,13 @@ pub mod pallet {
 		Twox64Concat, RoundIndex,
 		RoundRewardInfo<T::AccountId, BalanceOf<T>>,
 		ValueQuery,
+	>;
+
+	#[pallet::storage]
+	pub type RoundsStoreReward<T: Config> = StorageMap<
+		_,
+		Twox64Concat, RoundIndex,
+		BalanceOf<T>, ValueQuery,
 	>;
 
 	#[pallet::event]
@@ -241,7 +267,8 @@ pub mod pallet {
 	pub enum Error<T> {
         InvalidEnclaveExpire,
 		InvalidStashPair,
-		NotController,
+		InvalidNode,
+		InvalidStashKey,
 		InvalidBase64Arg,
 		InvalidIASSigningCert,
 		InvalidIASBody,
@@ -256,7 +283,7 @@ pub mod pallet {
 		InvalidReportedNode,
 		InvalidReportedData,
 		FileTooLarge,
-		NotEnoughReserve,
+		NotEnoughReserved,
 	}
 
 	#[pallet::hooks]
@@ -293,27 +320,29 @@ pub mod pallet {
 		#[pallet::weight(1_000_000)]
 		pub fn stash(
 			origin: OriginFor<T>,
-			controller: <T::Lookup as StaticLookup>::Source,
+			node: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
 			let stasher = ensure_signed(origin)?;
-			let controller = T::Lookup::lookup(controller)?;
+			let node = T::Lookup::lookup(node)?;
 			let stash_balance = T::StashBalance::get();
 
-			if let Some(mut info) = Stashs::<T>::get(&controller) {
-				ensure!(&info.stasher == &stasher, Error::<T>::InvalidStashPair);
-				if info.amount >= stash_balance {
-					info.amount = info.amount.saturating_sub(stash_balance);
+			if let Some(mut stash_info) = Stashs::<T>::get(&node) {
+				ensure!(&stash_info.stasher == &stasher, Error::<T>::InvalidStashPair);
+				if stash_info.deposit >= stash_balance {
+					stash_info.deposit = stash_info.deposit.saturating_sub(stash_balance);
 				} else {
-					let lack = stash_balance.saturating_sub(info.amount);
-					T::Currency::transfer(&stasher, &Self::account_id(), lack, ExistenceRequirement::KeepAlive)?;
-					info.amount = stash_balance;
+					let lack = stash_balance.saturating_sub(stash_info.deposit);
+					T::Currency::transfer(&stasher, &Self::storage_pot(), lack, ExistenceRequirement::KeepAlive)?;
+					stash_info.deposit = stash_balance;
 				}
-				Stashs::<T>::insert(controller, info);
+				Stashs::<T>::insert(node, stash_info);
 			} else {
-				T::Currency::transfer(&stasher, &Self::account_id(), stash_balance, ExistenceRequirement::KeepAlive)?;
-				Stashs::<T>::insert(controller, StashInfo {
+				T::Currency::transfer(&stasher, &Self::storage_pot(), stash_balance, ExistenceRequirement::KeepAlive)?;
+				Stashs::<T>::insert(node, StashInfo {
 					stasher,
-					amount: stash_balance,
+					key: None,
+					slash_defer_at: Zero::zero(),
+					deposit: stash_balance,
                     claimed_round: CurrentRound::<T>::get(),
 				});
 			}
@@ -323,40 +352,44 @@ pub mod pallet {
 		#[pallet::weight(1_000_000)]
 		pub fn withdraw(
 			origin: OriginFor<T>,
-			controller: <T::Lookup as StaticLookup>::Source,
+			node: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
 			let stasher = ensure_signed(origin)?;
-			let controller = T::Lookup::lookup(controller)?;
-            let mut stash_info = Stashs::<T>::get(&controller).ok_or(Error::<T>::NotController)?;
+			let node = T::Lookup::lookup(node)?;
+            let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::InvalidNode)?;
             ensure!(&stash_info.stasher == &stasher, Error::<T>::InvalidStashPair);
             let current_round = CurrentRound::<T>::get();
             let valid_round = current_round.saturating_sub(T::HistoryRoundDepth::get());
             let start_round = stash_info.claimed_round.max(valid_round);
-            let mut total_reward_amount: BalanceOf<T> = Zero::zero();
+            let mut total_mine_reward: BalanceOf<T> = Zero::zero();
+            let mut total_store_reward: BalanceOf<T> = Zero::zero();
             for round in start_round..current_round {
                 let reward_info =  RoundsReward::<T>::get(round);
-                if let Some(individual) = reward_info.individual.get(&controller) {
-                    let reward_amount =  Perbill::from_rational(*individual as u128, reward_info.total) * reward_info.amount;
-                    total_reward_amount = total_reward_amount.saturating_add(reward_amount);
+                if let Some(individual) = reward_info.individual.get(&node) {
+					let ratio = Perbill::from_rational(*individual as u128, reward_info.total_size);
+                    let mine_reward =  ratio * reward_info.mine_reward;
+					let store_reward  = ratio * reward_info.store_reward;
+                    total_mine_reward = total_mine_reward.saturating_add(mine_reward);
+					total_store_reward = total_store_reward.saturating_add(store_reward);
                 }
             }
-            if !total_reward_amount.is_zero() {
-                T::Currency::deposit_creating(&Self::account_id(), total_reward_amount);
+            if !total_mine_reward.is_zero() {
+                T::Currency::deposit_creating(&Self::storage_pot(), total_mine_reward);
             }
-            let total_amount: BalanceOf<T> = stash_info.amount.saturating_add(total_reward_amount);
+            let new_deposit: BalanceOf<T> = stash_info.deposit.saturating_add(total_mine_reward).saturating_add(total_store_reward);
 			let stash_balance = T::StashBalance::get();
-            let free_amount = if total_amount >= stash_balance {
-				stash_info.amount = stash_balance;
-                total_amount.saturating_sub(stash_balance)
+            let free_amount = if new_deposit >= stash_balance {
+				stash_info.deposit = stash_balance;
+                new_deposit.saturating_sub(stash_balance)
             } else {
-				stash_info.amount = total_amount;
+				stash_info.deposit = new_deposit;
                 Zero::zero()
             };
             if !free_amount.is_zero() {
-                T::Currency::transfer(&Self::account_id(), &stasher, free_amount, ExistenceRequirement::KeepAlive)?;
+                T::Currency::transfer(&Self::storage_pot(), &stasher, free_amount, ExistenceRequirement::KeepAlive)?;
             }
-            Stashs::<T>::insert(controller.clone(), stash_info);
-            Self::deposit_event(Event::<T>::NodeWithdrawn(controller, free_amount));
+            Stashs::<T>::insert(node.clone(), stash_info);
+            Self::deposit_event(Event::<T>::NodeWithdrawn(node, free_amount));
             Ok(())
 		}
 
@@ -368,8 +401,8 @@ pub mod pallet {
 			sig: Vec<u8>,
 			p256_sig: Vec<u8>,
 		) -> DispatchResult {
-            let controller = ensure_signed(origin)?;
-			ensure!(Stashs::<T>::contains_key(&controller), Error::<T>::NotController);
+            let node = ensure_signed(origin)?;
+			ensure!(Stashs::<T>::contains_key(&node), Error::<T>::InvalidNode);
 			let dec_cert = base64::decode_config(&cert, base64::STANDARD).map_err(|_| Error::<T>::InvalidBase64Arg)?;
 			let sig_cert = webpki::EndEntityCert::from(&dec_cert).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
 			let dec_sig = base64::decode(&sig).map_err(|_| Error::<T>::InvalidBase64Arg)?;
@@ -398,12 +431,12 @@ pub mod pallet {
 					&cert[..],
 					&sig[..],
 					&body[..],
-					&controller.encode()[..],
+					&node.encode()[..],
 				].concat();
 				ensure!(verify_p256_sig(&key, &data, &p256_sig), Error::<T>::InvalidVerifyP256Sig);
 				Registers::<T>::insert(key, enclave.clone());
 
-				Self::deposit_event(Event::<T>::NodeRegisted(controller, key.clone()))
+				Self::deposit_event(Event::<T>::NodeRegisted(node, key.clone()))
 			} else {
 				return Err(Error::<T>::InvalidIASBody.into());
 			}
@@ -411,7 +444,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(1_000_000)]
-		pub fn report_storage(
+		pub fn report_files(
 			origin: OriginFor<T>,
 			key1: PubKey,
 			key2: PubKey,
@@ -425,12 +458,15 @@ pub mod pallet {
 			added_files: Vec<(RootId, u64, u64)>,
 			deleted_files: Vec<(RootId, u64, u64)>,
 			settle_files: Vec<RootId>,
+			offline_nodes: Vec<T::AccountId>,
 		) -> DispatchResult {
-			let controller = ensure_signed(origin)?;
+			let node = ensure_signed(origin)?;
             ensure!(
 				reserved_size < SEAL_SIZE_LIMIT && used_size < FILES_SIZE_LIMIT && added_files.len() < FILES_COUNT_LIMIT,
 				Error::<T>::IllegalSotrageReport
 			);
+
+			let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::InvalidNode)?;
 
 			ensure!(Self::verify_bn_and_bh(bn, &bh), Error::<T>::InvalidReportBlock);
 
@@ -440,9 +476,9 @@ pub mod pallet {
 			ensure!(now_at <= enclave_bn, Error::<T>::InvalidEnclave);
 
             let current_round = CurrentRound::<T>::get();
-			let maybe_node_info: Option<NodeInfo<_>> = Nodes::<T>::get(&controller);
+			let maybe_node_info: Option<NodeInfo<_>> = Nodes::<T>::get(&node);
 			if let Some(_) = &maybe_node_info {
-				if RoundsReport::<T>::get(current_round, &controller) {
+				if RoundsReport::<T>::get(current_round, &node) {
                     log!(
                         trace,
                         "🔒 Already reported with same pub key {:?} in the same slot {:?}.",
@@ -470,7 +506,10 @@ pub mod pallet {
 			if !key2.is_empty() {
 				// upgrade
 				ensure!(Registers::<T>::contains_key(&key2), Error::<T>::NodeUpgradeFailed);
-				let node_info = maybe_node_info.as_ref().ok_or(Error::<T>::NodeUpgradeFailed)?;
+				let expect_key = stash_info.key.as_ref().ok_or(Error::<T>::InvalidStashKey)?;
+				ensure!(expect_key == &key2, Error::<T>::InvalidStashKey);
+				stash_info.key = Some(key1.clone());
+				let node_info = maybe_node_info.ok_or(Error::<T>::NodeUpgradeFailed)?;
 				ensure!(
 					added_files.is_empty() &&
 					deleted_files.is_empty() &&
@@ -479,8 +518,13 @@ pub mod pallet {
 					Error::<T>::NodeUpgradeFailed
 				);
 				Registers::<T>::remove(&node_info.key);
-				Self::deposit_event(Event::<T>::NodeUpgraded(controller.clone(), key1.clone()));
+				Self::deposit_event(Event::<T>::NodeUpgraded(node.clone(), key1.clone()));
 			} else {
+				if let Some(expect_key) = stash_info.key.as_ref() {
+					ensure!(expect_key == &key1, Error::<T>::InvalidStashKey);
+				} else {
+					stash_info.key = Some(key1.clone());
+				}
 				if let Some(node_info) = &maybe_node_info {
 					ensure!(&node_info.key == &key1, Error::<T>::InvalidReportedNode);
 					let inc_size = added_files.iter().fold(0, |acc, (_, v, _)| acc + *v);
@@ -495,14 +539,16 @@ pub mod pallet {
 			}
 
 			for (cid, file_size, ..) in added_files.iter() {
-				Self::add_file(&controller, cid, *file_size);
+				Self::add_file(&node, cid, current_round, *file_size);
 			}
-
 			for (cid, ..) in deleted_files.iter() {
-				Self::delete_file(&controller, cid);
+				Self::delete_file(&node, cid);
 			}
 			for cid in settle_files.iter() {
-				Self::settle_file(&controller, cid);
+				Self::settle_file(&node, cid, current_round, &mut stash_info.deposit);
+			}
+			for offline_node in offline_nodes.iter() {
+				Self::report_offline(&node, offline_node, current_round, now_at, &mut stash_info.deposit);
 			}
 
 			let new_node_info = NodeInfo {
@@ -514,9 +560,10 @@ pub mod pallet {
 				reserved_size,
 			};
 
-			RoundsReport::<T>::insert(current_round, controller.clone(), true);
-			Nodes::<T>::insert(controller.clone(), new_node_info);
-			Self::deposit_event(Event::<T>::NodeReported(controller, key1));
+			RoundsReport::<T>::insert(current_round, node.clone(), true);
+			Nodes::<T>::insert(node.clone(), new_node_info);
+			Stashs::<T>::insert(node.clone(), stash_info);
+			Self::deposit_event(Event::<T>::NodeReported(node, key1));
 			Ok(())
 		}
 
@@ -525,23 +572,23 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			cid: RootId,
 			file_size: u64,
-			reserve: BalanceOf<T>,
+			reserved: BalanceOf<T>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(file_size < T::MaxFileSize::get(), Error::<T>::FileTooLarge);
 			if let Some(mut file) = StoreFiles::<T>::get(&cid) {
-				file.reserve = file.reserve.saturating_add(reserve);
-				let min_reserve = Self::get_file_order_balance(file.file_size);
-				ensure!(file.reserve >= min_reserve, Error::<T>::NotEnoughReserve);
-                T::Currency::transfer(&who, &Self::account_id(), reserve, ExistenceRequirement::KeepAlive)?;
+				file.reserved = file.reserved.saturating_add(reserved);
+				let min_reserved = Self::get_file_order_balance(file.file_size);
+				ensure!(file.reserved >= min_reserved, Error::<T>::NotEnoughReserved);
+                T::Currency::transfer(&who, &Self::storage_pot(), reserved, ExistenceRequirement::KeepAlive)?;
 				StoreFiles::<T>::insert(cid.clone(), file);
 				Self::deposit_event(Event::<T>::StoreFileCharged(cid, who));
 			} else {
-				let min_reserve = Self::get_file_order_balance(file_size);
-				ensure!(reserve >= min_reserve, Error::<T>::NotEnoughReserve);
-                T::Currency::transfer(&who, &Self::account_id(), reserve, ExistenceRequirement::KeepAlive)?;
+				let min_reserved = Self::get_file_order_balance(file_size);
+				ensure!(reserved >= min_reserved, Error::<T>::NotEnoughReserved);
+                T::Currency::transfer(&who, &Self::storage_pot(), reserved, ExistenceRequirement::KeepAlive)?;
 				StoreFiles::<T>::insert(cid.clone(), StoreFile {
-					reserve,
+					reserved,
 					file_size,
 				});
 				Self::deposit_event(Event::<T>::StoreFileRequested(cid, who));
@@ -553,8 +600,9 @@ pub mod pallet {
 
 
 impl<T: Config> Pallet<T> {
-	pub fn account_id() -> T::AccountId {
-		PALLET_ID.into_account()
+
+	pub fn storage_pot() -> T::AccountId {
+		PALLET_ID.into_sub_account("stor")
 	}
 
 	fn may_round_end() {
@@ -573,98 +621,143 @@ impl<T: Config> Pallet<T> {
 				individual_points.insert(controller.clone(), node_info.used_size.saturating_add(node_info.reserved_size));
 			}
 		}
+		let total_size = stats.used_size.saturating_add(stats.reserved_size);
+		let mine_reward = T::RoundPayout::round_payout(total_size);
+		let store_reward = RoundsStoreReward::<T>::get(current_round);
 
-        Self::clear_round_information(to_remove_round);
 		RoundsReward::<T>::insert(current_round, RoundRewardInfo {
-            amount: Self::calculate_round_reward(),
-			total: stats.used_size.saturating_add(stats.reserved_size),
+            mine_reward,
+			store_reward,
+			total_size,
 			individual: individual_points,
 		});
         RoundsBlockNumber::<T>::insert(next_round, Self::get_next_round_bn());
 		CurrentRound::<T>::mutate(|v| *v = next_round);
 		Stats::<T>::mutate(|v| *v = stats);
+        Self::clear_round_information(to_remove_round);
 	}
 
     fn clear_round_information(round: RoundIndex) {
         RoundsReport::<T>::remove_prefix(round, None);
         RoundsReward::<T>::remove(round);
+		RoundsStoreReward::<T>::remove(round);
         RoundsBlockNumber::<T>::remove(round);
     }
 
-	fn add_file(account: &T::AccountId, cid: &RootId, file_size: u64) {
-		if let Some(mut order) = FileOrders::<T>::get(cid) {
-			let current_round = CurrentRound::<T>::get();
+	fn add_file(reporter: &T::AccountId, cid: &RootId, current_round: RoundIndex, file_size: u64) {
+		if let Some(mut file_order) = FileOrders::<T>::get(cid) {
 			let mut new_nodes = vec![];
 			let mut exist = false;
-			for node in order.nodes.iter() {
-				if RoundsReport::<T>::get(current_round, node) {
+			for node in file_order.replicas.iter() {
+				if RoundsReport::<T>::get(current_round.saturating_sub(One::one()), node) {
 					new_nodes.push(node.clone());
 				}
-				if node == account {
+				if node == reporter {
 					exist = true;
 				}
 			}
 			if !exist && (new_nodes.len() as u32) < T::MaxFileReplica::get() {
-				new_nodes.push(account.clone());
+				new_nodes.push(reporter.clone());
 			}
-			order.nodes = new_nodes;
-			FileOrders::<T>::insert(cid, order);
+			file_order.replicas = new_nodes;
+			FileOrders::<T>::insert(cid, file_order);
 		} else {
-			Self::settle_file_order(cid, vec![account.clone()], Some(file_size))
+			Self::settle_file_order(cid, vec![reporter.clone()], Some(file_size))
 		}
 	}
 
-	fn delete_file(account: &T::AccountId, cid: &RootId) {
-		if let Some(mut order) = FileOrders::<T>::get(cid) {
-			if let Ok(idx) = order.nodes.binary_search(account) {
-				order.nodes.remove(idx);
-				FileOrders::<T>::insert(cid, order);
+	fn delete_file(reporter: &T::AccountId, cid: &RootId) {
+		if let Some(mut file_order) = FileOrders::<T>::get(cid) {
+			if let Ok(idx) = file_order.replicas.binary_search(reporter) {
+				file_order.replicas.remove(idx);
+				FileOrders::<T>::insert(cid, file_order);
 			}
 		}
 	}
 
-	fn settle_file(account: &T::AccountId, cid: &RootId) {
-		if let Some(order) = FileOrders::<T>::get(cid) {
-			if Self::now_bn() < order.expire_at {
+	fn settle_file(reporter: &T::AccountId, cid: &RootId, current_round: RoundIndex, new_reporter_deposit: &mut BalanceOf<T>) {
+		if let Some(file_order) = FileOrders::<T>::get(cid) {
+			if Self::now_bn() < file_order.expire_at {
 				return;
 			}
-			let reward_amount = Perbill::from_rational(1, order.nodes.len() as u32 + 1) * order.amount;
-			for node in order.nodes.iter() {
+			let mut total_order_reward  = T::SlashRewardRatio::get() * file_order.fee;
+			let each_order_reward = Perbill::from_rational(1, T::MaxFileReplica::get()) * total_order_reward;
+			for node in file_order.replicas.iter() {
 				if let Some(mut stash_info) = Stashs::<T>::get(node) {
-					stash_info.amount = stash_info.amount.saturating_add(reward_amount);
-					if node == account {
-						stash_info.amount = stash_info.amount.saturating_add(reward_amount);
+					if RoundsReport::<T>::get(current_round.saturating_sub(One::one()), node) {
+						let mut order_reward = each_order_reward;
+						if node == reporter {
+							order_reward = order_reward.saturating_add(each_order_reward);
+							*new_reporter_deposit = new_reporter_deposit.saturating_add(order_reward);
+						} else {
+							stash_info.deposit = stash_info.deposit.saturating_add(order_reward);
+							Stashs::<T>::insert(node, stash_info);
+						}
+						total_order_reward = total_order_reward.saturating_sub(order_reward);
 					}
 				}
 			}
-			Self::settle_file_order(cid, order.nodes.clone(), None);
+			Self::settle_file_order(cid, file_order.replicas.clone(), None);
+			let unpaid_reward = file_order.fee.saturating_sub(total_order_reward);
+			RoundsStoreReward::<T>::mutate(current_round, |reward| *reward = reward.saturating_add(unpaid_reward));
 		}
 	}
 
 	fn settle_file_order(cid: &RootId, nodes: Vec<T::AccountId>, file_size: Option<u64>) {
 		if let Some(mut file) = StoreFiles::<T>::get(cid) {
 			let min_amount = Self::get_file_order_balance(file_size.unwrap_or(file.file_size));
-			let (order_amount, new_reserve) = if file.reserve > min_amount {
-				(min_amount, file.reserve.saturating_sub(min_amount))
+			let (order_fee, new_reserved) = if file.reserved > min_amount {
+				(min_amount, file.reserved.saturating_sub(min_amount))
 			} else {
-				(file.reserve, Zero::zero())
+				(file.reserved, Zero::zero())
 			};
-			if order_amount.is_zero() {
+			if order_fee.is_zero() {
 				StoreFiles::<T>::remove(cid);
 				FileOrders::<T>::remove(cid);
 				Self::deposit_event(Event::<T>::StoreFileRemoved(cid.clone()));
 			} else {
+				// FIXME: maybe complete order_fee with StoragePotReserved
 				FileOrders::<T>::insert(cid, FileOrder {
-					amount: order_amount,
+					fee: order_fee,
 					expire_at: Self::get_file_order_expire(),
-					nodes,
+					replicas: nodes,
 				});
-				file.reserve = new_reserve;
+				file.reserved = new_reserved;
 				if let Some(file_size) = file_size {
 					file.file_size = file_size;
 				}
 				StoreFiles::<T>::insert(cid, file);
 			}
+		}
+	}
+
+	fn report_offline(reporter: &T::AccountId, offline_node: &T::AccountId, current_round: RoundIndex, now_at: BlockNumberFor<T>, new_reporter_deposit: &mut BalanceOf<T>) {
+		if reporter == offline_node {
+			return;
+		}
+		if RoundsReport::<T>::get(current_round.saturating_sub(One::one()), reporter) {
+			return;
+		}
+		if let Some(mut stash_info) = Stashs::<T>::get(offline_node) {
+			if now_at <= stash_info.slash_defer_at {
+				return;
+			}
+			let slash_balance = T::SlashBalance::get();
+			let (slash_reward, new_deposit) = if stash_info.deposit > slash_balance {
+				(slash_balance, stash_info.deposit)
+			} else {
+				(stash_info.deposit, Zero::zero())
+			};
+			if slash_balance.is_zero() {
+				return;
+			}
+			let reporter_reward = T::SlashRewardRatio::get() * slash_reward;
+			let reserved_reward = slash_reward.saturating_sub(reporter_reward);
+			*new_reporter_deposit = new_reporter_deposit.saturating_add(reporter_reward);
+
+			stash_info.deposit = new_deposit;
+			Stashs::<T>::insert(offline_node, stash_info);
+			StoragePotReserved::<T>::mutate(|reserved| *reserved = reserved.saturating_add(reserved_reward));
 		}
 	}
 
@@ -676,10 +769,6 @@ impl<T: Config> Pallet<T> {
 		let now_at = Self::now_bn();
 		let rounds = T::FileOrderRounds::get();
 		now_at.saturating_add(T::RoundDuration::get().saturating_mul(rounds.saturated_into()))
-	}
-
-	fn calculate_round_reward() -> BalanceOf<T> {
-		todo!()
 	}
 
 	fn verify_bn_and_bh(bn: BlockNumberFor<T>, bh: &Vec<u8>) -> bool {
