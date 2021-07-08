@@ -65,6 +65,7 @@ pub use pallet_staking::StakerStatus;
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
 use impls::Author;
+use impls::SimpleRoundPayout;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -166,7 +167,7 @@ parameter_types! {
 		})
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
-	pub const SS58Prefix: u16 = 42;
+	pub const SS58Prefix: u16 = 333;
 }
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
@@ -854,6 +855,39 @@ impl pallet_nft_order::Config for Runtime {
 	type WeightInfo = pallet_nft_order::weights::SubstrateWeight<Runtime>;
 }
 
+parameter_types! {
+	pub const SlashDeferRounds: u32 = 6;
+	pub const SlashBalance: Balance = 100 * DOLLARS;
+	pub const SlashRewardRatio: Perbill = Perbill::from_percent(50);
+	pub const RoundDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
+	pub const FileOrderRounds: u32 = 24;
+	pub const MaxFileReplicas: u32 = 15;
+	pub const MaxFileSize: u64 = 137_438_953_472; // 128G
+	pub const FileBasePrice: Balance = 1 * CENTS;
+	pub const FileBytePrice: Balance = MILLICENTS / 1000;
+	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
+	pub const StashBalance: Balance = 1000 * DOLLARS;
+	pub const HistoryRoundDepth: u32 = 720;
+}
+
+impl pallet_storage::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type UnixTime = Timestamp;
+	type RoundPayout = SimpleRoundPayout;
+	type SlashDeferRounds = SlashDeferRounds;
+	type SlashBalance = SlashBalance;
+	type SlashRewardRatio = SlashRewardRatio;
+	type RoundDuration = RoundDuration;
+	type FileOrderRounds = FileOrderRounds;
+	type MaxFileReplicas = MaxFileReplicas;
+	type MaxFileSize = MaxFileSize;
+	type FileBasePrice = FileBasePrice;
+	type FileBytePrice = FileBytePrice;
+	type StoreRewardRatio = StoreRewardRatio;
+	type StashBalance = StashBalance;
+	type HistoryRoundDepth = HistoryRoundDepth;
+}
 
 construct_runtime!(
 	pub enum Runtime where
@@ -888,9 +922,10 @@ construct_runtime!(
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>},
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
+		TransactionStorage: pallet_transaction_storage::{Pallet, Call, Storage, Inherent, Config<T>, Event<T>},
 		NFT: pallet_nft::{Pallet, Call, Storage, Event<T>},
 		NFTOrder: pallet_nft_order::{Pallet, Call, Storage, Event<T>},
-		TransactionStorage: pallet_transaction_storage::{Pallet, Call, Storage, Inherent, Config<T>, Event<T>},
+		FileStorage: pallet_storage::{Pallet, Call, Storage, Event<T>},
 	}
 );
 

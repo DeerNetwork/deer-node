@@ -34,8 +34,6 @@ pallet-identity = { version = "3.0.0", default-features = false, path = "../subs
 pallet-im-online = { version = "3.0.0", default-features = false, path = "../substrate/frame/im-online" }
 pallet-indices = { version = "3.0.0", default-features = false, path = "../substrate/frame/indices" }
 pallet-membership = { version = "3.0.0", default-features = false, path = "../substrate/frame/membership" }
-pallet-nft = { version = "0.1.0", path = "../pallets/nft", default-features = false }
-pallet-nft-order = { version = "0.1.0", path = "../pallets/nft-order", default-features = false }
 pallet-offences = { version = "3.0.0", default-features = false, path = "../substrate/frame/offences" }
 pallet-offences-benchmarking = { version = "3.0.0", path = "../substrate/frame/offences/benchmarking", default-features = false, optional = true }
 pallet-randomness-collective-flip = { version = '3.0.0', path = '../substrate/frame/randomness-collective-flip', default-features = false }
@@ -68,6 +66,10 @@ sp-transaction-pool = { version = '3.0.0', path = '../substrate/primitives/trans
 sp-version = { version = '3.0.0', path = '../substrate/primitives/version', default-features = false }
 sp-npos-elections = { version = "3.0.0", default-features = false, path = "../substrate/primitives/npos-elections" }
 
+pallet-nft = { version = "0.1.0", path = "../pallets/nft", default-features = false }
+pallet-nft-order = { version = "0.1.0", path = "../pallets/nft-order", default-features = false }
+pallet-storage = { version = "0.1.0", path = "../pallets/storage", default-features = false }
+
 [build-dependencies]
 substrate-wasm-builder = { version = '4.0.0', path = '../substrate/utils/wasm-builder' }
 
@@ -91,8 +93,6 @@ runtime-benchmarks = [
 	'pallet-im-online/runtime-benchmarks',
 	'pallet-indices/runtime-benchmarks',
 	'pallet-membership/runtime-benchmarks',
-    'pallet-nft/runtime-benchmarks',
-    'pallet-nft-order/runtime-benchmarks',
     'pallet-offences-benchmarking',
 	'pallet-scheduler/runtime-benchmarks',
 	'pallet-session-benchmarking',
@@ -102,6 +102,9 @@ runtime-benchmarks = [
 	'pallet-treasury/runtime-benchmarks',
     'pallet-utility/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
+    'pallet-nft/runtime-benchmarks',
+    'pallet-nft-order/runtime-benchmarks',
+    # 'pallet-storage/runtime-benchmarks',
 ]
 std = [
     'codec/std',
@@ -126,8 +129,6 @@ std = [
     'pallet-membership/std',
     'pallet-offences/std',
     'pallet-randomness-collective-flip/std',
-    'pallet-nft/std',
-    'pallet-nft-order/std',
     'pallet-sudo/std',
     'pallet-scheduler/std',
 	'pallet-staking/std',
@@ -152,4 +153,7 @@ std = [
     'sp-transaction-pool/std',
     'sp-version/std',
 	'sp-npos-elections/std',
+    'pallet-nft/std',
+    'pallet-nft-order/std',
+    'pallet-storage/std',
 ]
