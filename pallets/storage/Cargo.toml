@@ -21,6 +21,7 @@ p256 = { version = "0.9.0", default-features = false, features = ["ecdsa"] }
 serde_json = { version = "1.0.64", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
+hex-literal = "0.3.1"
 sp-std = { version = "3.0.0", path = "../../substrate/primitives/std" }
 sp-core = { version = "3.0.0", path = "../../substrate/primitives/core" }
 sp-io = { version = "3.0.0", path = "../../substrate/primitives/io" }

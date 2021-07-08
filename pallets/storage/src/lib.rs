@@ -7,8 +7,8 @@
 // mod benchmarking;
 #[cfg(test)]
 pub mod mock;
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 mod constants;
 pub use constants::*;
@@ -248,9 +248,14 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
+	#[pallet::metadata(
+		T::AccountId = "AccountId",
+		BalanceOf<T> = "Balance",
+		PubKey = "PubKey",
+		BlockNumberFor<T> = "BlockNumber",
+	)]
 	pub enum Event<T: Config> {
-        SetEnclave(EnclaveId, T::BlockNumber),
+        SetEnclave(EnclaveId, BlockNumberFor<T>),
 		NodeRegisted(T::AccountId, PubKey),
 		NodeUpgraded(T::AccountId, PubKey),
 		NodeReported(T::AccountId, PubKey),
@@ -294,6 +299,27 @@ pub mod pallet {
 		}
 	}
 
+	#[pallet::genesis_config]
+	pub struct GenesisConfig<T: Config> {
+		pub enclaves: Vec<(EnclaveId, BlockNumberFor<T>)>,
+	}
+
+	#[cfg(feature = "std")]
+	impl<T: Config> Default for GenesisConfig<T> {
+		fn default() -> Self {
+			GenesisConfig {
+				enclaves: Default::default(),
+			}
+		}
+	}
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+		fn build(&self) {
+			for (code, bn) in &self.enclaves {
+				Enclaves::<T>::insert(code.clone(), bn);
+			}
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -389,7 +415,7 @@ pub mod pallet {
             Ok(())
 		}
 
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight((1_000_000, DispatchClass::Operational))]
 		pub fn register_node(
 			origin: OriginFor<T>,
 			cert: Vec<u8>,

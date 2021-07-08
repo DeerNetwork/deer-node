@@ -21,11 +21,37 @@ use super::*;
 use crate as pallet_storage;
 
 use sp_core::H256;
-use sp_runtime::{traits::{BlakeTwo256, IdentityLookup}, testing::Header};
-use frame_support::{parameter_types, construct_runtime};
+use sp_runtime::{traits::{IdentityLookup}, testing::Header};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{GenesisBuild, Hooks},
+	weights::constants::RocksDbWeight,
+};
+use hex_literal::hex;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+
+use std::{cell::RefCell};
+
+pub const INIT_TIMESTAMP: u64 = 30_000;
+pub const BLOCK_TIME: u64 = 1000;
+
+pub type AccountId = u64;
+pub type AccountIndex = u64;
+pub type BlockNumber = u64;
+pub type Balance = u128;
+
+thread_local! {
+    static EXISTENTIAL_DEPOSIT: RefCell<Balance> = RefCell::new(0);
+}
+
+pub struct ExistentialDeposit;
+impl Get<Balance> for ExistentialDeposit {
+    fn get() -> Balance {
+        EXISTENTIAL_DEPOSIT.with(|v| *v.borrow())
+    }
+}
 
 construct_runtime!(
 	pub enum Test where
@@ -43,25 +69,26 @@ construct_runtime!(
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 }
+
 impl frame_system::Config for Test {
 	type BaseCallFilter = ();
 	type BlockWeights = ();
 	type BlockLength = ();
+	type DbWeight = RocksDbWeight;
 	type Origin = Origin;
+	type Index = AccountIndex;
+	type BlockNumber = BlockNumber;
 	type Call = Call;
-	type Index = u64;
-	type BlockNumber = u64;
 	type Hash = H256;
-	type Hashing = BlakeTwo256;
-	type AccountId = u64;
+	type Hashing = ::sp_runtime::traits::BlakeTwo256;
+	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
-	type DbWeight = ();
 	type Version = ();
 	type PalletInfo = PalletInfo;
-	type AccountData = pallet_balances::AccountData<u64>;
+	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
@@ -70,12 +97,11 @@ impl frame_system::Config for Test {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: u64 = 1;
 	pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Test {
-	type Balance = u64;
+	type Balance = Balance;
 	type DustRemoval = ();
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
@@ -98,17 +124,16 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
-	pub const MinimumPeriod: u64 = 1;
 	pub const SlashDeferRounds: u32 = 6;
-	pub const SlashBalance: u64 = 1_000_000;
+	pub const SlashBalance: Balance = 1_000_000;
 	pub const SlashRewardRatio: Perbill = Perbill::from_percent(50);
-	pub const RoundDuration: u64 = 10;
+	pub const RoundDuration: BlockNumber = 10;
 	pub const FileOrderRounds: u32 = 6;
 	pub const MaxFileReplicas: u32 = 3;
-	pub const FileBasePrice: u64 = 1_000;
-	pub const FileBytePrice: u64 = 1;
+	pub const FileBasePrice: Balance = 1_000;
+	pub const FileBytePrice: Balance = 1;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
-	pub const StashBalance: u64 = 3_000;
+	pub const StashBalance: Balance = 3_000;
 	pub const HistoryRoundDepth: u32 = 90;
 }
 
@@ -130,10 +155,46 @@ impl Config for Test {
 	type HistoryRoundDepth = HistoryRoundDepth;
 }
 
-pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-	let t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+pub struct ExtBuilder {
+    enclave: EnclaveId,
+	enclave_expire_at: u64,
+}
 
-	let mut ext = sp_io::TestExternalities::new(t);
-	ext.execute_with(|| System::set_block_number(1));
-	ext
+impl Default for ExtBuilder {
+    fn default() -> Self {
+        Self {
+            enclave: hex!("0000000000000000000000000000000000000000000000000000000000000000").into(),
+			enclave_expire_at: 1000,
+        }
+    }
+}
+
+impl ExtBuilder {
+	pub fn enclave(mut self, enclave: EnclaveId) -> Self {
+		self.enclave = enclave;
+		self
+	}
+
+	pub fn build(self)  -> sp_io::TestExternalities {
+        let mut t = frame_system::GenesisConfig::default()
+            .build_storage::<Test>()
+            .unwrap();
+
+			let fake_enclave = hex!("0000000000000000000000000000000000000000000000000000000000000000").into();
+			pallet_storage::GenesisConfig::<Test> {
+				enclaves: vec![(self.enclave, self.enclave_expire_at), (fake_enclave, 3000)]
+			}.assimilate_storage(&mut t).unwrap();
+
+		let mut ext = sp_io::TestExternalities::new(t);
+		ext.execute_with(|| System::set_block_number(1));
+		ext
+	}
+}
+
+pub fn run_to_block(n: BlockNumber) {
+	for b in (System::block_number() + 1)..=n {
+		System::set_block_number(b);
+		<Storage as Hooks<u64>>::on_initialize(b);
+		Timestamp::set_timestamp(System::block_number() * BLOCK_TIME + INIT_TIMESTAMP);
+	}
 }
