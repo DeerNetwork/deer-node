@@ -5,8 +5,8 @@
 
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
-// #[cfg(test)]
-// pub mod mock;
+#[cfg(test)]
+pub mod mock;
 // #[cfg(test)]
 // mod tests;
 
@@ -127,7 +127,7 @@ pub mod pallet {
 		type RoundPayout: RoundPayout<BalanceOf<Self>>;
 
 		#[pallet::constant]
-		type SlashDeferDuration: Get<u64>;
+		type SlashDeferRounds: Get<u32>;
 
 		#[pallet::constant]
 		type SlashBalance: Get<BalanceOf<Self>>;
@@ -142,7 +142,7 @@ pub mod pallet {
 		type FileOrderRounds: Get<u32>;
 
 		#[pallet::constant]
-		type MaxFileReplica: Get<u32>;
+		type MaxFileReplicas: Get<u32>;
 
 		#[pallet::constant]
 		type FileBasePrice: Get<BalanceOf<Self>>;
@@ -154,13 +154,10 @@ pub mod pallet {
 		type StoreRewardRatio: Get<Perbill>;
 
 		#[pallet::constant]
-		type MaxFileSize: Get<u64>;
-
-		#[pallet::constant]
 		type StashBalance: Get<BalanceOf<Self>>;
 
 		#[pallet::constant]
-        type HistoryRoundDepth: Get<RoundIndex>;
+        type HistoryRoundDepth: Get<u32>;
 	}
 
 
@@ -282,7 +279,6 @@ pub mod pallet {
 		NodeUpgradeFailed,
 		InvalidReportedNode,
 		InvalidReportedData,
-		FileTooLarge,
 		NotEnoughReserved,
 	}
 
@@ -443,7 +439,7 @@ pub mod pallet {
             Ok(())
 		}
 
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight((1_000_000, DispatchClass::Operational))]
 		pub fn report_files(
 			origin: OriginFor<T>,
 			key1: PubKey,
@@ -462,7 +458,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let node = ensure_signed(origin)?;
             ensure!(
-				reserved_size < SEAL_SIZE_LIMIT && used_size < FILES_SIZE_LIMIT && added_files.len() < FILES_COUNT_LIMIT,
+				reserved_size < RESERVED_SIZE_LIMIT && used_size < USED_SIZE_LIMIT && added_files.len() < FILES_COUNT_LIMIT,
 				Error::<T>::IllegalSotrageReport
 			);
 
@@ -575,7 +571,6 @@ pub mod pallet {
 			reserved: BalanceOf<T>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(file_size < T::MaxFileSize::get(), Error::<T>::FileTooLarge);
 			if let Some(mut file) = StoreFiles::<T>::get(&cid) {
 				file.reserved = file.reserved.saturating_add(reserved);
 				let min_reserved = Self::get_file_order_balance(file.file_size);
@@ -656,7 +651,7 @@ impl<T: Config> Pallet<T> {
 					exist = true;
 				}
 			}
-			if !exist && (new_nodes.len() as u32) < T::MaxFileReplica::get() {
+			if !exist && (new_nodes.len() as u32) < T::MaxFileReplicas::get() {
 				new_nodes.push(reporter.clone());
 			}
 			file_order.replicas = new_nodes;
@@ -681,7 +676,7 @@ impl<T: Config> Pallet<T> {
 				return;
 			}
 			let mut total_order_reward  = T::SlashRewardRatio::get() * file_order.fee;
-			let each_order_reward = Perbill::from_rational(1, T::MaxFileReplica::get()) * total_order_reward;
+			let each_order_reward = Perbill::from_rational(1, T::MaxFileReplicas::get()) * total_order_reward;
 			for node in file_order.replicas.iter() {
 				if let Some(mut stash_info) = Stashs::<T>::get(node) {
 					if RoundsReport::<T>::get(current_round.saturating_sub(One::one()), node) {
@@ -756,6 +751,8 @@ impl<T: Config> Pallet<T> {
 			*new_reporter_deposit = new_reporter_deposit.saturating_add(reporter_reward);
 
 			stash_info.deposit = new_deposit;
+			let slash_defer_bn = T::RoundDuration::get().saturating_mul(T::SlashDeferRounds::get().saturated_into());
+			stash_info.slash_defer_at = stash_info.slash_defer_at.saturating_add(slash_defer_bn);
 			Stashs::<T>::insert(offline_node, stash_info);
 			StoragePotReserved::<T>::mutate(|reserved| *reserved = reserved.saturating_add(reserved_reward));
 		}

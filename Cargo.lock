@@ -4810,6 +4810,7 @@ dependencies = [
  "log",
  "p256",
  "pallet-balances",
+ "pallet-timestamp",
  "parity-scale-codec",
  "serde_json",
  "sp-core",

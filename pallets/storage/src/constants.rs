@@ -2,8 +2,8 @@ use frame_support::PalletId;
 
 pub const LOG_TARGET: &'static str = "runtime::storage";
 pub const PALLET_ID: PalletId = PalletId(*b"storage.");
-pub const SEAL_SIZE_LIMIT: u64 = 2_251_799_813_685_248; // 2 PB <-> 2 * 1024 * 1024 * 1024 * 1024 * 1024.
-pub const FILES_SIZE_LIMIT: u64 = 9_007_199_254_740_992; // 8 PB <-> 8 * 1024 * 1024 * 1024 * 1024 * 1024.
+pub const RESERVED_SIZE_LIMIT: u64 = 2_251_799_813_685_248; // 2 PB <-> 2 * 1024 * 1024 * 1024 * 1024 * 1024.
+pub const USED_SIZE_LIMIT: u64 = 9_007_199_254_740_992; // 8 PB <-> 8 * 1024 * 1024 * 1024 * 1024 * 1024.
 pub const FILES_COUNT_LIMIT: usize = 5000; // 5000 files for now.
 pub type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 pub static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
