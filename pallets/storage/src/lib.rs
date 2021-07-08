@@ -84,6 +84,7 @@ pub struct FileOrder<AccountId, Balance, BlockNumber> {
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct StoreFile<Balance> {
 	pub reserved: Balance,
+	pub base_reserved: Balance,
 	pub file_size: u64,
 }
 
@@ -599,17 +600,19 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			if let Some(mut file) = StoreFiles::<T>::get(&cid) {
 				file.reserved = file.reserved.saturating_add(reserved);
-				let min_reserved = Self::get_file_order_balance(file.file_size);
+				let min_reserved = Self::store_file_balance(file.file_size);
 				ensure!(file.reserved >= min_reserved, Error::<T>::NotEnoughReserved);
                 T::Currency::transfer(&who, &Self::storage_pot(), reserved, ExistenceRequirement::KeepAlive)?;
 				StoreFiles::<T>::insert(cid.clone(), file);
 				Self::deposit_event(Event::<T>::StoreFileCharged(cid, who));
 			} else {
-				let min_reserved = Self::get_file_order_balance(file_size);
+				let min_reserved = Self::store_file_balance(file_size);
 				ensure!(reserved >= min_reserved, Error::<T>::NotEnoughReserved);
                 T::Currency::transfer(&who, &Self::storage_pot(), reserved, ExistenceRequirement::KeepAlive)?;
+				let base_reserved = T::FileBasePrice::get();
 				StoreFiles::<T>::insert(cid.clone(), StoreFile {
-					reserved,
+					reserved: reserved.saturating_sub(base_reserved),
+					base_reserved,
 					file_size,
 				});
 				Self::deposit_event(Event::<T>::StoreFileRequested(cid, who));
@@ -683,7 +686,7 @@ impl<T: Config> Pallet<T> {
 			file_order.replicas = new_nodes;
 			FileOrders::<T>::insert(cid, file_order);
 		} else {
-			Self::settle_file_order(cid, vec![reporter.clone()], Some(file_size))
+			Self::settle_file_order(cid, vec![reporter.clone()], current_round, Some(file_size))
 		}
 	}
 
@@ -718,21 +721,25 @@ impl<T: Config> Pallet<T> {
 					}
 				}
 			}
-			Self::settle_file_order(cid, file_order.replicas.clone(), None);
+			Self::settle_file_order(cid, file_order.replicas.clone(), current_round, None);
 			let unpaid_reward = file_order.fee.saturating_sub(total_order_reward);
 			RoundsStoreReward::<T>::mutate(current_round, |reward| *reward = reward.saturating_add(unpaid_reward));
 		}
 	}
 
-	fn settle_file_order(cid: &RootId, nodes: Vec<T::AccountId>, file_size: Option<u64>) {
+	fn settle_file_order(cid: &RootId, nodes: Vec<T::AccountId>, current_round: RoundIndex, file_size: Option<u64>) {
 		if let Some(mut file) = StoreFiles::<T>::get(cid) {
-			let expect_order_fee = Self::get_file_order_balance(file_size.unwrap_or(file.file_size));
+			let expect_order_fee = Self::store_file_bytes_balance(file_size.unwrap_or(file.file_size));
 			if let Some(file_size) = file_size {
 				// user underreported the file size
 				if file.file_size < file_size && file.reserved < expect_order_fee {
 					StoragePotReserved::<T>::mutate(|reserved| *reserved = reserved.saturating_add(file.reserved));
 					Self::clear_store_file(cid);
 					return;
+				}
+				if !file.base_reserved.is_zero() {
+					RoundsStoreReward::<T>::mutate(current_round, |reward| *reward = reward.saturating_add(file.base_reserved));
+					file.base_reserved = Zero::zero();
 				}
 				file.file_size = file_size;
 			}
@@ -804,8 +811,12 @@ impl<T: Config> Pallet<T> {
 		Self::deposit_event(Event::<T>::StoreFileRemoved(cid.clone()));
 	}
 
-	fn get_file_order_balance(file_size: u64) -> BalanceOf<T> {
-		T::FileBytePrice::get().saturating_mul(file_size.saturated_into()).saturating_add(T::FileBasePrice::get())
+	fn store_file_balance(file_size: u64) -> BalanceOf<T> {
+		T::FileBasePrice::get().saturating_add(Self::store_file_bytes_balance(file_size))
+	}
+
+	fn store_file_bytes_balance(file_size: u64) -> BalanceOf<T> {
+		T::FileBytePrice::get().saturating_mul(file_size.max(STORE_FILE_MIN_SIZE).saturated_into())
 	}
 
 	fn get_file_order_expire() -> BlockNumberFor<T> {

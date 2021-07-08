@@ -4,6 +4,7 @@ pub const LOG_TARGET: &'static str = "runtime::storage";
 pub const PALLET_ID: PalletId = PalletId(*b"storage.");
 pub const RESERVED_SIZE_LIMIT: u64 = 4_503_599_627_370_496; // 4P
 pub const USED_SIZE_LIMIT: u64 = 4_503_599_627_370_496; // 4P
+pub const STORE_FILE_MIN_SIZE: u64 = 1_048_576; // 1M
 pub const FILES_COUNT_LIMIT: usize = 100;
 pub type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 pub static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
