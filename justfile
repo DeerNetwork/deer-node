@@ -23,3 +23,14 @@ bench crate:
         --heap-pages=4096 \
         --output=./pallets/{{crate}}/src/weights.rs \
         --template=./.maintain/frame-weight-template.hbs
+
+start args:
+    ./target/release/{{name}} \
+    {{args}} \
+    --port 30333 \
+    --ws-port 9944 \
+    --rpc-port 9933 \
+    --rpc-methods Unsafe \
+    --unsafe-rpc-external \
+    --rpc-cors all \
+    --unsafe-ws-external

@@ -810,6 +810,14 @@ impl pallet_identity::Config for Runtime {
 	type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
 }
 
+impl pallet_transaction_storage::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Call = Call;
+	type FeeDestination = ();
+	type WeightInfo = pallet_transaction_storage::weights::SubstrateWeight<Runtime>;
+}
+
 parameter_types! {
 	pub const ClassDeposit: Balance = 10 * DOLLARS;
 	pub const InstanceDeposit: Balance = 1 * DOLLARS;
@@ -832,14 +840,6 @@ impl pallet_nft::Config for Runtime {
 	type KeyLimit = KeyLimit;
 	type ValueLimit = ValueLimit;
 	type WeightInfo = pallet_nft::weights::SubstrateWeight<Runtime>;
-}
-
-impl pallet_transaction_storage::Config for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Call = Call;
-	type FeeDestination = ();
-	type WeightInfo = pallet_transaction_storage::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
