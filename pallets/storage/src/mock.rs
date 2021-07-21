@@ -124,9 +124,7 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
-	pub const SlashDeferRounds: u32 = 6;
 	pub const SlashBalance: Balance = 1_000_000;
-	pub const SlashRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const RoundDuration: BlockNumber = 10;
 	pub const FileOrderRounds: u32 = 6;
 	pub const MaxFileReplicas: u32 = 3;
@@ -143,9 +141,7 @@ impl Config for Test {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type RoundPayout = ();
-	type SlashDeferRounds = SlashDeferRounds;
 	type SlashBalance = SlashBalance;
-	type SlashRewardRatio = SlashRewardRatio;
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
 	type MaxFileReplicas = MaxFileReplicas;

@@ -856,9 +856,7 @@ impl pallet_nft_order::Config for Runtime {
 }
 
 parameter_types! {
-	pub const SlashDeferRounds: u32 = 6;
 	pub const SlashBalance: Balance = 100 * DOLLARS;
-	pub const SlashRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const RoundDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
 	pub const FileOrderRounds: u32 = 24;
 	pub const MaxFileReplicas: u32 = 15;
@@ -875,9 +873,7 @@ impl pallet_storage::Config for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type RoundPayout = SimpleRoundPayout;
-	type SlashDeferRounds = SlashDeferRounds;
 	type SlashBalance = SlashBalance;
-	type SlashRewardRatio = SlashRewardRatio;
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
 	type MaxFileReplicas = MaxFileReplicas;
