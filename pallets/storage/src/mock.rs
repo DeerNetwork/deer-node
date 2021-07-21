@@ -20,7 +20,7 @@
 use super::*;
 use crate as pallet_storage;
 
-use sp_core::H256;
+use sp_core::{H256};
 use sp_runtime::{traits::{IdentityLookup}, testing::Header};
 use frame_support::{
 	construct_runtime, parameter_types,
@@ -42,14 +42,33 @@ pub type AccountIndex = u64;
 pub type BlockNumber = u64;
 pub type Balance = u128;
 
-thread_local! {
-    static EXISTENTIAL_DEPOSIT: RefCell<Balance> = RefCell::new(0);
+#[derive(Debug, Clone)]
+pub struct RegisterData {
+	pub machine_id: MachineId,
+	pub ias_cert: Vec<u8>,
+	pub ias_sig: Vec<u8>,
+	pub ias_body: Vec<u8>,
+	pub sig: Vec<u8>,
 }
 
-pub struct ExistentialDeposit;
-impl Get<Balance> for ExistentialDeposit {
+#[derive(Debug, Clone)]
+pub struct ReportData {
+	pub machine_id: MachineId,
+	pub rid: u64,
+	pub sig: Vec<u8>,
+	pub added_files: Vec<(RootId, u64)>,
+	pub deleted_files: Vec<RootId>,
+	pub settle_files: Vec<RootId>,
+}
+
+thread_local! {
+    static STASH_BALANCE: RefCell<Balance> = RefCell::new(default_stash_balance());
+}
+
+pub struct StashBalance;
+impl Get<Balance> for StashBalance {
     fn get() -> Balance {
-        EXISTENTIAL_DEPOSIT.with(|v| *v.borrow())
+        STASH_BALANCE.with(|v| *v.borrow())
     }
 }
 
@@ -98,6 +117,7 @@ impl frame_system::Config for Test {
 
 parameter_types! {
 	pub const MaxReserves: u32 = 50;
+	pub static ExistentialDeposit: Balance = 1;
 }
 
 impl pallet_balances::Config for Test {
@@ -124,7 +144,7 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
-	pub const SlashBalance: Balance = 1_000_000;
+	pub const SlashBalance: Balance = 100;
 	pub const RoundDuration: BlockNumber = 10;
 	pub const FileOrderRounds: u32 = 6;
 	pub const MaxFileReplicas: u32 = 3;
@@ -132,7 +152,6 @@ parameter_types! {
 	pub const FileBasePrice: Balance = 1_000;
 	pub const FileBytePrice: Balance = 1;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
-	pub const StashBalance: Balance = 3_000;
 	pub const HistoryRoundDepth: u32 = 90;
 }
 
@@ -154,22 +173,44 @@ impl Config for Test {
 }
 
 pub struct ExtBuilder {
-    enclave: EnclaveId,
-	enclave_expire_at: u64,
+	enclaves: Vec<(EnclaveId, BlockNumber)>,
+	stashs: Vec<(AccountId, AccountId)>,
+	registers: Vec<(AccountId, RegisterData)>,
+	now: u64,
 }
 
 impl Default for ExtBuilder {
     fn default() -> Self {
         Self {
-            enclave: hex!("0000000000000000000000000000000000000000000000000000000000000000").into(),
-			enclave_expire_at: 1000,
+			enclaves: vec![
+				(mock_enclave_key1().0, 1000),
+				(mock_enclave_key2().0, 1000),
+			],
+			stashs: vec![],
+			registers: vec![],
+			now: 1626800000000,
         }
     }
 }
 
 impl ExtBuilder {
-	pub fn enclave(mut self, enclave: EnclaveId) -> Self {
-		self.enclave = enclave;
+	pub fn enclave(mut self, enclaves: Vec<(EnclaveId, BlockNumber)>) -> Self {
+		self.enclaves = enclaves;
+		self
+	}
+
+	pub fn stash(mut self, stasher: AccountId, controller: AccountId) -> Self {
+		self.stashs.push((stasher, controller));
+		self
+	}
+
+	pub fn now(mut self, now: u64) -> Self {
+		self.now = now;
+		self
+	}
+	
+	pub fn register(mut self, controller: AccountId, info: RegisterData) -> Self {
+		self.registers.push((controller, info));
 		self
 	}
 
@@ -178,13 +219,36 @@ impl ExtBuilder {
             .build_storage::<Test>()
             .unwrap();
 
-			let fake_enclave = hex!("0000000000000000000000000000000000000000000000000000000000000000").into();
-			pallet_storage::GenesisConfig::<Test> {
-				enclaves: vec![(self.enclave, self.enclave_expire_at), (fake_enclave, 3000)]
-			}.assimilate_storage(&mut t).unwrap();
+		pallet_storage::GenesisConfig::<Test> {
+			enclaves: self.enclaves.clone(),
+		}.assimilate_storage(&mut t).unwrap();
+			
+		pallet_balances::GenesisConfig::<Test> {
+			balances: vec![
+				( 1, 1_000_000_000),
+				(11, 1_000_000_000),
+			],
+		}.assimilate_storage(&mut t).unwrap();
 
 		let mut ext = sp_io::TestExternalities::new(t);
-		ext.execute_with(|| System::set_block_number(1));
+		let ExtBuilder { registers, stashs, now, .. } = self;
+		ext.execute_with(|| {
+			System::set_block_number(1);
+			Timestamp::set_timestamp(now);
+			for (stasher, controller) in stashs {
+				FileStorage::stash(Origin::signed(stasher), controller).unwrap();
+			}
+			for (controller, info) in registers {
+				FileStorage::register(
+					Origin::signed(controller),
+					info.machine_id,
+					info.ias_cert,
+					info.ias_sig,
+					info.ias_body,
+					info.sig
+				).unwrap();
+			}
+		});
 		ext
 	}
 }
@@ -193,6 +257,71 @@ pub fn run_to_block(n: BlockNumber) {
 	for b in (System::block_number() + 1)..=n {
 		System::set_block_number(b);
 		<FileStorage as Hooks<u64>>::on_initialize(b);
-		Timestamp::set_timestamp(System::block_number() * BLOCK_TIME + INIT_TIMESTAMP);
 	}
+}
+
+pub const fn default_stash_balance() -> Balance {
+	10_000
+}
+
+pub fn balance_of_storage_pot() -> Balance {
+	Balances::free_balance(&FileStorage::storage_pot())
+}
+
+pub fn change_stash_balance(v: Balance) {
+	STASH_BALANCE.with(|f| *f.borrow_mut() = v);
+}
+
+pub fn mock_enclave_key1() -> (EnclaveId, PubKey) {
+	(
+        hex!("f9895dfce305b1081c242421781364a49e7b54739cb7d2cf0bf578e4f393bfa3").into(),
+        hex!("87f66db5fe0888c65ddab6940020492fd2fe615413f13d8d9131c478c68c6c80dfa47365bf9fefac29003cf8f169a07662b3c5907511e99e439cde69f396ff82").into(),
+	)
+}
+
+pub fn mock_enclave_key2() -> (EnclaveId, PubKey) {
+	(
+        hex!("38d0185c5ba852d97688d0113e2313bf051dc997007b2e7aa411976bf431a939").into(),
+        hex!("414bc4915028373200e4adb3d6a43be521b7d699124043c06aa0fc2687baa1675bb47baea3287c84d3522347aecd9117cba995b686441f54e02296be4efcf041").into(),
+	)
+}
+
+pub fn mock_register1() -> RegisterData {
+	RegisterData {
+		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
+        ias_body: str2bytes("{\"id\":\"327849746623058382595462695863525135492\",\"timestamp\":\"2021-07-21T07:23:39.696594\",\"version\":4,\"epidPseudonym\":\"ybSBDhwKvtRIx76tLCjLNVH+zI6JLGEEuu/c0mcQwk0OGYFRSsJfLApOkp+B/GFAzhTIIEXmYmAOSGDdbc2mFu/wx1HiK1+mFI+isaCe6ZN7IeLOrfbnVfeR6E7OhvFtc9e1xwyviVa6a9+bCVhQV1THJq7lW7HbaOxW9ZQu6g0=\",\"advisoryURL\":\"https://security-center.intel.com\",\"advisoryIDs\":[\"INTEL-SA-00161\",\"INTEL-SA-00477\",\"INTEL-SA-00381\",\"INTEL-SA-00389\",\"INTEL-SA-00320\",\"INTEL-SA-00329\",\"INTEL-SA-00220\",\"INTEL-SA-00270\",\"INTEL-SA-00293\",\"INTEL-SA-00233\"],\"isvEnclaveQuoteStatus\":\"GROUP_OUT_OF_DATE\",\"platformInfoBlob\":\"150200650400090000111102040180070000000000000000000C00000C000000020000000000000B2FD11FE6C355B3AB0F453E92C88F565CB58ACDCA00D3E13716CE6BDB92A372DA54784987293BE9EF77C00D94F090A9193BD6147A3C994E3086D14C57C089F35D39\",\"isvEnclaveQuoteBody\":\"AgABAC8LAAAMAAsAAAAAAAbkva5mzdO2S8iey0QRTKEAAAAAAAAAAAAAAAAAAAAABRICBf+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAHAAAAAAAAAPmJXfzjBbEIHCQkIXgTZKSee1RznLfSzwv1eOTzk7+jAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACD1xnnferKFHD2uvYqTXdDA8iZ22kCD5xw7h38CMfOngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH9m21/giIxl3atpQAIEkv0v5hVBPxPY2RMcR4xoxsgN+kc2W/n++sKQA8+PFpoHZis8WQdRHpnkOc3mnzlv+C\"}"),
+        ias_sig: str2bytes("OcghuZnUiFmEs85hC0Ri2uJfyWR6lhhuCKY/U3UJTRee8GiENQCNj9dAQEYuUbUG4qEhdJeW4sM3RhV1MuOgYjut6UYXnhGXLDVg48ba+L+lDRQng+E26JYnQ0MOv0mMMJCNX1l3mHTUHM8e0C/kIWQJ+esuhR6G4WuHp7xyReZfJGbuKAkc6tC+q7e9XU9HvbSRaowjIfFMrXgJUZh5VG3Cj+6rDi807rL9oAxFTweivHiz6Tcvp3aZ7pH2QpDBL9OD68gwYfDxGvBi6+S1chqI7P6pFfWHcT+CISbOo2M6p9HpSVLf/07/9xxCrDU2/M5hDxSlVbXqKQKW2Mxt8A=="),
+        ias_cert: str2bytes("MIIEoTCCAwmgAwIBAgIJANEHdl0yo7CWMA0GCSqGSIb3DQEBCwUAMH4xCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDQTEUMBIGA1UEBwwLU2FudGEgQ2xhcmExGjAYBgNVBAoMEUludGVsIENvcnBvcmF0aW9uMTAwLgYDVQQDDCdJbnRlbCBTR1ggQXR0ZXN0YXRpb24gUmVwb3J0IFNpZ25pbmcgQ0EwHhcNMTYxMTIyMDkzNjU4WhcNMjYxMTIwMDkzNjU4WjB7MQswCQYDVQQGEwJVUzELMAkGA1UECAwCQ0ExFDASBgNVBAcMC1NhbnRhIENsYXJhMRowGAYDVQQKDBFJbnRlbCBDb3Jwb3JhdGlvbjEtMCsGA1UEAwwkSW50ZWwgU0dYIEF0dGVzdGF0aW9uIFJlcG9ydCBTaWduaW5nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqXot4OZuphR8nudFrAFiaGxxkgma/Es/BA+tbeCTUR106AL1ENcWA4FX3K+E9BBL0/7X5rj5nIgX/R/1ubhkKWw9gfqPG3KeAtIdcv/uTO1yXv50vqaPvE1CRChvzdS/ZEBqQ5oVvLTPZ3VEicQjlytKgN9cLnxbwtuvLUK7eyRPfJW/ksddOzP8VBBniolYnRCD2jrMRZ8nBM2ZWYwnXnwYeOAHV+W9tOhAImwRwKF/95yAsVwd21ryHMJBcGH70qLagZ7Ttyt++qO/6+KAXJuKwZqjRlEtSEz8gZQeFfVYgcwSfo96oSMAzVr7V0L6HSDLRnpb6xxmbPdqNol4tQIDAQABo4GkMIGhMB8GA1UdIwQYMBaAFHhDe3amfrzQr35CN+s1fDuHAVE8MA4GA1UdDwEB/wQEAwIGwDAMBgNVHRMBAf8EAjAAMGAGA1UdHwRZMFcwVaBToFGGT2h0dHA6Ly90cnVzdGVkc2VydmljZXMuaW50ZWwuY29tL2NvbnRlbnQvQ1JML1NHWC9BdHRlc3RhdGlvblJlcG9ydFNpZ25pbmdDQS5jcmwwDQYJKoZIhvcNAQELBQADggGBAGcIthtcK9IVRz4rRq+ZKE+7k50/OxUsmW8aavOzKb0iCx07YQ9rzi5nU73tME2yGRLzhSViFs/LpFa9lpQL6JL1aQwmDR74TxYGBAIi5f4I5TJoCCEqRHz91kpG6Uvyn2tLmnIdJbPE4vYvWLrtXXfFBSSPD4Afn7+3/XUggAlc7oCTizOfbbtOFlYA4g5KcYgS1J2ZAeMQqbUdZseZCcaZZZn65tdqee8UXZlDvx0+NdO0LR+5pFy+juM0wWbu59MvzcmTXbjsi7HY6zd53Yq5K244fwFHRQ8eOB0IWB+4PfM7FeAApZvlfqlKOlLcZL2uyVmzRkyR5yW72uo9mehX44CiPJ2fse9Y6eQtcfEhMPkmHXI01sN+KwPbpA39+xOsStjhP9N1Y1a2tQAVo+yVgLgV2Hws73Fc0o3wC78qPEA+v2aRs/Be3ZFDgDyghc/1fgU+7C+P6kbqd4poyb6IW8KCJbxfMJvkordNOgOUUxndPHEi/tb/U7uLjLOgPA=="),
+		sig: hex!("90639853f8e815ede625c0b786c8453230790193aa5b29f5dca76e48845344503c8373a5cd9536d02504e0d74dfaef791af7f65e081a7be827f6d5e492424ca4").into(),
+	}
+}
+
+pub fn mock_register2() -> RegisterData {
+	RegisterData {
+		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
+        ias_body: str2bytes("{\"id\":\"37636908292053551191961084853934181455\",\"timestamp\":\"2021-07-21T08:06:44.436360\",\"version\":4,\"epidPseudonym\":\"ybSBDhwKvtRIx76tLCjLNVH+zI6JLGEEuu/c0mcQwk0OGYFRSsJfLApOkp+B/GFAzhTIIEXmYmAOSGDdbc2mFu/wx1HiK1+mFI+isaCe6ZN7IeLOrfbnVfeR6E7OhvFtc9e1xwyviVa6a9+bCVhQV1THJq7lW7HbaOxW9ZQu6g0=\",\"advisoryURL\":\"https://security-center.intel.com\",\"advisoryIDs\":[\"INTEL-SA-00161\",\"INTEL-SA-00477\",\"INTEL-SA-00381\",\"INTEL-SA-00389\",\"INTEL-SA-00320\",\"INTEL-SA-00329\",\"INTEL-SA-00220\",\"INTEL-SA-00270\",\"INTEL-SA-00293\",\"INTEL-SA-00233\"],\"isvEnclaveQuoteStatus\":\"GROUP_OUT_OF_DATE\",\"platformInfoBlob\":\"150200650400090000111102040180070000000000000000000C00000C000000020000000000000B2F485621743EA97D22ED8DFD3E8A970C8BECADD71E9D6E82601B4BE49AB9527A686C50EE466F5D0A9236B96E569602B7461A79B4428736834623B250F462973ACB\",\"isvEnclaveQuoteBody\":\"AgABAC8LAAAMAAsAAAAAAAbkva5mzdO2S8iey0QRTKEAAAAAAAAAAAAAAAAAAAAABRICBf+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAHAAAAAAAAADjQGFxbqFLZdojQET4jE78FHcmXAHsueqQRl2v0Mak5AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACD1xnnferKFHD2uvYqTXdDA8iZ22kCD5xw7h38CMfOngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBS8SRUCg3MgDkrbPWpDvlIbfWmRJAQ8BqoPwmh7qhZ1u0e66jKHyE01IjR67NkRfLqZW2hkQfVOAilr5O/PBB\"}"),
+        ias_cert: str2bytes("MIIEoTCCAwmgAwIBAgIJANEHdl0yo7CWMA0GCSqGSIb3DQEBCwUAMH4xCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDQTEUMBIGA1UEBwwLU2FudGEgQ2xhcmExGjAYBgNVBAoMEUludGVsIENvcnBvcmF0aW9uMTAwLgYDVQQDDCdJbnRlbCBTR1ggQXR0ZXN0YXRpb24gUmVwb3J0IFNpZ25pbmcgQ0EwHhcNMTYxMTIyMDkzNjU4WhcNMjYxMTIwMDkzNjU4WjB7MQswCQYDVQQGEwJVUzELMAkGA1UECAwCQ0ExFDASBgNVBAcMC1NhbnRhIENsYXJhMRowGAYDVQQKDBFJbnRlbCBDb3Jwb3JhdGlvbjEtMCsGA1UEAwwkSW50ZWwgU0dYIEF0dGVzdGF0aW9uIFJlcG9ydCBTaWduaW5nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqXot4OZuphR8nudFrAFiaGxxkgma/Es/BA+tbeCTUR106AL1ENcWA4FX3K+E9BBL0/7X5rj5nIgX/R/1ubhkKWw9gfqPG3KeAtIdcv/uTO1yXv50vqaPvE1CRChvzdS/ZEBqQ5oVvLTPZ3VEicQjlytKgN9cLnxbwtuvLUK7eyRPfJW/ksddOzP8VBBniolYnRCD2jrMRZ8nBM2ZWYwnXnwYeOAHV+W9tOhAImwRwKF/95yAsVwd21ryHMJBcGH70qLagZ7Ttyt++qO/6+KAXJuKwZqjRlEtSEz8gZQeFfVYgcwSfo96oSMAzVr7V0L6HSDLRnpb6xxmbPdqNol4tQIDAQABo4GkMIGhMB8GA1UdIwQYMBaAFHhDe3amfrzQr35CN+s1fDuHAVE8MA4GA1UdDwEB/wQEAwIGwDAMBgNVHRMBAf8EAjAAMGAGA1UdHwRZMFcwVaBToFGGT2h0dHA6Ly90cnVzdGVkc2VydmljZXMuaW50ZWwuY29tL2NvbnRlbnQvQ1JML1NHWC9BdHRlc3RhdGlvblJlcG9ydFNpZ25pbmdDQS5jcmwwDQYJKoZIhvcNAQELBQADggGBAGcIthtcK9IVRz4rRq+ZKE+7k50/OxUsmW8aavOzKb0iCx07YQ9rzi5nU73tME2yGRLzhSViFs/LpFa9lpQL6JL1aQwmDR74TxYGBAIi5f4I5TJoCCEqRHz91kpG6Uvyn2tLmnIdJbPE4vYvWLrtXXfFBSSPD4Afn7+3/XUggAlc7oCTizOfbbtOFlYA4g5KcYgS1J2ZAeMQqbUdZseZCcaZZZn65tdqee8UXZlDvx0+NdO0LR+5pFy+juM0wWbu59MvzcmTXbjsi7HY6zd53Yq5K244fwFHRQ8eOB0IWB+4PfM7FeAApZvlfqlKOlLcZL2uyVmzRkyR5yW72uo9mehX44CiPJ2fse9Y6eQtcfEhMPkmHXI01sN+KwPbpA39+xOsStjhP9N1Y1a2tQAVo+yVgLgV2Hws73Fc0o3wC78qPEA+v2aRs/Be3ZFDgDyghc/1fgU+7C+P6kbqd4poyb6IW8KCJbxfMJvkordNOgOUUxndPHEi/tb/U7uLjLOgPA=="),
+        ias_sig: str2bytes("hnWwQzypPCPQavil8v7tCE7WdJq1Skyj5/kMDsaXPUMp78uCgRVcDOtS+HI7/MGZ1aHweeXtub8cbmu2TIfxIf/HMoz13Ec3KrZEQwnV6gv3H+iwWGmbJLbvf3mFCUs7LoR2NDZe3rS2jjc5MR8z1AF2ibiUvpGktmaBdIfv6G5gb5fi0uTwIZg6j1SM+uvjl63ejUJONzAGBg09VpGIe6R9nkoo2Sj3gAKGQJWSsyAdmrtAdTijkONWFOk3Cau4wFbAOcATl2snnVop7gD5eHA2GeS4LaTo5m6nWC7xXoTiXwefKuL4nFZcxYEDJI1Aco8lrkwgKyxtkCgBz8iJuA=="),
+		sig: hex!("8b6131910cf18e2733d9812aa5692d3057a8fee5ce203e5242008be76e600f02a9b2b1b35d1567fb47352017b6343589207f742c26cda942e7e28aeede6fb1ea").into(),
+	}
+}
+
+pub fn mock_report1() -> ReportData {
+	ReportData {
+		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
+		rid: 3,
+		sig: hex!("2f925149be58d9fc9b2963f25322f50faeaca30d9e63247b7bbadf333fc3f941aecd5f22b77aa9c46c005400ab165c5dbf66fa105c4db7ab328a29e2e3144fb4").into(),
+		added_files: vec![
+			(str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yUR6dWeKZ"), 13),
+			(str2bytes("QmbProV6VyfyQ8f88z4Sup8jxVRQC8M22KcKiD6p7qsxHV"), 13),
+		],
+		deleted_files: vec![
+			str2bytes("QmP1fDCZ8kMcqTwK1kcRpXt9gbZF8EzZvf9wT9BQR5KZ7t"),
+		],
+		settle_files: vec![],
+	}
+}
+
+fn str2bytes(v: &str) -> Vec<u8> {
+	v.as_bytes().to_vec()
 }

@@ -244,9 +244,10 @@ pub mod pallet {
 	)]
 	pub enum Event<T: Config> {
         SetEnclave(EnclaveId, BlockNumberFor<T>),
+        Stashed(T::AccountId),
 		NodeRegisted(T::AccountId, MachineId),
 		NodeReported(T::AccountId, MachineId),
-        NodeWithdrawn(T::AccountId, BalanceOf<T>),
+        Withdrawn(T::AccountId, BalanceOf<T>),
 		StoreFileRequested(RootId, T::AccountId),
 		StoreFileCharged(RootId, T::AccountId),
 		StoreFileRemoved(RootId),
@@ -256,6 +257,7 @@ pub mod pallet {
 	pub enum Error<T> {
         InvalidEnclaveExpire,
 		InvalidStashPair,
+		NoEnoughToWithdraw,
 		InvalidNode,
 		MismatchMacheId,
 		InvalidIASSign,
@@ -326,29 +328,27 @@ pub mod pallet {
 		#[pallet::weight(1_000_000)]
 		pub fn stash(
 			origin: OriginFor<T>,
-			node: <T::Lookup as StaticLookup>::Source,
+			controller: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
 			let stasher = ensure_signed(origin)?;
-			let node = T::Lookup::lookup(node)?;
+			let controller = T::Lookup::lookup(controller)?;
 			let stash_balance = T::StashBalance::get();
-
-			if let Some(mut stash_info) = Stashs::<T>::get(&node) {
+			if let Some(mut stash_info) = Stashs::<T>::get(&controller) {
 				ensure!(&stash_info.stasher == &stasher, Error::<T>::InvalidStashPair);
-				if stash_info.deposit >= stash_balance {
-					stash_info.deposit = stash_info.deposit.saturating_sub(stash_balance);
-				} else {
+				if stash_info.deposit < stash_balance {
 					let lack = stash_balance.saturating_sub(stash_info.deposit);
 					T::Currency::transfer(&stasher, &Self::storage_pot(), lack, ExistenceRequirement::KeepAlive)?;
 					stash_info.deposit = stash_balance;
+					Stashs::<T>::insert(controller, stash_info);
 				}
-				Stashs::<T>::insert(node, stash_info);
 			} else {
 				T::Currency::transfer(&stasher, &Self::storage_pot(), stash_balance, ExistenceRequirement::KeepAlive)?;
-				Stashs::<T>::insert(node, StashInfo {
+				Stashs::<T>::insert(&controller, StashInfo {
 					stasher,
 					register: None,
 					deposit: stash_balance,
 				});
+				Self::deposit_event(Event::<T>::Stashed(controller));
 			}
 			Ok(())
 		}
@@ -356,26 +356,17 @@ pub mod pallet {
 		#[pallet::weight(1_000_000)]
 		pub fn withdraw(
 			origin: OriginFor<T>,
-			node: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
-			let stasher = ensure_signed(origin)?;
-			let node = T::Lookup::lookup(node)?;
-            let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::InvalidNode)?;
-            ensure!(&stash_info.stasher == &stasher, Error::<T>::InvalidStashPair);
+			let controller = ensure_signed(origin)?;
+            let mut stash_info = Stashs::<T>::get(&controller).ok_or(Error::<T>::InvalidNode)?;
             let stash_deposit: BalanceOf<T> = stash_info.deposit;
 			let stash_balance = T::StashBalance::get();
-            let free_amount = if stash_deposit >= stash_balance {
-				stash_info.deposit = stash_balance;
-                stash_deposit.saturating_sub(stash_balance)
-            } else {
-				stash_info.deposit = stash_deposit;
-                Zero::zero()
-            };
-            if !free_amount.is_zero() {
-                T::Currency::transfer(&Self::storage_pot(), &stasher, free_amount, ExistenceRequirement::KeepAlive)?;
-            }
-            Stashs::<T>::insert(node.clone(), stash_info);
-            Self::deposit_event(Event::<T>::NodeWithdrawn(node, free_amount));
+			let withdraw_balance = stash_deposit.saturating_sub(stash_balance);
+			ensure!(!withdraw_balance.is_zero(), Error::<T>::NoEnoughToWithdraw);
+			stash_info.deposit = stash_balance;
+			T::Currency::transfer(&Self::storage_pot(), &stash_info.stasher, withdraw_balance, ExistenceRequirement::KeepAlive)?;
+            Stashs::<T>::insert(controller.clone(), stash_info);
+            Self::deposit_event(Event::<T>::Withdrawn(controller, withdraw_balance));
             Ok(())
 		}
 
@@ -395,12 +386,6 @@ pub mod pallet {
 			}
 			let dec_cert = base64::decode_config(&ias_cert, base64::STANDARD).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
 			let sig_cert = webpki::EndEntityCert::from(&dec_cert).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
-			let dec_sig = base64::decode(&ias_sig).map_err(|_| Error::<T>::InvalidIASSign)?;
-			sig_cert.verify_signature(
-				&webpki::RSA_PKCS1_2048_8192_SHA256,
-				&ias_body,
-				&dec_sig
-			).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
 			let chain: Vec<&[u8]> = Vec::new();
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			let time_now = webpki::Time::from_seconds_since_unix_epoch(now);
@@ -409,6 +394,12 @@ pub mod pallet {
 				&IAS_SERVER_ROOTS,
 				&chain,
 				time_now
+			).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
+			let dec_sig = base64::decode(&ias_sig).map_err(|_| Error::<T>::InvalidIASSign)?;
+			sig_cert.verify_signature(
+				&webpki::RSA_PKCS1_2048_8192_SHA256,
+				&ias_body,
+				&dec_sig
 			).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
 			let json_body: serde_json::Value = serde_json::from_slice(&ias_body).map_err(|_| Error::<T>::InvalidIASBody)?;
 			let isv_quote_body = json_body.get("isvEnclaveQuoteBody").and_then(|v| v.as_str()).ok_or(Error::<T>::InvalidIASBody)?;
@@ -423,12 +414,12 @@ pub mod pallet {
 				&ias_body[..],
 				&machine_id[..],
 			].concat();
+			ensure!(verify_p256_sig(&key, &data, &sig), Error::<T>::InvalidVerifyP256Sig);
 			stash_info.register = Some(RegisterInfo {
 				key: key.clone(),
 				enclave: enclave.clone(),
 				machine_id: machine_id.clone(),
 			});
-			ensure!(verify_p256_sig(&key, &data, &sig), Error::<T>::InvalidVerifyP256Sig);
 			Stashs::<T>::insert(&node, stash_info);
 			Self::deposit_event(Event::<T>::NodeRegisted(node, machine_id));
             Ok(())
