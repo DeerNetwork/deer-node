@@ -97,7 +97,8 @@ fn register_works() {
 		.build()
 		.execute_with(|| {
 			let register = mock_register1();
-			assert_eq!(Stashs::<Test>::get(2).unwrap().register, None);
+			let machine_id = register.machine_id.clone();
+			assert_eq!(Stashs::<Test>::get(2).unwrap().machine_id, None);
 			assert_ok!(FileStorage::register(
 				Origin::signed(2),
 				register.machine_id,
@@ -106,10 +107,10 @@ fn register_works() {
 				register.ias_body,
 				register.sig
 			));
-			let register_info = Stashs::<Test>::get(2).unwrap().register.unwrap();
-			assert_eq!(register_info.enclave, mock_enclave_key1().0);
-			assert_eq!(register_info.key, mock_enclave_key1().1);
-			assert_eq!(register_info.machine_id, mock_register1().machine_id);
+			assert_eq!(Stashs::<Test>::get(2).unwrap().machine_id.unwrap(), machine_id.clone());
+			let register = Registers::<Test>::get(&machine_id).unwrap();
+			assert_eq!(register.enclave, mock_enclave_key1().0);
+			assert_eq!(register.key, mock_enclave_key1().1);
 
 			// register again with different register info
 			let register = mock_register2();
@@ -121,10 +122,9 @@ fn register_works() {
 				register.ias_body,
 				register.sig
 			));
-			let register_info = Stashs::<Test>::get(2).unwrap().register.unwrap();
-			assert_eq!(register_info.enclave, mock_enclave_key2().0);
-			assert_eq!(register_info.key, mock_enclave_key2().1);
-			assert_eq!(register_info.machine_id, mock_register2().machine_id);
+			let register = Registers::<Test>::get(&machine_id).unwrap();
+			assert_eq!(register.enclave, mock_enclave_key2().0);
+			assert_eq!(register.key, mock_enclave_key2().1);
 
 			// Failed when controller is not stashed
 			let register = mock_register1();

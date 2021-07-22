@@ -93,15 +93,14 @@ pub struct StoreFile<Balance, BlockNumber> {
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct StashInfo<AccountId, Balance> {
     pub stasher: AccountId,
-	pub register: Option<RegisterInfo>,
     pub deposit: Balance,
+	pub machine_id: Option<MachineId>,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct RegisterInfo {
 	pub key: PubKey,
 	pub enclave: EnclaveId,
-	pub machine_id: MachineId,
 }
 
 #[frame_support::pallet]
@@ -178,6 +177,14 @@ pub mod pallet {
 		Blake2_128Concat,
 		T::AccountId,
 		NodeInfo,
+	>;
+
+	#[pallet::storage]
+	pub type Registers<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		MachineId,
+		RegisterInfo,
 	>;
 
 	#[pallet::storage]
@@ -346,8 +353,8 @@ pub mod pallet {
 				T::Currency::transfer(&stasher, &Self::storage_pot(), stash_balance, ExistenceRequirement::KeepAlive)?;
 				Stashs::<T>::insert(&controller, StashInfo {
 					stasher,
-					register: None,
 					deposit: stash_balance,
+					machine_id: None,
 				});
 				Self::deposit_event(Event::<T>::Stashed(controller));
 			}
@@ -382,8 +389,8 @@ pub mod pallet {
 		) -> DispatchResult {
             let node = ensure_signed(origin)?;
 			let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::InvalidNode)?;
-			if let Some(register) = &stash_info.register {
-				ensure!(&register.machine_id == &machine_id, Error::<T>::MismatchMacheId);
+			if let Some(stash_machine_id) = &stash_info.machine_id {
+				ensure!(stash_machine_id == &machine_id, Error::<T>::MismatchMacheId);
 			}
 			let dec_cert = base64::decode_config(&ias_cert, base64::STANDARD).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
 			let sig_cert = webpki::EndEntityCert::from(&dec_cert).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
@@ -416,13 +423,23 @@ pub mod pallet {
 				&machine_id[..],
 			].concat();
 			ensure!(verify_p256_sig(&key, &data, &sig), Error::<T>::InvalidVerifyP256Sig);
-			stash_info.register = Some(RegisterInfo {
-				key: key.clone(),
-				enclave: enclave.clone(),
-				machine_id: machine_id.clone(),
-			});
 
-			Stashs::<T>::insert(&node, stash_info);
+			match Registers::<T>::get(&machine_id) {
+				Some(mut register) => {
+					register.key = key.clone();
+					register.enclave = enclave.clone();
+					Registers::<T>::insert(&machine_id, register);
+				},
+				None => {
+					Registers::<T>::insert(&machine_id, RegisterInfo {
+						key: key.clone(),
+						enclave: enclave.clone(),
+					});
+					stash_info.machine_id = Some(machine_id.clone());
+					Stashs::<T>::insert(&node, stash_info);
+				}
+			}
+			
 			Self::deposit_event(Event::<T>::NodeRegisted(node, machine_id));
             Ok(())
 		}
@@ -445,8 +462,9 @@ pub mod pallet {
 				Error::<T>::IllegalReportFiles
 			);
 			let mut stash_info = Stashs::<T>::get(&reporter).ok_or(Error::<T>::InvalidNode)?;
-			let register = stash_info.register.as_ref().ok_or(Error::<T>::UnregisterNode)?;
-			ensure!(&register.machine_id == &machine_id, Error::<T>::MismatchMacheId);
+			ensure!(stash_info.machine_id.is_some(), Error::<T>::UnregisterNode);
+			ensure!(&stash_info.machine_id.clone().unwrap() == &machine_id , Error::<T>::MismatchMacheId);
+			let register = Registers::<T>::get(&machine_id).ok_or(Error::<T>::UnregisterNode)?;
 			let now_at = Self::now_bn();
 			let enclave_bn = Enclaves::<T>::get(&register.enclave).ok_or(Error::<T>::InvalidEnclave)?;
 			ensure!(now_at <= enclave_bn, Error::<T>::InvalidEnclave);
