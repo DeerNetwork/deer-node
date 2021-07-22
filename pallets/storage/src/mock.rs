@@ -34,13 +34,14 @@ type Block = frame_system::mocking::MockBlock<Test>;
 
 use std::{cell::RefCell};
 
-pub const INIT_TIMESTAMP: u64 = 30_000;
-pub const BLOCK_TIME: u64 = 1000;
-
 pub type AccountId = u64;
 pub type AccountIndex = u64;
 pub type BlockNumber = u64;
 pub type Balance = u128;
+
+
+pub const MAX_FILE_SIZE: u64 = 1_000_000;
+pub const FILE_BASE_PRICE: Balance = 1000;
 
 #[derive(Debug, Clone)]
 pub struct RegisterData {
@@ -148,9 +149,9 @@ parameter_types! {
 	pub const RoundDuration: BlockNumber = 10;
 	pub const FileOrderRounds: u32 = 6;
 	pub const MaxFileReplicas: u32 = 3;
-	pub const MaxFileSize: u64 = 137_438_953_472; // 128G
-	pub const FileBasePrice: Balance = 1_000;
-	pub const FileBytePrice: Balance = 1;
+	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
+	pub const FileBasePrice: Balance = FILE_BASE_PRICE;
+	pub const FileBytePrice: Balance = 100;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
 	pub const HistoryRoundDepth: u32 = 90;
 }
@@ -225,8 +226,10 @@ impl ExtBuilder {
 			
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![
-				( 1, 1_000_000_000),
+				(1, 1_000_000_000),
 				(11, 1_000_000_000),
+				(1000, 1_000_000),
+				(1001, 1_000_000),
 			],
 		}.assimilate_storage(&mut t).unwrap();
 
@@ -322,6 +325,6 @@ pub fn mock_report1() -> ReportData {
 	}
 }
 
-fn str2bytes(v: &str) -> Vec<u8> {
+pub fn str2bytes(v: &str) -> Vec<u8> {
 	v.as_bytes().to_vec()
 }

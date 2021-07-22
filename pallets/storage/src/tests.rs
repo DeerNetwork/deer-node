@@ -174,10 +174,51 @@ fn report_works() {
 
 
 #[test]
-fn report_store() {
+fn store_works() {
 	ExtBuilder::default()
 		.build()
 		.execute_with(|| {
-			
+			let pot_b = balance_of_storage_pot();
+			let u1000_b = Balances::free_balance(&1000);
+			let file_fee = 1100;
+			assert_eq!(FileStorage::store_file_fee(2000), file_fee);
+			assert_ok!(FileStorage::store(
+				Origin::signed(1000),
+				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA"),
+				100,
+				file_fee,
+			));
+			let store_file = StoreFiles::<Test>::get(&str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA")).unwrap();
+			assert_eq!(store_file, StoreFile { reserved: file_fee.saturating_sub(FILE_BASE_PRICE), base_fee: FILE_BASE_PRICE, file_size: 100 });
+			assert_eq!(Balances::free_balance(&1000), u1000_b - file_fee);
+			assert_eq!(balance_of_storage_pot(), pot_b.saturating_add(file_fee));
+
+			// Add more fee to exist file pool
+			assert_ok!(FileStorage::store(
+				Origin::signed(1000),
+				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA"),
+				1000,
+				10,
+			));
+			let store_file = StoreFiles::<Test>::get(&str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA")).unwrap();
+			assert_eq!(store_file, StoreFile { reserved: file_fee.saturating_sub(FILE_BASE_PRICE).saturating_add(10), base_fee: FILE_BASE_PRICE, file_size: 100 });
+
+
+			// Fail when fee is not enough 
+			assert_err!(FileStorage::store(
+				Origin::signed(100),
+				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeB"),
+				100,
+				file_fee.saturating_sub(1),
+			), Error::<Test>::NotEnoughFee);
+
+
+			// Fail when fize size not in [0, T::MaxFileSize]
+			assert_err!(FileStorage::store(
+				Origin::signed(1000),
+				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeX"),
+				MAX_FILE_SIZE + 1,
+				u128::max_value(),
+			), Error::<Test>::InvalidFileSize);
 		})
 }

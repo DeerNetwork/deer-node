@@ -88,7 +88,7 @@ pub struct FileOrder<AccountId, Balance, BlockNumber> {
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct StoreFile<Balance> {
 	pub reserved: Balance,
-	pub base_reserved: Balance,
+	pub base_fee: Balance,
 	pub file_size: u64,
 }
 
@@ -268,7 +268,7 @@ pub mod pallet {
 		IllegalReportFiles,
 		UnregisterNode,
 		InvalidReportSig,
-		NotEnoughReserved,
+		NotEnoughFee,
 		InvalidFileSize,
 	}
 
@@ -522,27 +522,28 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			cid: RootId,
 			file_size: u64,
-			reserved: BalanceOf<T>,
+			fee: BalanceOf<T>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-
 			ensure!(file_size > 0 && file_size <= T::MaxFileSize::get(), Error::<T>::InvalidFileSize);
 
 			if let Some(mut file) = StoreFiles::<T>::get(&cid) {
-				file.reserved = file.reserved.saturating_add(reserved);
-				let min_reserved = Self::store_file_balance(file.file_size);
-				ensure!(file.reserved >= min_reserved, Error::<T>::NotEnoughReserved);
-                T::Currency::transfer(&who, &Self::storage_pot(), reserved, ExistenceRequirement::KeepAlive)?;
+				let total = file.reserved.saturating_add(file.base_fee).saturating_add(fee);
+				let min_fee = Self::store_file_fee(file.file_size);
+				ensure!(total >= min_fee, Error::<T>::NotEnoughFee);
+                T::Currency::transfer(&who, &Self::storage_pot(), fee, ExistenceRequirement::KeepAlive)?;
+				file.base_fee = T::FileBasePrice::get();
+				file.reserved = total.saturating_sub(file.base_fee);
 				StoreFiles::<T>::insert(cid.clone(), file);
 				Self::deposit_event(Event::<T>::StoreFileCharged(cid, who));
 			} else {
-				let min_reserved = Self::store_file_balance(file_size);
-				ensure!(reserved >= min_reserved, Error::<T>::NotEnoughReserved);
-                T::Currency::transfer(&who, &Self::storage_pot(), reserved, ExistenceRequirement::KeepAlive)?;
-				let base_reserved = T::FileBasePrice::get();
+				let min_fee = Self::store_file_fee(file_size);
+				ensure!(fee >= min_fee, Error::<T>::NotEnoughFee);
+                T::Currency::transfer(&who, &Self::storage_pot(), fee, ExistenceRequirement::KeepAlive)?;
+				let base_fee = T::FileBasePrice::get();
 				StoreFiles::<T>::insert(cid.clone(), StoreFile {
-					reserved: reserved.saturating_sub(base_reserved),
-					base_reserved,
+					reserved: fee.saturating_sub(base_fee),
+					base_fee,
 					file_size,
 				});
 				Self::deposit_event(Event::<T>::StoreFileRequested(cid, who));
@@ -680,7 +681,7 @@ impl<T: Config> Pallet<T> {
 		maybe_file_size: Option<u64>,
 	) {
 		if let Some(mut file) = StoreFiles::<T>::get(cid) {
-			let expect_order_fee = Self::store_file_bytes_balance(maybe_file_size.unwrap_or(file.file_size));
+			let expect_order_fee = Self::store_file_bytes_fee(maybe_file_size.unwrap_or(file.file_size));
 			if let Some(file_size) = maybe_file_size {
 				// user underreported the file size
 				if file.file_size < file_size && file.reserved < expect_order_fee {
@@ -688,14 +689,14 @@ impl<T: Config> Pallet<T> {
 					Self::clear_store_file(cid);
 					return;
 				}
-				if !file.base_reserved.is_zero() {
+				if !file.base_fee.is_zero() {
 					RoundsReward::<T>::mutate(
 						current_round, 
 						|reward| {
-							reward.store_reward = reward.store_reward.saturating_add(file.base_reserved)
+							reward.store_reward = reward.store_reward.saturating_add(file.base_fee)
 						}
 					);
-					file.base_reserved = Zero::zero();
+					file.base_fee = Zero::zero();
 				}
 				file.file_size = file_size;
 			}
@@ -773,13 +774,13 @@ impl<T: Config> Pallet<T> {
 		Self::deposit_event(Event::<T>::StoreFileRemoved(cid.clone()));
 	}
 
-	fn store_file_balance(file_size: u64) -> BalanceOf<T> {
-		T::FileBasePrice::get().saturating_add(Self::store_file_bytes_balance(file_size))
+	fn store_file_fee(file_size: u64) -> BalanceOf<T> {
+		T::FileBasePrice::get().saturating_add(Self::store_file_bytes_fee(file_size))
 	}
 
-	fn store_file_bytes_balance(file_size: u64) -> BalanceOf<T> {
+	fn store_file_bytes_fee(file_size: u64) -> BalanceOf<T> {
 		let mut file_size_in_mega = file_size / 1_048_576;
-		if file_size_in_mega % 1_048_576 != 0 {
+		if file_size % 1_048_576 != 0 {
 			file_size_in_mega += 1;
 		}
 		T::FileBytePrice::get().saturating_mul(file_size_in_mega.saturated_into())
