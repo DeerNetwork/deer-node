@@ -145,6 +145,9 @@ pub mod pallet {
 		type MaxFileSize: Get<u64>;
 
 		#[pallet::constant]
+		type MaxReportFiles: Get<u32>;
+
+		#[pallet::constant]
 		type FileBasePrice: Get<BalanceOf<Self>>;
 
 		#[pallet::constant]
@@ -264,6 +267,7 @@ pub mod pallet {
 		InvalidIASSigningCert,
 		InvalidIASBody,
 		InvalidEnclave,
+		DuplicateReport,
 		InvalidVerifyP256Sig,
 		IllegalReportFiles,
 		UnregisterNode,
@@ -431,38 +435,39 @@ pub mod pallet {
 			machine_id: MachineId,
 			rid: u64,
 			sig: Vec<u8>,
-			added_files: Vec<(RootId, u64)>,
-			deleted_files: Vec<RootId>,
-			settle_files: Vec<RootId>,
+			add_files: Vec<(RootId, u64)>,
+			del_files: Vec<RootId>,
+			settle_files: Vec<RootId>
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
-            ensure!(added_files.len() < FILES_COUNT_LIMIT, Error::<T>::IllegalReportFiles);
+            ensure!(
+				add_files.len() < T::MaxReportFiles::get() as usize ||
+				del_files.len() < T::MaxReportFiles::get() as usize ||
+				settle_files.len() < T::MaxReportFiles::get() as usize, 
+				Error::<T>::IllegalReportFiles
+			);
 			let mut stash_info = Stashs::<T>::get(&reporter).ok_or(Error::<T>::InvalidNode)?;
 			let register = stash_info.register.as_ref().ok_or(Error::<T>::UnregisterNode)?;
 			ensure!(&register.machine_id == &machine_id, Error::<T>::MismatchMacheId);
 			let now_at = Self::now_bn();
 			let enclave_bn = Enclaves::<T>::get(&register.enclave).ok_or(Error::<T>::InvalidEnclave)?;
-			let key = register.key.clone();
 			ensure!(now_at <= enclave_bn, Error::<T>::InvalidEnclave);
 
             let current_round = CurrentRound::<T>::get();
 			let maybe_node_info: Option<NodeInfo> = Nodes::<T>::get(&reporter);
 			if let Some(_) = &maybe_node_info {
-				if RoundsReport::<T>::contains_key(current_round, &reporter) {
-                    log!(trace, "🔒 Already reported");
-					return Ok(());
-				}
+				ensure!(!RoundsReport::<T>::contains_key(current_round, &reporter), Error::<T>::DuplicateReport);
 			}
 			let mut node_info = maybe_node_info.unwrap_or_default();
 
 			ensure!(
 				verify_report_storage(
 					&machine_id,
-					&key,
+					&register.key,
 					node_info.rid,
 					rid,
-					&added_files,
-					&deleted_files,
+					&add_files,
+					&del_files,
 					&sig,
 				),
 				Error::<T>::InvalidReportSig,
@@ -470,10 +475,10 @@ pub mod pallet {
 
 			let mut size_changed: BTreeMap<T::AccountId, (u64, u64)> = BTreeMap::new();
 
-			for (cid, file_size, ..) in added_files.iter() {
+			for (cid, file_size, ..) in add_files.iter() {
 				Self::add_file(&mut size_changed, &reporter, cid, current_round, *file_size);
 			}
-			for cid in deleted_files.iter() {
+			for cid in del_files.iter() {
 				Self::delete_file(&mut size_changed, &reporter, cid);
 			}
 			for cid in settle_files.iter() {

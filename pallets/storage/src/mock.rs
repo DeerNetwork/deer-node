@@ -57,8 +57,8 @@ pub struct ReportData {
 	pub machine_id: MachineId,
 	pub rid: u64,
 	pub sig: Vec<u8>,
-	pub added_files: Vec<(RootId, u64)>,
-	pub deleted_files: Vec<RootId>,
+	pub add_files: Vec<(RootId, u64)>,
+	pub del_files: Vec<RootId>,
 	pub settle_files: Vec<RootId>,
 }
 
@@ -150,6 +150,7 @@ parameter_types! {
 	pub const FileOrderRounds: u32 = 6;
 	pub const MaxFileReplicas: u32 = 3;
 	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
+	pub const MaxReportFiles: u32 = 10;
 	pub const FileBasePrice: Balance = FILE_BASE_PRICE;
 	pub const FileBytePrice: Balance = 100;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
@@ -166,6 +167,7 @@ impl Config for Test {
 	type FileOrderRounds = FileOrderRounds;
 	type MaxFileReplicas = MaxFileReplicas;
 	type MaxFileSize = MaxFileSize;
+	type MaxReportFiles = MaxReportFiles;
 	type FileBasePrice = FileBasePrice;
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
@@ -177,6 +179,7 @@ pub struct ExtBuilder {
 	enclaves: Vec<(EnclaveId, BlockNumber)>,
 	stashs: Vec<(AccountId, AccountId)>,
 	registers: Vec<(AccountId, RegisterData)>,
+	files: Vec<(RootId, u64, Balance)>,
 	now: u64,
 }
 
@@ -189,13 +192,14 @@ impl Default for ExtBuilder {
 			],
 			stashs: vec![],
 			registers: vec![],
-			now: 1626800000000,
+			files: vec![],
+			now: 1627833600000,
         }
     }
 }
 
 impl ExtBuilder {
-	pub fn enclave(mut self, enclaves: Vec<(EnclaveId, BlockNumber)>) -> Self {
+	pub fn enclaves(mut self, enclaves: Vec<(EnclaveId, BlockNumber)>) -> Self {
 		self.enclaves = enclaves;
 		self
 	}
@@ -207,6 +211,11 @@ impl ExtBuilder {
 
 	pub fn now(mut self, now: u64) -> Self {
 		self.now = now;
+		self
+	}
+
+	pub fn files(mut self, files: Vec<(RootId, u64, Balance)>) -> Self {
+		self.files = files;
 		self
 	}
 	
@@ -230,16 +239,21 @@ impl ExtBuilder {
 				(11, 1_000_000_000),
 				(1000, 1_000_000),
 				(1001, 1_000_000),
+
+				(9999, 1_000_000_000), // only used in this file
 			],
 		}.assimilate_storage(&mut t).unwrap();
 
 		let mut ext = sp_io::TestExternalities::new(t);
-		let ExtBuilder { registers, stashs, now, .. } = self;
+		let ExtBuilder { registers, stashs, files, now, .. } = self;
 		ext.execute_with(|| {
 			System::set_block_number(1);
 			Timestamp::set_timestamp(now);
 			for (stasher, controller) in stashs {
 				FileStorage::stash(Origin::signed(stasher), controller).unwrap();
+			}
+			for (cid, file_size, fee) in  files {
+				FileStorage::store(Origin::signed(9999), cid, file_size, fee).unwrap();
 			}
 			for (controller, info) in registers {
 				FileStorage::register(
@@ -289,7 +303,15 @@ pub fn mock_enclave_key2() -> (EnclaveId, PubKey) {
 	)
 }
 
+pub fn mock_enclave_key3() -> (EnclaveId, PubKey) {
+	(
+        hex!("8c9233b61572d391e5d97c9c09a38edc4d2422b33808d9611ddbb1fb7d7a0098").into(),
+        hex!("1d19109b9289a217246f4be5566c761581840a87bda1e7da6d6273d0f044ec7206b0ccdbf362c01fdbc46ef31513c8e29de8ea738367bd7f7e2031e0a4a46c6a").into(),
+	)
+}
+
 pub fn mock_register1() -> RegisterData {
+	// priv_k: "e394cf1de366242a772f44904ba475f5317ce8baedac5485ccd812db2ccf28ab",
 	RegisterData {
 		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
         ias_body: str2bytes("{\"id\":\"327849746623058382595462695863525135492\",\"timestamp\":\"2021-07-21T07:23:39.696594\",\"version\":4,\"epidPseudonym\":\"ybSBDhwKvtRIx76tLCjLNVH+zI6JLGEEuu/c0mcQwk0OGYFRSsJfLApOkp+B/GFAzhTIIEXmYmAOSGDdbc2mFu/wx1HiK1+mFI+isaCe6ZN7IeLOrfbnVfeR6E7OhvFtc9e1xwyviVa6a9+bCVhQV1THJq7lW7HbaOxW9ZQu6g0=\",\"advisoryURL\":\"https://security-center.intel.com\",\"advisoryIDs\":[\"INTEL-SA-00161\",\"INTEL-SA-00477\",\"INTEL-SA-00381\",\"INTEL-SA-00389\",\"INTEL-SA-00320\",\"INTEL-SA-00329\",\"INTEL-SA-00220\",\"INTEL-SA-00270\",\"INTEL-SA-00293\",\"INTEL-SA-00233\"],\"isvEnclaveQuoteStatus\":\"GROUP_OUT_OF_DATE\",\"platformInfoBlob\":\"150200650400090000111102040180070000000000000000000C00000C000000020000000000000B2FD11FE6C355B3AB0F453E92C88F565CB58ACDCA00D3E13716CE6BDB92A372DA54784987293BE9EF77C00D94F090A9193BD6147A3C994E3086D14C57C089F35D39\",\"isvEnclaveQuoteBody\":\"AgABAC8LAAAMAAsAAAAAAAbkva5mzdO2S8iey0QRTKEAAAAAAAAAAAAAAAAAAAAABRICBf+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAHAAAAAAAAAPmJXfzjBbEIHCQkIXgTZKSee1RznLfSzwv1eOTzk7+jAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACD1xnnferKFHD2uvYqTXdDA8iZ22kCD5xw7h38CMfOngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH9m21/giIxl3atpQAIEkv0v5hVBPxPY2RMcR4xoxsgN+kc2W/n++sKQA8+PFpoHZis8WQdRHpnkOc3mnzlv+C\"}"),
@@ -300,6 +322,7 @@ pub fn mock_register1() -> RegisterData {
 }
 
 pub fn mock_register2() -> RegisterData {
+	// priv_k: "9496aeba1604c00d5f003307e32ac888c644694eb122688bb3af186b1559f0b3"
 	RegisterData {
 		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
         ias_body: str2bytes("{\"id\":\"37636908292053551191961084853934181455\",\"timestamp\":\"2021-07-21T08:06:44.436360\",\"version\":4,\"epidPseudonym\":\"ybSBDhwKvtRIx76tLCjLNVH+zI6JLGEEuu/c0mcQwk0OGYFRSsJfLApOkp+B/GFAzhTIIEXmYmAOSGDdbc2mFu/wx1HiK1+mFI+isaCe6ZN7IeLOrfbnVfeR6E7OhvFtc9e1xwyviVa6a9+bCVhQV1THJq7lW7HbaOxW9ZQu6g0=\",\"advisoryURL\":\"https://security-center.intel.com\",\"advisoryIDs\":[\"INTEL-SA-00161\",\"INTEL-SA-00477\",\"INTEL-SA-00381\",\"INTEL-SA-00389\",\"INTEL-SA-00320\",\"INTEL-SA-00329\",\"INTEL-SA-00220\",\"INTEL-SA-00270\",\"INTEL-SA-00293\",\"INTEL-SA-00233\"],\"isvEnclaveQuoteStatus\":\"GROUP_OUT_OF_DATE\",\"platformInfoBlob\":\"150200650400090000111102040180070000000000000000000C00000C000000020000000000000B2F485621743EA97D22ED8DFD3E8A970C8BECADD71E9D6E82601B4BE49AB9527A686C50EE466F5D0A9236B96E569602B7461A79B4428736834623B250F462973ACB\",\"isvEnclaveQuoteBody\":\"AgABAC8LAAAMAAsAAAAAAAbkva5mzdO2S8iey0QRTKEAAAAAAAAAAAAAAAAAAAAABRICBf+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAHAAAAAAAAADjQGFxbqFLZdojQET4jE78FHcmXAHsueqQRl2v0Mak5AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACD1xnnferKFHD2uvYqTXdDA8iZ22kCD5xw7h38CMfOngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBS8SRUCg3MgDkrbPWpDvlIbfWmRJAQ8BqoPwmh7qhZ1u0e66jKHyE01IjR67NkRfLqZW2hkQfVOAilr5O/PBB\"}"),
@@ -309,16 +332,27 @@ pub fn mock_register2() -> RegisterData {
 	}
 }
 
+pub fn mock_register3() -> RegisterData {
+	// priv_k: "819b70e0aaeff6ed0f566c5cff9d175291abf264bd444e5b6c5ab64a59c48068"
+	RegisterData {
+		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
+        ias_body: str2bytes("{\"id\":\"147170265343287952121166579147491110158\",\"timestamp\":\"2021-07-22T02:51:29.674396\",\"version\":4,\"epidPseudonym\":\"ybSBDhwKvtRIx76tLCjLNVH+zI6JLGEEuu/c0mcQwk0OGYFRSsJfLApOkp+B/GFAzhTIIEXmYmAOSGDdbc2mFu/wx1HiK1+mFI+isaCe6ZN7IeLOrfbnVfeR6E7OhvFtc9e1xwyviVa6a9+bCVhQV1THJq7lW7HbaOxW9ZQu6g0=\",\"advisoryURL\":\"https://security-center.intel.com\",\"advisoryIDs\":[\"INTEL-SA-00161\",\"INTEL-SA-00477\",\"INTEL-SA-00381\",\"INTEL-SA-00389\",\"INTEL-SA-00320\",\"INTEL-SA-00329\",\"INTEL-SA-00220\",\"INTEL-SA-00270\",\"INTEL-SA-00293\",\"INTEL-SA-00233\"],\"isvEnclaveQuoteStatus\":\"GROUP_OUT_OF_DATE\",\"platformInfoBlob\":\"150200650400090000111102040180070000000000000000000C00000C000000020000000000000B2F6EB4074389FB4C554BAEDFED95A54DD70EE8BACADD7DA97B6E190E2D80DAA0AB8E9D81AD8F64D96772422ABE9A2B195810D3D209591E69E8BADE2576B126A864\",\"isvEnclaveQuoteBody\":\"AgABAC8LAAAMAAsAAAAAAAbkva5mzdO2S8iey0QRTKEAAAAAAAAAAAAAAAAAAAAABRICBf+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAHAAAAAAAAAIySM7YVctOR5dl8nAmjjtxNJCKzOAjZYR3bsft9egCYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACD1xnnferKFHD2uvYqTXdDA8iZ22kCD5xw7h38CMfOngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAdGRCbkomiFyRvS+VWbHYVgYQKh72h59ptYnPQ8ETscgawzNvzYsAf28Ru8xUTyOKd6Opzg2e9f34gMeCkpGxq\"}"),
+        ias_cert: str2bytes("MIIEoTCCAwmgAwIBAgIJANEHdl0yo7CWMA0GCSqGSIb3DQEBCwUAMH4xCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDQTEUMBIGA1UEBwwLU2FudGEgQ2xhcmExGjAYBgNVBAoMEUludGVsIENvcnBvcmF0aW9uMTAwLgYDVQQDDCdJbnRlbCBTR1ggQXR0ZXN0YXRpb24gUmVwb3J0IFNpZ25pbmcgQ0EwHhcNMTYxMTIyMDkzNjU4WhcNMjYxMTIwMDkzNjU4WjB7MQswCQYDVQQGEwJVUzELMAkGA1UECAwCQ0ExFDASBgNVBAcMC1NhbnRhIENsYXJhMRowGAYDVQQKDBFJbnRlbCBDb3Jwb3JhdGlvbjEtMCsGA1UEAwwkSW50ZWwgU0dYIEF0dGVzdGF0aW9uIFJlcG9ydCBTaWduaW5nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqXot4OZuphR8nudFrAFiaGxxkgma/Es/BA+tbeCTUR106AL1ENcWA4FX3K+E9BBL0/7X5rj5nIgX/R/1ubhkKWw9gfqPG3KeAtIdcv/uTO1yXv50vqaPvE1CRChvzdS/ZEBqQ5oVvLTPZ3VEicQjlytKgN9cLnxbwtuvLUK7eyRPfJW/ksddOzP8VBBniolYnRCD2jrMRZ8nBM2ZWYwnXnwYeOAHV+W9tOhAImwRwKF/95yAsVwd21ryHMJBcGH70qLagZ7Ttyt++qO/6+KAXJuKwZqjRlEtSEz8gZQeFfVYgcwSfo96oSMAzVr7V0L6HSDLRnpb6xxmbPdqNol4tQIDAQABo4GkMIGhMB8GA1UdIwQYMBaAFHhDe3amfrzQr35CN+s1fDuHAVE8MA4GA1UdDwEB/wQEAwIGwDAMBgNVHRMBAf8EAjAAMGAGA1UdHwRZMFcwVaBToFGGT2h0dHA6Ly90cnVzdGVkc2VydmljZXMuaW50ZWwuY29tL2NvbnRlbnQvQ1JML1NHWC9BdHRlc3RhdGlvblJlcG9ydFNpZ25pbmdDQS5jcmwwDQYJKoZIhvcNAQELBQADggGBAGcIthtcK9IVRz4rRq+ZKE+7k50/OxUsmW8aavOzKb0iCx07YQ9rzi5nU73tME2yGRLzhSViFs/LpFa9lpQL6JL1aQwmDR74TxYGBAIi5f4I5TJoCCEqRHz91kpG6Uvyn2tLmnIdJbPE4vYvWLrtXXfFBSSPD4Afn7+3/XUggAlc7oCTizOfbbtOFlYA4g5KcYgS1J2ZAeMQqbUdZseZCcaZZZn65tdqee8UXZlDvx0+NdO0LR+5pFy+juM0wWbu59MvzcmTXbjsi7HY6zd53Yq5K244fwFHRQ8eOB0IWB+4PfM7FeAApZvlfqlKOlLcZL2uyVmzRkyR5yW72uo9mehX44CiPJ2fse9Y6eQtcfEhMPkmHXI01sN+KwPbpA39+xOsStjhP9N1Y1a2tQAVo+yVgLgV2Hws73Fc0o3wC78qPEA+v2aRs/Be3ZFDgDyghc/1fgU+7C+P6kbqd4poyb6IW8KCJbxfMJvkordNOgOUUxndPHEi/tb/U7uLjLOgPA=="),
+        ias_sig: str2bytes("VCSj8LQ1baU234S+G6HYoXp79dlB7kpmxPITyA94sE9nVHOX5POvWQv3IIhwSo3swr093XwxwJoHieeEhDM+/Oht65Gcpa7pjYUXSZaSGK9ttcJ4PC0zDGZfCaQXfI/H+VeZIvQyP4rUPCiSo83VZhhmk0resYpJg3JKd9NksgiNs5ldCQnd1uwjc7qLxmz9RBK5ixFhCI1HtGJ5sUnnUIfgEh/7YU4gt49Bz9s0V4GStjzJ9LVCXPtf3H3n8ShQaUxrYFJxJEtHNPa30uB5qxXplhArjxeCXn6olPcUL1ct29ZEb81UIW/k6OyNiZNKhbbmgoqTY4vVkYjIUlPg0Q=="),
+		sig: hex!("fdbee145ea0e77b25b49b05e94ceb58363199e15e2ac88e270270b8967fce5b715a34c209dc3a0a89c62695392cb8313aadbcf9d6c1d51ccefd04e582bb8b8f7").into(),
+	}
+}
+
 pub fn mock_report1() -> ReportData {
 	ReportData {
 		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
 		rid: 3,
 		sig: hex!("2f925149be58d9fc9b2963f25322f50faeaca30d9e63247b7bbadf333fc3f941aecd5f22b77aa9c46c005400ab165c5dbf66fa105c4db7ab328a29e2e3144fb4").into(),
-		added_files: vec![
+		add_files: vec![
 			(str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yUR6dWeKZ"), 13),
 			(str2bytes("QmbProV6VyfyQ8f88z4Sup8jxVRQC8M22KcKiD6p7qsxHV"), 13),
 		],
-		deleted_files: vec![
+		del_files: vec![
 			str2bytes("QmP1fDCZ8kMcqTwK1kcRpXt9gbZF8EzZvf9wT9BQR5KZ7t"),
 		],
 		settle_files: vec![],

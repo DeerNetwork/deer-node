@@ -2,7 +2,6 @@ use frame_support::PalletId;
 
 pub const LOG_TARGET: &'static str = "runtime::storage";
 pub const PALLET_ID: PalletId = PalletId(*b"storage.");
-pub const FILES_COUNT_LIMIT: usize = 100;
 pub type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 pub static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
 	&webpki::RSA_PKCS1_2048_8192_SHA256,

@@ -861,6 +861,7 @@ parameter_types! {
 	pub const FileOrderRounds: u32 = 24;
 	pub const MaxFileReplicas: u32 = 15;
 	pub const MaxFileSize: u64 = 137_438_953_472; // 128G
+	pub const MaxReportFiles: u32 = 100;
 	pub const FileBasePrice: Balance = 1 * CENTS;
 	pub const FileBytePrice: Balance = MILLICENTS / 1000;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
@@ -878,6 +879,7 @@ impl pallet_storage::Config for Runtime {
 	type FileOrderRounds = FileOrderRounds;
 	type MaxFileReplicas = MaxFileReplicas;
 	type MaxFileSize = MaxFileSize;
+	type MaxReportFiles = MaxReportFiles;
 	type FileBasePrice = FileBasePrice;
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;

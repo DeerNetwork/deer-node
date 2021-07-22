@@ -126,7 +126,7 @@ fn register_works() {
 			assert_eq!(register_info.key, mock_enclave_key2().1);
 			assert_eq!(register_info.machine_id, mock_register2().machine_id);
 
-			// fail when controller is not bound
+			// Failed when controller is not stashed
 			let register = mock_register1();
 			assert_err!(FileStorage::register(
 				Origin::signed(3),
@@ -137,18 +137,28 @@ fn register_works() {
 				register.sig
 			), Error::<Test>::InvalidNode);
 
-			// fail when machind_id don't match
-			let register = mock_register1();
-			let mut machine_id = register.machine_id;
-			machine_id[0] += 1;
+			// Failed when machind_id don't match
+			let mut register = mock_register1();
+			register.machine_id[0] += 1;
 			assert_err!(FileStorage::register(
 				Origin::signed(2),
-				machine_id,
+				register.machine_id,
 				register.ias_cert,
 				register.ias_sig,
 				register.ias_body,
 				register.sig
 			), Error::<Test>::MismatchMacheId);
+
+			// Failed when enclave is not inclued
+			let register = mock_register3();
+			assert_err!(FileStorage::register(
+				Origin::signed(2),
+				register.machine_id,
+				register.ias_cert,
+				register.ias_sig,
+				register.ias_body,
+				register.sig
+			), Error::<Test>::InvalidEnclave);
 		})
 }
 
@@ -159,16 +169,119 @@ fn report_works() {
 		.register(2, mock_register1())
 		.build()
 		.execute_with(|| {
-			let reporter1 = mock_report1();
+			let reporter = mock_report1();
 			assert_ok!(FileStorage::report(
 				Origin::signed(2),
-				reporter1.machine_id,
-				reporter1.rid,
-				reporter1.sig,
-				reporter1.added_files,
-				reporter1.deleted_files,
-				reporter1.settle_files
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
 			));
+
+			// Failed when report twice in same round
+			let reporter = mock_report1();
+			assert_err!(FileStorage::report(
+				Origin::signed(2),
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
+			), Error::<Test>::DuplicateReport);
+		})
+}
+
+#[test]
+fn report_should_failed_with_legal_input() {
+	ExtBuilder::default()
+		.build()
+		.execute_with(|| {
+			// Failed when controller is not stashed
+			let reporter = mock_report1();
+			assert_err!(FileStorage::report(
+				Origin::signed(2),
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
+			), Error::<Test>::InvalidNode);
+
+			// Failed when controller is not registered
+			assert_ok!(FileStorage::stash(Origin::signed(1), 2));
+			let reporter = mock_report1();
+			assert_err!(FileStorage::report(
+				Origin::signed(2),
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
+			), Error::<Test>::UnregisterNode);
+
+			// Failed when machine_id don't match 
+			let register = mock_register1();
+			assert_ok!(FileStorage::register(
+				Origin::signed(2),
+				register.machine_id,
+				register.ias_cert,
+				register.ias_sig,
+				register.ias_body,
+				register.sig
+			));
+			let mut reporter = mock_report1();
+			reporter.machine_id[0] += 1;
+			assert_err!(FileStorage::report(
+				Origin::signed(2),
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
+			), Error::<Test>::MismatchMacheId);
+
+			// Failed when add_files or del_files is tampered
+			let mut reporter = mock_report1();
+			reporter.add_files[0].1 = reporter.add_files[0].1 + 1;
+			assert_err!(FileStorage::report(
+				Origin::signed(2),
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
+			), Error::<Test>::InvalidReportSig);
+			
+			// Failed when enclave is outdated
+			run_to_block(1001);
+			let reporter = mock_report1();
+			assert_err!(FileStorage::report(
+				Origin::signed(2),
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
+			), Error::<Test>::InvalidEnclave);
+		})
+}
+
+#[test]
+fn report_should_failed_when_rid_is_not_continuous() {
+	ExtBuilder::default()
+		.build()
+		.execute_with(|| {
+			// after reported, rid was changed from 0 to 3
+
+			// Failed when rid starting from 4
 		})
 }
 
@@ -204,7 +317,7 @@ fn store_works() {
 			assert_eq!(store_file, StoreFile { reserved: file_fee.saturating_sub(FILE_BASE_PRICE).saturating_add(10), base_fee: FILE_BASE_PRICE, file_size: 100 });
 
 
-			// Fail when fee is not enough 
+			// Failed when fee is not enough 
 			assert_err!(FileStorage::store(
 				Origin::signed(100),
 				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeB"),
@@ -213,7 +326,7 @@ fn store_works() {
 			), Error::<Test>::NotEnoughFee);
 
 
-			// Fail when fize size not in [0, T::MaxFileSize]
+			// Failed when fize size not in [0, T::MaxFileSize]
 			assert_err!(FileStorage::store(
 				Origin::signed(1000),
 				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeX"),
