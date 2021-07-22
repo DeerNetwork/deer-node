@@ -1,22 +1,3 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// 	http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-//! Test environment for Assets pallet.
-
 use super::*;
 use crate as pallet_storage;
 
@@ -57,19 +38,27 @@ pub struct ReportData {
 	pub machine_id: MachineId,
 	pub rid: u64,
 	pub sig: Vec<u8>,
-	pub add_files: Vec<(RootId, u64)>,
-	pub del_files: Vec<RootId>,
-	pub settle_files: Vec<RootId>,
+	pub add_files: Vec<(FileId, u64)>,
+	pub del_files: Vec<FileId>,
+	pub settle_files: Vec<FileId>,
 }
 
 thread_local! {
     static STASH_BALANCE: RefCell<Balance> = RefCell::new(default_stash_balance());
+	static FILE_BYTE_PRICE: RefCell<Balance> = RefCell::new(default_file_byte_price());
 }
 
 pub struct StashBalance;
 impl Get<Balance> for StashBalance {
     fn get() -> Balance {
         STASH_BALANCE.with(|v| *v.borrow())
+    }
+}
+
+pub struct FileBytePrice;
+impl Get<Balance> for FileBytePrice {
+    fn get() -> Balance {
+        FILE_BYTE_PRICE.with(|v| *v.borrow())
     }
 }
 
@@ -148,11 +137,10 @@ parameter_types! {
 	pub const SlashBalance: Balance = 100;
 	pub const RoundDuration: BlockNumber = 10;
 	pub const FileOrderRounds: u32 = 6;
-	pub const MaxFileReplicas: u32 = 3;
+	pub const MaxFileReplicas: u32 = 4;
 	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
 	pub const MaxReportFiles: u32 = 10;
-	pub const FileBasePrice: Balance = FILE_BASE_PRICE;
-	pub const FileBytePrice: Balance = 100;
+	pub const FileBaseFee: Balance = FILE_BASE_PRICE;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
 	pub const HistoryRoundDepth: u32 = 90;
 }
@@ -168,7 +156,7 @@ impl Config for Test {
 	type MaxFileReplicas = MaxFileReplicas;
 	type MaxFileSize = MaxFileSize;
 	type MaxReportFiles = MaxReportFiles;
-	type FileBasePrice = FileBasePrice;
+	type FileBaseFee = FileBaseFee;
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
@@ -179,7 +167,7 @@ pub struct ExtBuilder {
 	enclaves: Vec<(EnclaveId, BlockNumber)>,
 	stashs: Vec<(AccountId, AccountId)>,
 	registers: Vec<(AccountId, RegisterData)>,
-	files: Vec<(RootId, u64, Balance)>,
+	files: Vec<(FileId, u64, Balance)>,
 	now: u64,
 }
 
@@ -214,7 +202,7 @@ impl ExtBuilder {
 		self
 	}
 
-	pub fn files(mut self, files: Vec<(RootId, u64, Balance)>) -> Self {
+	pub fn files(mut self, files: Vec<(FileId, u64, Balance)>) -> Self {
 		self.files = files;
 		self
 	}
@@ -252,8 +240,8 @@ impl ExtBuilder {
 			for (stasher, controller) in stashs {
 				FileStorage::stash(Origin::signed(stasher), controller).unwrap();
 			}
-			for (cid, file_size, fee) in  files {
-				FileStorage::store(Origin::signed(9999), cid, file_size, fee).unwrap();
+			for (cid, file_size, fee) in files {
+				FileStorage::store(Origin::signed(9999), cid.clone(), file_size, fee).unwrap();
 			}
 			for (controller, info) in registers {
 				FileStorage::register(
@@ -281,12 +269,20 @@ pub const fn default_stash_balance() -> Balance {
 	10_000
 }
 
+pub const fn default_file_byte_price() -> Balance {
+	100
+}
+
 pub fn balance_of_storage_pot() -> Balance {
 	Balances::free_balance(&FileStorage::storage_pot())
 }
 
 pub fn change_stash_balance(v: Balance) {
 	STASH_BALANCE.with(|f| *f.borrow_mut() = v);
+}
+
+pub fn change_file_byte_price(v: Balance) {
+	FILE_BYTE_PRICE.with(|f| *f.borrow_mut() = v);
 }
 
 pub fn mock_enclave_key1() -> (EnclaveId, PubKey) {
@@ -344,19 +340,53 @@ pub fn mock_register3() -> RegisterData {
 }
 
 pub fn mock_report1() -> ReportData {
+	// node = mock_register1
 	ReportData {
 		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
 		rid: 3,
-		sig: hex!("2f925149be58d9fc9b2963f25322f50faeaca30d9e63247b7bbadf333fc3f941aecd5f22b77aa9c46c005400ab165c5dbf66fa105c4db7ab328a29e2e3144fb4").into(),
+		sig: hex!("423c052efcc01b9f6aed34cb7616c2678951ef0de0c0f4aa1903fd3e82fa6d16cb964d3b65042b4b02369c47984204709330da0791c1292dc5251e8a1ae1a70e").into(),
 		add_files: vec![
-			(str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yUR6dWeKZ"), 13),
-			(str2bytes("QmbProV6VyfyQ8f88z4Sup8jxVRQC8M22KcKiD6p7qsxHV"), 13),
+			(mock_file_id('A'), 100),
 		],
-		del_files: vec![
-			str2bytes("QmP1fDCZ8kMcqTwK1kcRpXt9gbZF8EzZvf9wT9BQR5KZ7t"),
-		],
+		del_files: vec![],
 		settle_files: vec![],
 	}
+}
+
+pub fn mock_report2() -> ReportData {
+	// node = mock_register1
+	ReportData {
+		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
+		rid: 3,
+		sig: hex!("ccb46b9dfe4cd24ccad7687beb7b9033828bf36c08c03653643d9146019831719773bbe9e9d269e989816a9547b41f1c2906cccc3757225df40e2908b06e5c01").into(),
+		add_files: vec![
+			(mock_file_id('A'), 2097152),
+		],
+		del_files: vec![],
+		settle_files: vec![],
+	}
+}
+
+pub fn mock_report3() -> ReportData {
+	// node = mock_register1
+	ReportData {
+		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
+		rid: 3,
+		sig: hex!("7fb4c4eeabc40f94cca8283a5ce4bddfe4f70462317115d6bc5f6d48773af3d0376fe225d10c3de5fbce16ca1f1e2db178a9450b0436feb69a95034673ee2357").into(),
+		add_files: vec![
+			(mock_file_id('A'), 100),
+		],
+		del_files: vec![
+			mock_file_id('B')
+		],
+		settle_files: vec![
+			mock_file_id('C')
+		],
+	}
+}
+
+pub fn mock_file_id(suffix: char) -> FileId {
+	str2bytes(&format!("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeee{}", suffix))
 }
 
 pub fn str2bytes(v: &str) -> Vec<u8> {

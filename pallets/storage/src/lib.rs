@@ -17,10 +17,7 @@ pub use constants::*;
 // pub mod weights;
 
 
-use sp_std::{
-	prelude::*,
-	collections::btree_map::BTreeMap,
-};
+use sp_std::{prelude::*, collections::btree_map::BTreeMap};
 use sp_runtime::{Perbill, RuntimeDebug, SaturatedConversion, traits::{Zero, One, StaticLookup, Saturating, AccountIdConversion}};
 use codec::{Encode, Decode};
 use frame_support::{
@@ -29,7 +26,7 @@ use frame_support::{
 use frame_system::{Config as SystemConfig, pallet_prelude::BlockNumberFor};
 use p256::ecdsa::{VerifyingKey, signature::{Verifier, Signature}};
 
-pub type RootId = Vec<u8>;
+pub type FileId = Vec<u8>;
 pub type EnclaveId = Vec<u8>;
 pub type PubKey = Vec<u8>;
 pub type MachineId = Vec<u8>;
@@ -86,10 +83,11 @@ pub struct FileOrder<AccountId, Balance, BlockNumber> {
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
-pub struct StoreFile<Balance> {
+pub struct StoreFile<Balance, BlockNumber> {
 	pub reserved: Balance,
 	pub base_fee: Balance,
 	pub file_size: u64,
+	pub added_at: BlockNumber,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
@@ -98,7 +96,6 @@ pub struct StashInfo<AccountId, Balance> {
 	pub register: Option<RegisterInfo>,
     pub deposit: Balance,
 }
-
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct RegisterInfo {
@@ -148,7 +145,7 @@ pub mod pallet {
 		type MaxReportFiles: Get<u32>;
 
 		#[pallet::constant]
-		type FileBasePrice: Get<BalanceOf<Self>>;
+		type FileBaseFee: Get<BalanceOf<Self>>;
 
 		#[pallet::constant]
 		type FileBytePrice: Get<BalanceOf<Self>>;
@@ -212,14 +209,14 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type StoreFiles<T: Config> = StorageMap<
 		_,
-		Twox64Concat, RootId,
-		StoreFile<BalanceOf<T>>,
+		Twox64Concat, FileId,
+		StoreFile<BalanceOf<T>, BlockNumberFor<T>>,
 	>;
 
 	#[pallet::storage]
 	pub type FileOrders<T: Config> = StorageMap<
 		_,
-		Twox64Concat, RootId,
+		Twox64Concat, FileId,
 		FileOrder<T::AccountId, BalanceOf<T>, BlockNumberFor<T>>,
 	>;
 
@@ -251,9 +248,9 @@ pub mod pallet {
 		NodeRegisted(T::AccountId, MachineId),
 		NodeReported(T::AccountId, MachineId),
         Withdrawn(T::AccountId, BalanceOf<T>),
-		StoreFileRequested(RootId, T::AccountId),
-		StoreFileCharged(RootId, T::AccountId),
-		StoreFileRemoved(RootId),
+		StoreFileRequested(FileId, T::AccountId),
+		StoreFileCharged(FileId, T::AccountId),
+		StoreFileRemoved(FileId),
 	}
 
 	#[pallet::error]
@@ -424,6 +421,7 @@ pub mod pallet {
 				enclave: enclave.clone(),
 				machine_id: machine_id.clone(),
 			});
+
 			Stashs::<T>::insert(&node, stash_info);
 			Self::deposit_event(Event::<T>::NodeRegisted(node, machine_id));
             Ok(())
@@ -435,9 +433,9 @@ pub mod pallet {
 			machine_id: MachineId,
 			rid: u64,
 			sig: Vec<u8>,
-			add_files: Vec<(RootId, u64)>,
-			del_files: Vec<RootId>,
-			settle_files: Vec<RootId>
+			add_files: Vec<(FileId, u64)>,
+			del_files: Vec<FileId>,
+			settle_files: Vec<FileId>
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
             ensure!(
@@ -454,6 +452,7 @@ pub mod pallet {
 			ensure!(now_at <= enclave_bn, Error::<T>::InvalidEnclave);
 
             let current_round = CurrentRound::<T>::get();
+			let prev_round = current_round.saturating_sub(One::one());
 			let maybe_node_info: Option<NodeInfo> = Nodes::<T>::get(&reporter);
 			if let Some(_) = &maybe_node_info {
 				ensure!(!RoundsReport::<T>::contains_key(current_round, &reporter), Error::<T>::DuplicateReport);
@@ -473,49 +472,98 @@ pub mod pallet {
 				Error::<T>::InvalidReportSig,
 			);
 
-			let mut size_changed: BTreeMap<T::AccountId, (u64, u64)> = BTreeMap::new();
+			let mut replica_changes: Vec<(T::AccountId, u64, bool)> = vec![];
+			let mut current_round_reward = RoundsReward::<T>::get(current_round);
+			let mut storage_pot_reserved = StoragePotReserved::<T>::get();
+			let mut node_inc_deposits: BTreeMap<T::AccountId, BalanceOf<T>> = BTreeMap::new();
+			let mut nodes_prev_reported: BTreeMap<T::AccountId, bool> = BTreeMap::new();
 
 			for (cid, file_size, ..) in add_files.iter() {
-				Self::add_file(&mut size_changed, &reporter, cid, current_round, *file_size);
+				Self::add_file(
+					&mut replica_changes,
+					&mut current_round_reward.store_reward,
+					&mut storage_pot_reserved,
+					&mut nodes_prev_reported,
+					&mut stash_info.deposit,
+					&reporter,
+					cid,
+					prev_round,
+					*file_size
+				);
 			}
 			for cid in del_files.iter() {
-				Self::delete_file(&mut size_changed, &reporter, cid);
+				Self::delete_file(&mut replica_changes, &reporter, cid);
 			}
 			for cid in settle_files.iter() {
-				Self::settle_file(&reporter, cid, current_round, &mut stash_info.deposit);
+				Self::settle_file(
+					&mut replica_changes,
+					&mut current_round_reward.store_reward,
+					&mut storage_pot_reserved,
+					&mut stash_info.deposit,
+					&mut node_inc_deposits,
+					&mut nodes_prev_reported,
+					&reporter,
+					cid,
+					prev_round
+				);
 			}
-			for (account, (size_added, size_deleted)) in size_changed.iter() {
+
+			if let Some(stats) = RoundsReport::<T>::get(prev_round, &reporter) {
+				Self::round_reward(prev_round, stats, &mut stash_info);
+			} else {
+				if !node_info.last_round.is_zero() {
+					Self::slash_offline(
+						&mut storage_pot_reserved,
+						&mut stash_info.deposit
+					);
+				}
+			}
+
+			let mut node_changes: BTreeMap<T::AccountId, (u64, u64)> = BTreeMap::new();
+			for (account, file_size, is_add) in replica_changes.iter() {
+				let (size_add, size_sub) = node_changes.entry(account.clone()).or_default();
+				match *is_add {
+					true => *size_add = size_add.saturating_add(*file_size),
+					false => *size_sub = size_sub.saturating_sub(*file_size),
+				}
+			}
+
+			let mut sumary = RoundsSummary::<T>::get(current_round);
+			for (account, (size_inc, size_sub)) in node_changes.iter() {
 				if account == &reporter {
-					node_info.power = node_info.power.saturating_add(*size_added);
-					node_info.used = node_info.used.saturating_add(*size_added).saturating_sub(*size_deleted);
+					node_info.power = node_info.power.saturating_add(*size_inc);
+					node_info.used = node_info.used.saturating_add(*size_inc).saturating_sub(*size_sub);
+					sumary.0 = sumary.0.saturating_add(*size_inc as u128);
+					sumary.1 = sumary.1.saturating_add(*size_inc as u128).saturating_sub(*size_sub as u128);
 				} else {
 					Nodes::<T>::mutate(account, |maybe_node| {
 						if let Some(other_node) = maybe_node {
-							other_node.power = other_node.power.saturating_add(*size_added);
-							other_node.used = other_node.used.saturating_add(*size_added).saturating_sub(*size_deleted);
-
+							other_node.power = other_node.power.saturating_add(*size_inc);
+							other_node.used = other_node.used.saturating_add(*size_inc).saturating_sub(*size_sub);
+							sumary.0 = sumary.0.saturating_add(*size_inc as u128);
+							sumary.1 = sumary.1.saturating_add(*size_inc as u128).saturating_sub(*size_sub as u128);
 						}
 					})
 				}
 			}
 
-			let prev_round = current_round.saturating_sub(One::one());
-			if let Some(stats) = RoundsReport::<T>::get(prev_round, &reporter) {
-				Self::round_reward(prev_round, stats, &mut stash_info);
-			} else {
-				if !node_info.last_round.is_zero() {
-					Self::slash_offline(&mut stash_info);
-				}
+			for (account, inc) in node_inc_deposits.iter() {
+				Stashs::<T>::mutate(account, |maybe_stash_info| {
+					if let Some(stash_info) = maybe_stash_info {
+						stash_info.deposit = stash_info.deposit.saturating_add(*inc);
+					} else {
+						current_round_reward.store_reward = current_round_reward.store_reward.saturating_add(*inc);
+					}
+				})
 			}
 
 			node_info.rid = rid;
 			node_info.last_round = current_round;
 
+			StoragePotReserved::<T>::mutate(|v| *v = storage_pot_reserved);
+			RoundsReward::<T>::insert(current_round, current_round_reward);
 			RoundsReport::<T>::insert(current_round, reporter.clone(),  (node_info.power, node_info.used));
-			RoundsSummary::<T>::mutate(current_round, |(power, used)| {
-				*power = power.saturating_add(node_info.power as u128);
-				*used = used.saturating_add(node_info.used as u128);
-			});
+			RoundsSummary::<T>::mutate(current_round, |v|  *v = sumary);
 			Nodes::<T>::insert(reporter.clone(), node_info);
 			Stashs::<T>::insert(reporter.clone(), stash_info);
 			Self::deposit_event(Event::<T>::NodeReported(reporter, machine_id));
@@ -525,7 +573,7 @@ pub mod pallet {
 		#[pallet::weight(1_000_000)]
 		pub fn store(
 			origin: OriginFor<T>,
-			cid: RootId,
+			cid: FileId,
 			file_size: u64,
 			fee: BalanceOf<T>,
 		) -> DispatchResult {
@@ -533,23 +581,23 @@ pub mod pallet {
 			ensure!(file_size > 0 && file_size <= T::MaxFileSize::get(), Error::<T>::InvalidFileSize);
 
 			if let Some(mut file) = StoreFiles::<T>::get(&cid) {
-				let total = file.reserved.saturating_add(file.base_fee).saturating_add(fee);
-				let min_fee = Self::store_file_fee(file.file_size);
-				ensure!(total >= min_fee, Error::<T>::NotEnoughFee);
+				let new_reserved = fee.saturating_add(file.reserved);
+				let min_fee = Self::store_file_bytes_fee(file.file_size);
+				ensure!(new_reserved >= min_fee, Error::<T>::NotEnoughFee);
                 T::Currency::transfer(&who, &Self::storage_pot(), fee, ExistenceRequirement::KeepAlive)?;
-				file.base_fee = T::FileBasePrice::get();
-				file.reserved = total.saturating_sub(file.base_fee);
+				file.reserved = new_reserved;
 				StoreFiles::<T>::insert(cid.clone(), file);
 				Self::deposit_event(Event::<T>::StoreFileCharged(cid, who));
 			} else {
 				let min_fee = Self::store_file_fee(file_size);
 				ensure!(fee >= min_fee, Error::<T>::NotEnoughFee);
                 T::Currency::transfer(&who, &Self::storage_pot(), fee, ExistenceRequirement::KeepAlive)?;
-				let base_fee = T::FileBasePrice::get();
+				let base_fee = T::FileBaseFee::get();
 				StoreFiles::<T>::insert(cid.clone(), StoreFile {
 					reserved: fee.saturating_sub(base_fee),
 					base_fee,
 					file_size,
+					added_at: Self::now_bn(), // TODO: file is invalid if no order for a long time
 				});
 				Self::deposit_event(Event::<T>::StoreFileRequested(cid, who));
 			}
@@ -597,20 +645,27 @@ impl<T: Config> Pallet<T> {
     }
 
 	fn add_file(
-		size_changed: &mut BTreeMap<T::AccountId, (u64, u64)>,
+		replica_changes: &mut Vec<(T::AccountId, u64, bool)>,
+		current_round_store_reward: &mut BalanceOf<T>,
+		storage_pot_reserved: &mut BalanceOf<T>,
+		nodes_prev_reported: &mut BTreeMap<T::AccountId, bool>,
+		reporter_despoit: &mut BalanceOf<T>,
 		reporter: &T::AccountId,
-		cid: &RootId,
-		current_round: RoundIndex,
+		cid: &FileId,
+		prev_round: RoundIndex,
 		file_size: u64,
 	) {
 		if let Some(mut file_order) = FileOrders::<T>::get(cid) {
 			let mut new_nodes = vec![];
 			let mut exist = false;
 			for node in file_order.replicas.iter() {
-				if RoundsReport::<T>::contains_key(current_round.saturating_sub(One::one()), node) {
+				let reported = nodes_prev_reported.entry(node.clone()).or_insert_with(|| 
+					Self::round_reported(prev_round, reporter)
+				);
+				if *reported {
 					new_nodes.push(node.clone());
 				} else {
-					size_changed.get_mut(node).unwrap().1 = size_changed.get_mut(node).unwrap().1.saturating_add(file_size);
+					replica_changes.push((node.clone(), file_size, false));
 				}
 				if node == reporter {
 					exist = true;
@@ -618,34 +673,49 @@ impl<T: Config> Pallet<T> {
 			}
 			if !exist && (new_nodes.len() as u32) < T::MaxFileReplicas::get() {
 				new_nodes.push(reporter.clone());
-				size_changed.get_mut(reporter).unwrap().0 = size_changed.get_mut(reporter).unwrap().0.saturating_add(file_size);
+				replica_changes.push((reporter.clone(), file_size, true));
 			}
 			file_order.replicas = new_nodes;
 			FileOrders::<T>::insert(cid, file_order);
 		} else {
-			Self::settle_file_order(cid, vec![reporter.clone()], current_round, Some(file_size))
+			let ok = Self::settle_file_order(
+				current_round_store_reward,
+				storage_pot_reserved,
+				reporter_despoit,
+				cid, 
+				vec![reporter.clone()], 
+				Some(file_size)
+			);
+			if ok {
+				replica_changes.push((reporter.clone(), file_size, true));
+			}
 		}
 	}
 
 	fn delete_file(
-		size_changed: &mut BTreeMap<T::AccountId, (u64, u64)>,
+		replica_changes: &mut Vec<(T::AccountId, u64, bool)>,
 		reporter: &T::AccountId,
-		cid: &RootId,
+		cid: &FileId,
 	) {
 		if let Some(mut file_order) = FileOrders::<T>::get(cid) {
 			if let Ok(idx) = file_order.replicas.binary_search(reporter) {
 				file_order.replicas.remove(idx);
-				size_changed.get_mut(reporter).unwrap().1 = size_changed.get_mut(reporter).unwrap().1.saturating_add(file_order.file_size);
+				replica_changes.push((reporter.clone(), file_order.file_size, false));
 				FileOrders::<T>::insert(cid, file_order);
 			}
 		}
 	}
 
 	fn settle_file(
+		replica_changes: &mut Vec<(T::AccountId, u64, bool)>,
+		current_round_store_reward: &mut BalanceOf<T>,
+		storage_pot_reserved: &mut BalanceOf<T>,
+		reporter_deposit: &mut BalanceOf<T>,
+		node_inc_deposits: &mut BTreeMap<T::AccountId, BalanceOf<T>>,
+		nodes_prev_reported: &mut BTreeMap<T::AccountId, bool>,
 		reporter: &T::AccountId,
-		cid: &RootId,
-		current_round: RoundIndex,
-		new_reporter_deposit: &mut BalanceOf<T>,
+		cid: &FileId,
+		prev_round: RoundIndex,
 	) {
 		if let Some(file_order) = FileOrders::<T>::get(cid) {
 			if Self::now_bn() < file_order.expire_at {
@@ -654,56 +724,63 @@ impl<T: Config> Pallet<T> {
 			let mut total_order_reward  = T::StoreRewardRatio::get() * file_order.fee;
 			let each_order_reward = Perbill::from_rational(1, T::MaxFileReplicas::get()) * total_order_reward;
 			for node in file_order.replicas.iter() {
-				if let Some(mut stash_info) = Stashs::<T>::get(node) {
-					if RoundsReport::<T>::contains_key(current_round.saturating_sub(One::one()), node) {
-						let mut order_reward = each_order_reward;
-						if node == reporter {
-							order_reward = order_reward.saturating_add(each_order_reward);
-							*new_reporter_deposit = new_reporter_deposit.saturating_add(order_reward);
-						} else {
-							stash_info.deposit = stash_info.deposit.saturating_add(order_reward);
-							Stashs::<T>::insert(node, stash_info);
-						}
-						total_order_reward = total_order_reward.saturating_sub(order_reward);
+				let reported = nodes_prev_reported.entry(node.clone()).or_insert_with(|| 
+					Self::round_reported(prev_round, reporter)
+				);
+				if *reported {
+					if node == reporter {
+						*reporter_deposit = reporter_deposit.saturating_add(each_order_reward);
+					} else {
+						let node_deposit = node_inc_deposits.entry(node.clone()).or_default();
+						*node_deposit = node_deposit.saturating_add(each_order_reward);
 					}
+					total_order_reward = total_order_reward.saturating_sub(each_order_reward);
 				}
 			}
-			Self::settle_file_order(cid, file_order.replicas.clone(), current_round, None);
-			let unpaid_reward = file_order.fee.saturating_sub(total_order_reward);
-			RoundsReward::<T>::mutate(
-				current_round, 
-				|reward| {
-					reward.store_reward = reward.store_reward.saturating_add(unpaid_reward)
-				}
+			let ok = Self::settle_file_order(
+				current_round_store_reward,
+				storage_pot_reserved,
+				reporter_deposit,
+				cid, 
+				file_order.replicas.clone(), 
+				None
 			);
+			if !ok {
+				for node in file_order.replicas.iter() {
+					replica_changes.push((node.clone(), file_order.file_size, false));
+				}
+			}
+			let unpaid_reward = file_order.fee.saturating_sub(total_order_reward);
+			if !unpaid_reward.is_zero() {
+				*current_round_store_reward = current_round_store_reward.saturating_add(unpaid_reward);
+			}
 		}
 	}
 
 	fn settle_file_order(
-		cid: &RootId,
+		current_round_store_reward: &mut BalanceOf<T>,
+		storage_pot_reserved: &mut BalanceOf<T>,
+		reporter_despoit: &mut BalanceOf<T>,
+		cid: &FileId,
 		nodes: Vec<T::AccountId>,
-		current_round: RoundIndex,
 		maybe_file_size: Option<u64>,
-	) {
+	) -> bool {
 		if let Some(mut file) = StoreFiles::<T>::get(cid) {
 			let expect_order_fee = Self::store_file_bytes_fee(maybe_file_size.unwrap_or(file.file_size));
 			if let Some(file_size) = maybe_file_size {
-				// user underreported the file size
-				if file.file_size < file_size && file.reserved < expect_order_fee {
-					StoragePotReserved::<T>::mutate(|reserved| *reserved = reserved.saturating_add(file.reserved));
-					Self::clear_store_file(cid);
-					return;
-				}
 				if !file.base_fee.is_zero() {
-					RoundsReward::<T>::mutate(
-						current_round, 
-						|reward| {
-							reward.store_reward = reward.store_reward.saturating_add(file.base_fee)
-						}
-					);
+					*storage_pot_reserved =  storage_pot_reserved.saturating_add(file.base_fee);
+					// user underreported the file size
+					if file.file_size < file_size && file.reserved < expect_order_fee {
+						let to_reporter_reward = Perbill::from_rational(1, T::MaxFileReplicas::get()) * T::StoreRewardRatio::get() * file.reserved;
+						*reporter_despoit = reporter_despoit.saturating_add(to_reporter_reward);
+						*current_round_store_reward = current_round_store_reward.saturating_add(file.reserved.saturating_sub(to_reporter_reward));
+						Self::clear_store_file(cid);
+						return false;
+					}
 					file.base_fee = Zero::zero();
+					file.file_size = file_size;
 				}
-				file.file_size = file_size;
 			}
 			let (mut order_fee, new_reserved) = if file.reserved > expect_order_fee {
 				(expect_order_fee, file.reserved.saturating_sub(expect_order_fee))
@@ -712,27 +789,29 @@ impl<T: Config> Pallet<T> {
 			};
 			if order_fee.is_zero() {
 				Self::clear_store_file(cid);
-			} else {
-				if order_fee < expect_order_fee {
-					let lack_fee = expect_order_fee.saturating_sub(order_fee);
-					let pot_reserved = StoragePotReserved::<T>::get();
-					if pot_reserved > lack_fee {
-						order_fee = expect_order_fee;
-						StoragePotReserved::<T>::mutate(|reserved| *reserved = reserved.saturating_sub(lack_fee));
-					} else {
-						order_fee = order_fee.saturating_add(pot_reserved);
-						StoragePotReserved::<T>::mutate(|reserved| *reserved = Zero::zero());
-					}
-				}
-				FileOrders::<T>::insert(cid, FileOrder {
-					fee: order_fee,
-					file_size: file.file_size,
-					expire_at: Self::get_file_order_expire(),
-					replicas: nodes,
-				});
-				file.reserved = new_reserved;
-				StoreFiles::<T>::insert(cid, file);
+				return false;
 			}
+			if order_fee < expect_order_fee {
+				let lack_fee = expect_order_fee.saturating_sub(order_fee);
+				if *storage_pot_reserved > lack_fee {
+					order_fee = expect_order_fee;
+					*storage_pot_reserved = storage_pot_reserved.saturating_sub(lack_fee);
+				} else {
+					order_fee = order_fee.saturating_add(*storage_pot_reserved);
+					*storage_pot_reserved = Zero::zero();
+				}
+			}
+			FileOrders::<T>::insert(cid, FileOrder {
+				fee: order_fee,
+				file_size: file.file_size,
+				expire_at: Self::get_file_order_expire(),
+				replicas: nodes,
+			});
+			file.reserved = new_reserved;
+			StoreFiles::<T>::insert(cid, file);
+			true
+		} else {
+			false
 		}
 	}
 
@@ -758,29 +837,40 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn slash_offline(
-		stash_info: &mut StashInfo<T::AccountId, BalanceOf<T>>,
+		storage_pot_reserved: &mut BalanceOf<T>,
+		reporter_deposit: &mut BalanceOf<T>,
 	) {
 		let slash_balance = T::SlashBalance::get();
 		if slash_balance.is_zero() {
 			return;
 		}
-		let (slash_reserved, new_deposit) = if stash_info.deposit > slash_balance {
-			(slash_balance, stash_info.deposit)
+		let (slash_reserved, new_deposit) = if *reporter_deposit > slash_balance {
+			(slash_balance, *reporter_deposit)
 		} else {
-			(stash_info.deposit, Zero::zero())
+			(*reporter_deposit, Zero::zero())
 		};
-		stash_info.deposit = new_deposit;
-		StoragePotReserved::<T>::mutate(|reserved| *reserved = reserved.saturating_add(slash_reserved));
+		*reporter_deposit = new_deposit;
+		*storage_pot_reserved = storage_pot_reserved.saturating_add(slash_reserved);
 	}
 
-	fn clear_store_file(cid: &RootId) {
+	fn round_reported(round: RoundIndex, node: &T::AccountId) -> bool {
+		if round.is_zero() {
+			return true;
+		} 
+		if RoundsReport::<T>::contains_key(round, node) {
+			return true;
+		}
+		Nodes::<T>::get(&node).map(|v| v.last_round.is_zero()).unwrap_or_default()
+	}
+
+	fn clear_store_file(cid: &FileId) {
 		StoreFiles::<T>::remove(cid);
 		FileOrders::<T>::remove(cid);
 		Self::deposit_event(Event::<T>::StoreFileRemoved(cid.clone()));
 	}
 
 	fn store_file_fee(file_size: u64) -> BalanceOf<T> {
-		T::FileBasePrice::get().saturating_add(Self::store_file_bytes_fee(file_size))
+		T::FileBaseFee::get().saturating_add(Self::store_file_bytes_fee(file_size))
 	}
 
 	fn store_file_bytes_fee(file_size: u64) -> BalanceOf<T> {
@@ -797,7 +887,6 @@ impl<T: Config> Pallet<T> {
 		now_at.saturating_add(T::RoundDuration::get().saturating_mul(rounds.saturated_into()))
 	}
 
-
     fn get_next_round_bn() -> BlockNumberFor<T> {
         let current_round = CurrentRound::<T>::get();
         RoundsBlockNumber::<T>::get(current_round) + T::RoundDuration::get()
@@ -813,8 +902,8 @@ pub fn verify_report_storage(
 	key: &PubKey,
 	prev_rid: u64,
 	rid: u64,
-	added_files: &Vec<(RootId, u64)>,
-	deleted_files: &Vec<RootId>,
+	added_files: &Vec<(FileId, u64)>,
+	deleted_files: &Vec<FileId>,
 	sig: &Vec<u8>,
 ) -> bool {
 	let data: Vec<u8> = [
@@ -864,7 +953,7 @@ fn encode_u64(number: u64) -> Vec<u8> {
     encoded_number
 }
 
-fn encode_add_files(list: &Vec<(RootId, u64)>) -> Vec<u8> {
+fn encode_add_files(list: &Vec<(FileId, u64)>) -> Vec<u8> {
 	let mut output = vec![];
     for (cid, size) in list.iter() {
 		output.extend(cid.clone());
@@ -873,7 +962,7 @@ fn encode_add_files(list: &Vec<(RootId, u64)>) -> Vec<u8> {
 	output
 }
 
-fn encode_del_files(list: &Vec<RootId>) -> Vec<u8> {
+fn encode_del_files(list: &Vec<FileId>) -> Vec<u8> {
 	let mut output = vec![];
     for cid in list.iter() {
 		output.extend(cid.clone());

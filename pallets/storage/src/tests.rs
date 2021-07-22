@@ -167,8 +167,14 @@ fn report_works() {
 	ExtBuilder::default()
 		.stash(1, 2)
 		.register(2, mock_register1())
+		.files(vec![
+			(mock_file_id('A'), 100, 2000),
+		])
 		.build()
 		.execute_with(|| {
+			let now_bn = FileStorage::now_bn();
+			let current_round = CurrentRound::<Test>::get();
+
 			let reporter = mock_report1();
 			assert_ok!(FileStorage::report(
 				Origin::signed(2),
@@ -179,6 +185,38 @@ fn report_works() {
 				reporter.del_files,
 				reporter.settle_files
 			));
+			let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
+			assert_eq!(store_file, StoreFile {
+				base_fee: 0,
+				file_size: 100,
+				reserved: 900,
+				added_at: now_bn,
+			 });
+			 let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
+			 assert_eq!(file_order, FileOrder {
+				 fee: 100,
+				 file_size: 100,
+				 expire_at: 61,
+				 replicas: vec![2]
+			 });
+			assert_eq!(StoragePotReserved::<Test>::get(), 1000);
+			let round_reward = RoundsReward::<Test>::get(current_round);
+			assert_eq!(round_reward, RewardInfo {
+				mine_reward: 0,
+				store_reward: 0,
+				paid_mine_reward: 0,
+				paid_store_reward: 0,
+			});
+			assert_eq!(RoundsReport::<Test>::get(current_round, 2).unwrap(), (100, 100));
+			assert_eq!(RoundsSummary::<Test>::get(current_round), (100, 100));
+			assert_eq!(Nodes::<Test>::get(2).unwrap(), NodeInfo { 
+				rid: 3,
+				last_round: current_round,
+				power: 100,
+				used: 100,
+			});
+			let stash_info = Stashs::<Test>::get(2).unwrap();
+			assert_eq!(stash_info.deposit, default_stash_balance());
 
 			// Failed when report twice in same round
 			let reporter = mock_report1();
@@ -193,6 +231,110 @@ fn report_works() {
 			), Error::<Test>::DuplicateReport);
 		})
 }
+
+#[test]
+fn report_works_when_files_are_miss() {
+	ExtBuilder::default()
+		.stash(1, 2)
+		.register(2, mock_register1())
+		.build()
+		.execute_with(|| {
+			let current_round = CurrentRound::<Test>::get();
+			let reporter = mock_report3();
+			assert_ok!(FileStorage::report(
+				Origin::signed(2),
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
+			));
+			assert_eq!(Nodes::<Test>::get(2).unwrap(), NodeInfo { 
+				rid: 3,
+				last_round: current_round,
+				power: 0,
+				used: 0,
+			});
+		})
+}
+
+#[test]
+fn file_order_should_be_removed_if_file_size_is_fake_too_small() {
+	ExtBuilder::default()
+		.stash(1, 2)
+		.register(2, mock_register1())
+		.files(vec![
+			(mock_file_id('A'), 100, 1100),
+		])
+		.build()
+		.execute_with(|| {
+			let current_round = CurrentRound::<Test>::get();
+
+			let reporter = mock_report2();
+			assert_ok!(FileStorage::report(
+				Origin::signed(2),
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
+			));
+
+			assert_eq!(StoragePotReserved::<Test>::get(), 1000);
+			let stash_info = Stashs::<Test>::get(2).unwrap();
+			assert_eq!(stash_info.deposit, default_stash_balance().saturating_add(5));
+			assert_eq!(RoundsReward::<Test>::get(current_round).store_reward, 95);
+
+			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')), None);
+			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')), None);
+		})
+}
+
+#[test]
+fn file_order_should_take_lack_fee_from_storage_pot_reserved() {
+	ExtBuilder::default()
+		.stash(1, 2)
+		.register(2, mock_register1())
+		.files(vec![
+			(mock_file_id('A'), 100, 1100),
+		])
+		.build()
+		.execute_with(|| {
+			change_file_byte_price(default_file_byte_price().saturating_mul(2));
+			let reporter = mock_report1();
+			assert_ok!(FileStorage::report(
+				Origin::signed(2),
+				reporter.machine_id,
+				reporter.rid,
+				reporter.sig,
+				reporter.add_files,
+				reporter.del_files,
+				reporter.settle_files
+			));
+
+			assert_eq!(StoragePotReserved::<Test>::get(), 900);
+			let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
+			assert_eq!(store_file.reserved, 0);
+			assert_eq!(store_file.base_fee, 0);
+			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().fee, 200);
+		})
+}
+
+// #[test]
+// fn file_oreder_replicas_can_be_replace_if_node_fail_to_report() {
+// 	ExtBuilder::default()
+// 		.stash(1, 2)
+// 		.register(2, mock_register1())
+// 		.files(vec![
+// 			(mock_file_id('A'), 100, 1100),
+// 		])
+// 		.build()
+// 		.execute_with(|| {
+// 			run_to_block(7);
+// 		})
+// }
 
 #[test]
 fn report_should_failed_with_legal_input() {
@@ -297,30 +439,36 @@ fn store_works() {
 			assert_eq!(FileStorage::store_file_fee(2000), file_fee);
 			assert_ok!(FileStorage::store(
 				Origin::signed(1000),
-				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA"),
+				mock_file_id('A'),
 				100,
 				file_fee,
 			));
-			let store_file = StoreFiles::<Test>::get(&str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA")).unwrap();
-			assert_eq!(store_file, StoreFile { reserved: file_fee.saturating_sub(FILE_BASE_PRICE), base_fee: FILE_BASE_PRICE, file_size: 100 });
+			let now_bn = FileStorage::now_bn();
+			let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
+			assert_eq!(store_file, StoreFile {
+				reserved: file_fee.saturating_sub(FILE_BASE_PRICE),
+				base_fee: FILE_BASE_PRICE,
+				file_size: 100,
+				added_at: now_bn,
+			});
 			assert_eq!(Balances::free_balance(&1000), u1000_b - file_fee);
 			assert_eq!(balance_of_storage_pot(), pot_b.saturating_add(file_fee));
 
-			// Add more fee to exist file pool
+			// Add more fee
 			assert_ok!(FileStorage::store(
 				Origin::signed(1000),
-				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA"),
+				mock_file_id('A'),
 				1000,
 				10,
 			));
-			let store_file = StoreFiles::<Test>::get(&str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA")).unwrap();
-			assert_eq!(store_file, StoreFile { reserved: file_fee.saturating_sub(FILE_BASE_PRICE).saturating_add(10), base_fee: FILE_BASE_PRICE, file_size: 100 });
+			let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
+			assert_eq!(store_file, StoreFile { reserved: file_fee.saturating_sub(FILE_BASE_PRICE).saturating_add(10), base_fee: FILE_BASE_PRICE, file_size: 100, added_at: now_bn });
 
 
 			// Failed when fee is not enough 
 			assert_err!(FileStorage::store(
 				Origin::signed(100),
-				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeB"),
+				mock_file_id('B'),
 				100,
 				file_fee.saturating_sub(1),
 			), Error::<Test>::NotEnoughFee);
@@ -329,7 +477,7 @@ fn store_works() {
 			// Failed when fize size not in [0, T::MaxFileSize]
 			assert_err!(FileStorage::store(
 				Origin::signed(1000),
-				str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeX"),
+				mock_file_id('X'),
 				MAX_FILE_SIZE + 1,
 				u128::max_value(),
 			), Error::<Test>::InvalidFileSize);

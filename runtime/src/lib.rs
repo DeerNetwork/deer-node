@@ -862,7 +862,7 @@ parameter_types! {
 	pub const MaxFileReplicas: u32 = 15;
 	pub const MaxFileSize: u64 = 137_438_953_472; // 128G
 	pub const MaxReportFiles: u32 = 100;
-	pub const FileBasePrice: Balance = 1 * CENTS;
+	pub const FileBaseFee: Balance = 1 * CENTS;
 	pub const FileBytePrice: Balance = MILLICENTS / 1000;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
@@ -880,7 +880,7 @@ impl pallet_storage::Config for Runtime {
 	type MaxFileReplicas = MaxFileReplicas;
 	type MaxFileSize = MaxFileSize;
 	type MaxReportFiles = MaxReportFiles;
-	type FileBasePrice = FileBasePrice;
+	type FileBaseFee = FileBaseFee;
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
