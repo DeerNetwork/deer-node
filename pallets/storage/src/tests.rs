@@ -8,14 +8,14 @@ fn set_enclave_works() {
 	ExtBuilder::default()
 		.build()
 		.execute_with(|| {
-			assert_ok!(FileStorage::set_enclave(Origin::root(), mock_enclave_key2().0, 100));
+			assert_ok!(FileStorage::set_enclave(Origin::root(), mock_register_info2().enclave, 100));
 
 			// should shorten period
-			assert_ok!(FileStorage::set_enclave(Origin::root(), mock_enclave_key1().0, 100));
+			assert_ok!(FileStorage::set_enclave(Origin::root(), mock_register_info1().enclave, 100));
 
 			// should not growth period
 			assert_err!(
-				FileStorage::set_enclave( Origin::root(), mock_enclave_key1().0, 100),
+				FileStorage::set_enclave( Origin::root(), mock_register_info1().enclave, 100),
 				Error::<Test>::InvalidEnclaveExpire
 			);
 		});
@@ -99,71 +99,51 @@ fn register_works() {
 			let register = mock_register1();
 			let machine_id = register.machine_id.clone();
 			assert_eq!(Stashs::<Test>::get(2).unwrap().machine_id, None);
-			assert_ok!(FileStorage::register(
-				Origin::signed(2),
-				register.machine_id,
-				register.ias_cert,
-				register.ias_sig,
-				register.ias_body,
-				register.sig
-			));
+			assert_ok!(call_register(2, register));
 			assert_eq!(Stashs::<Test>::get(2).unwrap().machine_id.unwrap(), machine_id.clone());
 			let register = Registers::<Test>::get(&machine_id).unwrap();
-			assert_eq!(register.enclave, mock_enclave_key1().0);
-			assert_eq!(register.key, mock_enclave_key1().1);
+			assert_eq!(register, mock_register_info1());
 
 			// register again with different register info
-			let register = mock_register2();
-			assert_ok!(FileStorage::register(
-				Origin::signed(2),
-				register.machine_id,
-				register.ias_cert,
-				register.ias_sig,
-				register.ias_body,
-				register.sig
-			));
+			assert_ok!(call_register(2, mock_register2()));
 			let register = Registers::<Test>::get(&machine_id).unwrap();
-			assert_eq!(register.enclave, mock_enclave_key2().0);
-			assert_eq!(register.key, mock_enclave_key2().1);
+			assert_eq!(register, mock_register_info2());
 
 			// Failed when controller is not stashed
-			let register = mock_register1();
-			assert_err!(FileStorage::register(
-				Origin::signed(3),
-				register.machine_id,
-				register.ias_cert,
-				register.ias_sig,
-				register.ias_body,
-				register.sig
-			), Error::<Test>::InvalidNode);
+			assert_err!(call_register(3, mock_register1()), Error::<Test>::InvalidNode);
 
 			// Failed when machind_id don't match
 			let mut register = mock_register1();
 			register.machine_id[0] += 1;
-			assert_err!(FileStorage::register(
-				Origin::signed(2),
-				register.machine_id,
-				register.ias_cert,
-				register.ias_sig,
-				register.ias_body,
-				register.sig
-			), Error::<Test>::MismatchMacheId);
+			assert_err!(call_register(2, register), Error::<Test>::MismatchMacheId);
 
 			// Failed when enclave is not inclued
-			let register = mock_register3();
-			assert_err!(FileStorage::register(
-				Origin::signed(2),
-				register.machine_id,
-				register.ias_cert,
-				register.ias_sig,
-				register.ias_body,
-				register.sig
-			), Error::<Test>::InvalidEnclave);
+			assert_err!(call_register(2, mock_register3()), Error::<Test>::InvalidEnclave);
+
+
+			// Failed when relady registered machine
+			assert_ok!(FileStorage::stash(Origin::signed(1), 3));
+			assert_err!(call_register(3, mock_register1()), Error::<Test>::MachineAlreadyRegistered);
+
 		})
 }
 
 #[test]
 fn report_works() {
+	ExtBuilder::default()
+		.stash(1, 2)
+		.register(2, mock_register4())
+		.files(vec![
+			(mock_file_id('A'), 100, 2000),
+		])
+		.build()
+		.execute_with(|| {
+			assert_ok!(call_report(2, mock_report4()));
+		})
+}
+
+#[test]
+fn report_works_and_check_storage() {
 	ExtBuilder::default()
 		.stash(1, 2)
 		.register(2, mock_register1())
@@ -175,16 +155,7 @@ fn report_works() {
 			let now_bn = FileStorage::now_bn();
 			let current_round = CurrentRound::<Test>::get();
 
-			let reporter = mock_report1();
-			assert_ok!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			));
+			assert_ok!(call_report(2, mock_report1()));
 			let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
 			assert_eq!(store_file, StoreFile {
 				base_fee: 0,
@@ -219,16 +190,7 @@ fn report_works() {
 			assert_eq!(stash_info.deposit, default_stash_balance());
 
 			// Failed when report twice in same round
-			let reporter = mock_report1();
-			assert_err!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			), Error::<Test>::DuplicateReport);
+			assert_err!(call_report(2, mock_report1()), Error::<Test>::DuplicateReport);
 		})
 }
 
@@ -240,16 +202,7 @@ fn report_works_when_files_are_miss() {
 		.build()
 		.execute_with(|| {
 			let current_round = CurrentRound::<Test>::get();
-			let reporter = mock_report3();
-			assert_ok!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			));
+			assert_ok!(call_report(2, mock_report3()));
 			assert_eq!(Nodes::<Test>::get(2).unwrap(), NodeInfo { 
 				rid: 3,
 				last_round: current_round,
@@ -271,16 +224,7 @@ fn file_order_should_be_removed_if_file_size_is_fake_too_small() {
 		.execute_with(|| {
 			let current_round = CurrentRound::<Test>::get();
 
-			let reporter = mock_report2();
-			assert_ok!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			));
+			assert_ok!(call_report(2, mock_report2()));
 
 			assert_eq!(StoragePotReserved::<Test>::get(), 1000);
 			let stash_info = Stashs::<Test>::get(2).unwrap();
@@ -303,17 +247,7 @@ fn file_order_should_take_lack_fee_from_storage_pot_reserved() {
 		.build()
 		.execute_with(|| {
 			change_file_byte_price(default_file_byte_price().saturating_mul(2));
-			let reporter = mock_report1();
-			assert_ok!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			));
-
+			assert_ok!(call_report(2, mock_report1()));
 			assert_eq!(StoragePotReserved::<Test>::get(), 900);
 			let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
 			assert_eq!(store_file.reserved, 0);
@@ -322,19 +256,31 @@ fn file_order_should_take_lack_fee_from_storage_pot_reserved() {
 		})
 }
 
-// #[test]
-// fn file_oreder_replicas_can_be_replace_if_node_fail_to_report() {
-// 	ExtBuilder::default()
-// 		.stash(1, 2)
-// 		.register(2, mock_register1())
-// 		.files(vec![
-// 			(mock_file_id('A'), 100, 1100),
-// 		])
-// 		.build()
-// 		.execute_with(|| {
-// 			run_to_block(7);
-// 		})
-// }
+#[test]
+fn file_oreder_replicas_can_be_replace_if_node_fail_to_report() {
+	ExtBuilder::default()
+		.stash(1, 2)
+		.register(2, mock_register1())
+		.files(vec![
+			(mock_file_id('A'), 100, 1100),
+		])
+		.reports(vec![
+			(6, mock_register4(), mock_report4()),
+			(7, mock_register4(), mock_report4()),
+			(8, mock_register4(), mock_report4()),
+			(9, mock_register4(), mock_report4()),
+		])
+		.build()
+		.execute_with(|| {
+			run_to_block(11);
+			let machine_id = mock_register4().machine_id;
+			Registers::<Test>::insert(machine_id.clone(), mock_register_info4());
+			assert_ok!(call_report(9, mock_report5()));
+			run_to_block(21);
+			assert_ok!(call_report(2, mock_report1()));
+
+		})
+}
 
 #[test]
 fn report_should_failed_with_legal_input() {
@@ -342,77 +288,26 @@ fn report_should_failed_with_legal_input() {
 		.build()
 		.execute_with(|| {
 			// Failed when controller is not stashed
-			let reporter = mock_report1();
-			assert_err!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			), Error::<Test>::InvalidNode);
+			assert_err!(call_report(2, mock_report1()), Error::<Test>::InvalidNode);
 
 			// Failed when controller is not registered
 			assert_ok!(FileStorage::stash(Origin::signed(1), 2));
-			let reporter = mock_report1();
-			assert_err!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			), Error::<Test>::UnregisterNode);
+			assert_err!(call_report(2, mock_report1()), Error::<Test>::UnregisterNode);
 
 			// Failed when machine_id don't match 
-			let register = mock_register1();
-			assert_ok!(FileStorage::register(
-				Origin::signed(2),
-				register.machine_id,
-				register.ias_cert,
-				register.ias_sig,
-				register.ias_body,
-				register.sig
-			));
-			let mut reporter = mock_report1();
-			reporter.machine_id[0] += 1;
-			assert_err!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			), Error::<Test>::MismatchMacheId);
+			assert_ok!(call_register(2, mock_register1()));
+			let mut report = mock_report1();
+			report.machine_id[0] += 1;
+			assert_err!(call_report(2, report), Error::<Test>::MismatchMacheId);
 
 			// Failed when add_files or del_files is tampered
-			let mut reporter = mock_report1();
-			reporter.add_files[0].1 = reporter.add_files[0].1 + 1;
-			assert_err!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			), Error::<Test>::InvalidReportSig);
+			let mut report = mock_report1();
+			report.add_files[0].1 = report.add_files[0].1 + 1;
+			assert_err!(call_report(2, report), Error::<Test>::InvalidReportSig);
 			
 			// Failed when enclave is outdated
 			run_to_block(1001);
-			let reporter = mock_report1();
-			assert_err!(FileStorage::report(
-				Origin::signed(2),
-				reporter.machine_id,
-				reporter.rid,
-				reporter.sig,
-				reporter.add_files,
-				reporter.del_files,
-				reporter.settle_files
-			), Error::<Test>::InvalidEnclave);
+			assert_err!(call_report(2, mock_report1()), Error::<Test>::InvalidEnclave);
 		})
 }
 

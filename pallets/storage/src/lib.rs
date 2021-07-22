@@ -267,6 +267,7 @@ pub mod pallet {
 		NoEnoughToWithdraw,
 		InvalidNode,
 		MismatchMacheId,
+		MachineAlreadyRegistered,
 		InvalidIASSign,
 		InvalidIASSigningCert,
 		InvalidIASBody,
@@ -388,7 +389,11 @@ pub mod pallet {
 			sig: Vec<u8>,
 		) -> DispatchResult {
             let node = ensure_signed(origin)?;
+			let maybe_register_info = Registers::<T>::get(&machine_id);
 			let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::InvalidNode)?;
+			if maybe_register_info.is_some() {
+				ensure!(&stash_info.machine_id.is_some(), Error::<T>::MachineAlreadyRegistered);
+			}
 			if let Some(stash_machine_id) = &stash_info.machine_id {
 				ensure!(stash_machine_id == &machine_id, Error::<T>::MismatchMacheId);
 			}
