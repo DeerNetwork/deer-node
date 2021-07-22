@@ -103,6 +103,18 @@ pub struct RegisterInfo {
 	pub enclave: EnclaveId,
 }
 
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
+pub struct NodeStats {
+	pub power: u64,
+	pub used: u64,
+}
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
+pub struct SummaryStats {
+	pub power: u128,
+	pub used: u128,
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
@@ -191,6 +203,9 @@ pub mod pallet {
 	pub type CurrentRound<T: Config> = StorageValue<_, RoundIndex, ValueQuery>;
 
 	#[pallet::storage]
+	pub type Summary<T: Config> = StorageValue<_, SummaryStats, ValueQuery>;
+
+	#[pallet::storage]
 	pub type RoundsBlockNumber<T: Config> = StorageMap<
 		_,
 		Twox64Concat, RoundIndex,
@@ -203,14 +218,14 @@ pub mod pallet {
 		_,
 		Twox64Concat, RoundIndex,
 		Blake2_128Concat, T::AccountId,
-		(u64, u64), OptionQuery,
+		NodeStats, OptionQuery,
 	>;
 
 	#[pallet::storage]
 	pub type RoundsSummary<T: Config> = StorageMap<
 		_,
 		Twox64Concat, RoundIndex,
-		(u128, u128), ValueQuery,
+		SummaryStats, ValueQuery,
 	>;
 
 	#[pallet::storage]
@@ -276,7 +291,6 @@ pub mod pallet {
 		InvalidVerifyP256Sig,
 		IllegalReportFiles,
 		UnregisterNode,
-		InvalidReportSig,
 		NotEnoughFee,
 		InvalidFileSize,
 	}
@@ -286,7 +300,7 @@ pub mod pallet {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
             let next_round_bn = Self::get_next_round_bn();
 			if now >= next_round_bn {
-				Self::may_round_end();
+				Self::on_round_end();
 			}
 			// TODO: weights
 			0
@@ -481,19 +495,15 @@ pub mod pallet {
 				ensure!(!RoundsReport::<T>::contains_key(current_round, &reporter), Error::<T>::DuplicateReport);
 			}
 			let mut node_info = maybe_node_info.unwrap_or_default();
-
-			ensure!(
-				verify_report_storage(
-					&machine_id,
-					&register.key,
-					node_info.rid,
-					rid,
-					&add_files,
-					&del_files,
-					&sig,
-				),
-				Error::<T>::InvalidReportSig,
-			);
+			let data: Vec<u8> = [
+				&machine_id[..],
+				&register.key[..],
+				&encode_u64(node_info.rid)[..],
+				&encode_u64(rid)[..],
+				&encode_add_files(&add_files)[..],
+				&encode_del_files(&del_files)[..],
+			].concat();
+			ensure!(verify_p256_sig(&register.key, &data, &sig), Error::<T>::InvalidVerifyP256Sig);
 
 			let mut replica_changes: Vec<(T::AccountId, u64, bool)> = vec![];
 			let mut current_round_reward = RoundsReward::<T>::get(current_round);
@@ -547,24 +557,24 @@ pub mod pallet {
 				let (size_add, size_sub) = node_changes.entry(account.clone()).or_default();
 				match *is_add {
 					true => *size_add = size_add.saturating_add(*file_size),
-					false => *size_sub = size_sub.saturating_sub(*file_size),
+					false => *size_sub = size_sub.saturating_add(*file_size),
 				}
 			}
 
-			let mut sumary = RoundsSummary::<T>::get(current_round);
+			let mut sumary = Summary::<T>::get();
 			for (account, (size_inc, size_sub)) in node_changes.iter() {
 				if account == &reporter {
 					node_info.power = node_info.power.saturating_add(*size_inc);
 					node_info.used = node_info.used.saturating_add(*size_inc).saturating_sub(*size_sub);
-					sumary.0 = sumary.0.saturating_add(*size_inc as u128);
-					sumary.1 = sumary.1.saturating_add(*size_inc as u128).saturating_sub(*size_sub as u128);
+					sumary.power = sumary.power.saturating_add(*size_inc as u128);
+					sumary.used = sumary.used.saturating_add(*size_inc as u128).saturating_sub(*size_sub as u128);
 				} else {
 					Nodes::<T>::mutate(account, |maybe_node| {
 						if let Some(other_node) = maybe_node {
 							other_node.power = other_node.power.saturating_add(*size_inc);
 							other_node.used = other_node.used.saturating_add(*size_inc).saturating_sub(*size_sub);
-							sumary.0 = sumary.0.saturating_add(*size_inc as u128);
-							sumary.1 = sumary.1.saturating_add(*size_inc as u128).saturating_sub(*size_sub as u128);
+							sumary.power = sumary.power.saturating_add(*size_inc as u128);
+							sumary.used = sumary.used.saturating_add(*size_inc as u128).saturating_sub(*size_sub as u128);
 						}
 					})
 				}
@@ -585,8 +595,8 @@ pub mod pallet {
 
 			StoragePotReserved::<T>::mutate(|v| *v = storage_pot_reserved);
 			RoundsReward::<T>::insert(current_round, current_round_reward);
-			RoundsReport::<T>::insert(current_round, reporter.clone(),  (node_info.power, node_info.used));
-			RoundsSummary::<T>::mutate(current_round, |v|  *v = sumary);
+			RoundsReport::<T>::insert(current_round, reporter.clone(),  NodeStats { power: node_info.power, used: node_info.used });
+			Summary::<T>::mutate(|v|  *v = sumary);
 			Nodes::<T>::insert(reporter.clone(), node_info);
 			Stashs::<T>::insert(reporter.clone(), stash_info);
 			Self::deposit_event(Event::<T>::NodeReported(reporter, machine_id));
@@ -636,13 +646,12 @@ impl<T: Config> Pallet<T> {
 		PALLET_ID.into_sub_account("stor")
 	}
 
-	fn may_round_end() {
+	fn on_round_end() {
         let current_round = CurrentRound::<T>::get();
         let next_round =  current_round.saturating_add(1);
 
-        let to_remove_round = current_round.saturating_sub(T::HistoryRoundDepth::get());
-		let (power, _)= RoundsSummary::<T>::get(current_round);
-		let mine_reward = T::RoundPayout::round_payout(power);
+		let summary = Summary::<T>::get();
+		let mine_reward = T::RoundPayout::round_payout(summary.power);
 		if !mine_reward.is_zero() {
 			T::Currency::deposit_creating(&Self::storage_pot(), mine_reward);
 			RoundsReward::<T>::mutate(
@@ -653,19 +662,21 @@ impl<T: Config> Pallet<T> {
 			);
 		}
 		// TODO collect dust reward to treasure
-
+		RoundsSummary::<T>::insert(current_round, summary);
         RoundsBlockNumber::<T>::insert(next_round, Self::get_next_round_bn());
 		CurrentRound::<T>::mutate(|v| *v = next_round);
-        Self::clear_round_information(to_remove_round);
+
+        // let to_remove_round = current_round.saturating_sub(T::HistoryRoundDepth::get());
+        // Self::clear_round_information(to_remove_round);
 	}
 
-    fn clear_round_information(round: RoundIndex) {
-		if round.is_zero() { return; }
-        RoundsReport::<T>::remove_prefix(round, None);
-        RoundsBlockNumber::<T>::remove(round);
-        // RoundsSummary::<T>::remove(round);
-        // RoundsReward::<T>::remove(round);
-    }
+    // fn clear_round_information(round: RoundIndex) {
+	// 	if round.is_zero() { return; }
+    //     RoundsReport::<T>::remove_prefix(round, None);
+    //     RoundsBlockNumber::<T>::remove(round);
+    //     RoundsSummary::<T>::remove(round);
+    //     RoundsReward::<T>::remove(round);
+    // }
 
 	fn add_file(
 		replica_changes: &mut Vec<(T::AccountId, u64, bool)>,
@@ -683,7 +694,7 @@ impl<T: Config> Pallet<T> {
 			let mut exist = false;
 			for node in file_order.replicas.iter() {
 				let reported = nodes_prev_reported.entry(node.clone()).or_insert_with(|| 
-					Self::round_reported(prev_round, reporter)
+					Self::round_reported(prev_round, node)
 				);
 				if *reported {
 					new_nodes.push(node.clone());
@@ -741,14 +752,17 @@ impl<T: Config> Pallet<T> {
 		prev_round: RoundIndex,
 	) {
 		if let Some(file_order) = FileOrders::<T>::get(cid) {
-			if Self::now_bn() < file_order.expire_at {
+			if file_order.expire_at >= Self::now_bn() {
 				return;
 			}
-			let mut total_order_reward  = T::StoreRewardRatio::get() * file_order.fee;
+
+			let file_order_fee = file_order.fee;
+			let mut total_order_reward  = T::StoreRewardRatio::get() * file_order_fee;
 			let each_order_reward = Perbill::from_rational(1, T::MaxFileReplicas::get()) * total_order_reward;
+			let mut replicas = vec![];
 			for node in file_order.replicas.iter() {
 				let reported = nodes_prev_reported.entry(node.clone()).or_insert_with(|| 
-					Self::round_reported(prev_round, reporter)
+					Self::round_reported(prev_round, node)
 				);
 				if *reported {
 					if node == reporter {
@@ -757,7 +771,11 @@ impl<T: Config> Pallet<T> {
 						let node_deposit = node_inc_deposits.entry(node.clone()).or_default();
 						*node_deposit = node_deposit.saturating_add(each_order_reward);
 					}
+
 					total_order_reward = total_order_reward.saturating_sub(each_order_reward);
+					replicas.push(node.clone());
+				} else {
+					replica_changes.push((node.clone(), file_order.file_size, false));
 				}
 			}
 			let ok = Self::settle_file_order(
@@ -765,15 +783,15 @@ impl<T: Config> Pallet<T> {
 				storage_pot_reserved,
 				reporter_deposit,
 				cid, 
-				file_order.replicas.clone(), 
+				replicas.clone(), 
 				None
 			);
 			if !ok {
-				for node in file_order.replicas.iter() {
+				for node in replicas.iter() {
 					replica_changes.push((node.clone(), file_order.file_size, false));
 				}
 			}
-			let unpaid_reward = file_order.fee.saturating_sub(total_order_reward);
+			let unpaid_reward = file_order_fee.saturating_sub(total_order_reward);
 			if !unpaid_reward.is_zero() {
 				*current_round_store_reward = current_round_store_reward.saturating_add(unpaid_reward);
 			}
@@ -840,17 +858,16 @@ impl<T: Config> Pallet<T> {
 
 	fn round_reward(
 		prev_round: RoundIndex,
-		stats: (u64, u64),
+		node_stats: NodeStats,
 		stash_info: &mut StashInfo<T::AccountId, BalanceOf<T>>,
 	) {
 		if prev_round.is_zero() {
 			return;
 		}
 		let mut reward_info =  RoundsReward::<T>::get(prev_round);
-		let (total_power, total_used) =  RoundsSummary::<T>::get(prev_round);
-		let (power, used) = stats;
-		let used_ratio = Perbill::from_rational(used as u128, total_used);
-		let power_ratio = Perbill::from_rational(power as u128, total_power);
+		let summary =  RoundsSummary::<T>::get(prev_round);
+		let used_ratio = Perbill::from_rational(node_stats.used as u128, summary.used);
+		let power_ratio = Perbill::from_rational(node_stats.power as u128, summary.power);
 		let store_reward  = used_ratio * reward_info.store_reward;
 		let mine_reward =  power_ratio * reward_info.mine_reward;
 		reward_info.paid_store_reward = reward_info.paid_store_reward.saturating_add(store_reward);
@@ -918,27 +935,6 @@ impl<T: Config> Pallet<T> {
 	fn now_bn() -> BlockNumberFor<T> {
 		<frame_system::Pallet<T>>::block_number()
 	}
-}
-
-pub fn verify_report_storage(
-	machine_id: &MachineId,
-	key: &PubKey,
-	prev_rid: u64,
-	rid: u64,
-	added_files: &Vec<(FileId, u64)>,
-	deleted_files: &Vec<FileId>,
-	sig: &Vec<u8>,
-) -> bool {
-	let data: Vec<u8> = [
-		&machine_id[..],
-		&key[..],
-		&encode_u64(prev_rid)[..],
-		&encode_u64(rid)[..],
-		&encode_add_files(added_files)[..],
-		&encode_del_files(deleted_files)[..],
-	].concat();
-
-	verify_p256_sig(key, &data, sig)
 }
 
 pub fn verify_p256_sig(pk: &Vec<u8>, data: &Vec<u8>, sig: &Vec<u8>) -> bool {

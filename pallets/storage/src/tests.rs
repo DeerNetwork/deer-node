@@ -143,7 +143,7 @@ fn report_works() {
 }
 
 #[test]
-fn report_works_and_check_storage() {
+fn report_works_then_check_storage() {
 	ExtBuilder::default()
 		.stash(1, 2)
 		.register(2, mock_register1())
@@ -167,7 +167,7 @@ fn report_works_and_check_storage() {
 			 assert_eq!(file_order, FileOrder {
 				 fee: 100,
 				 file_size: 100,
-				 expire_at: 61,
+				 expire_at: 31,
 				 replicas: vec![2]
 			 });
 			assert_eq!(StoragePotReserved::<Test>::get(), 1000);
@@ -178,8 +178,8 @@ fn report_works_and_check_storage() {
 				paid_mine_reward: 0,
 				paid_store_reward: 0,
 			});
-			assert_eq!(RoundsReport::<Test>::get(current_round, 2).unwrap(), (100, 100));
-			assert_eq!(RoundsSummary::<Test>::get(current_round), (100, 100));
+			assert_eq!(RoundsReport::<Test>::get(current_round, 2).unwrap(), NodeStats { power: 100, used: 100 });
+			assert_eq!(Summary::<Test>::get(), SummaryStats { power: 100, used: 100 });
 			assert_eq!(Nodes::<Test>::get(2).unwrap(), NodeInfo { 
 				rid: 3,
 				last_round: current_round,
@@ -213,7 +213,7 @@ fn report_works_when_files_are_miss() {
 }
 
 #[test]
-fn file_order_should_be_removed_if_file_size_is_fake_too_small() {
+fn file_order_should_be_removed_if_file_size_is_wrong_and_too_small() {
 	ExtBuilder::default()
 		.stash(1, 2)
 		.register(2, mock_register1())
@@ -237,7 +237,7 @@ fn file_order_should_be_removed_if_file_size_is_fake_too_small() {
 }
 
 #[test]
-fn file_order_should_take_lack_fee_from_storage_pot_reserved() {
+fn file_order_fee_comes_from_storage_pot_reserved_if_lack() {
 	ExtBuilder::default()
 		.stash(1, 2)
 		.register(2, mock_register1())
@@ -257,7 +257,7 @@ fn file_order_should_take_lack_fee_from_storage_pot_reserved() {
 }
 
 #[test]
-fn file_oreder_replicas_can_be_replace_if_node_fail_to_report() {
+fn file_order_replicas_will_be_replace_if_node_fail_to_report() {
 	ExtBuilder::default()
 		.stash(1, 2)
 		.register(2, mock_register1())
@@ -273,17 +273,81 @@ fn file_oreder_replicas_can_be_replace_if_node_fail_to_report() {
 		.build()
 		.execute_with(|| {
 			run_to_block(11);
-			let machine_id = mock_register4().machine_id;
-			Registers::<Test>::insert(machine_id.clone(), mock_register_info4());
-			assert_ok!(call_report(9, mock_report5()));
+			assert_ok!(call_report(9, mock_report6()));
 			run_to_block(21);
 			assert_ok!(call_report(2, mock_report1()));
-
+			 let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
+			 assert_eq!(file_order.replicas, vec![9, 2]);
+			assert_eq!(Summary::<Test>::get(), SummaryStats { power: 500, used: 200 });
 		})
 }
 
 #[test]
-fn report_should_failed_with_legal_input() {
+fn report_del_files() {
+	ExtBuilder::default()
+		.stash(1, 2)
+		.register(2, mock_register1())
+		.files(vec![
+			(mock_file_id('A'), 100, 1100),
+		])
+		.build()
+		.execute_with(|| {
+			assert_ok!(call_register(2, mock_register1()));
+			assert_ok!(call_report(2, mock_report1()));
+			let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
+			assert_eq!(file_order.replicas, vec![2]);
+			run_to_block(11);
+			assert_ok!(call_report(2, mock_report5()));
+			let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
+			assert_eq!(file_order.replicas.len(), 0);
+			assert_eq!(RoundsReport::<Test>::get(CurrentRound::<Test>::get(), 2).unwrap(), NodeStats { power: 100, used: 0 });
+		})
+}
+
+#[test]
+fn report_settle_files() {
+	ExtBuilder::default()
+		.files(vec![
+			(mock_file_id('A'), 100, 1100),
+		])
+		.reports(vec![
+			(9, mock_register4(), mock_report4()),
+		])
+		.build()
+		.execute_with(|| {
+			let stash_balance = default_stash_balance();
+			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance);
+			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 0);
+			let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
+			assert_eq!(file_order.expire_at, 31);
+			run_to_block(11);
+			assert_ok!(call_report(9, mock_report6()));
+			run_to_block(21);
+			assert_ok!(call_report(9, mock_report7()));
+			run_to_block(32);
+			assert_ok!(call_report(9, mock_report8()));
+			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(5));
+			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 85);
+			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')).is_none(), true);
+		})
+}
+
+#[test]
+fn report_settle_files_do_not_reward_unhealth_node() {
+	// also check renew order
+}
+
+#[test]
+fn reward_reporter() {
+}
+
+#[test]
+fn slash_reporter() {
+
+}
+
+#[test]
+fn report_failed_with_legal_input() {
 	ExtBuilder::default()
 		.build()
 		.execute_with(|| {
@@ -303,7 +367,7 @@ fn report_should_failed_with_legal_input() {
 			// Failed when add_files or del_files is tampered
 			let mut report = mock_report1();
 			report.add_files[0].1 = report.add_files[0].1 + 1;
-			assert_err!(call_report(2, report), Error::<Test>::InvalidReportSig);
+			assert_err!(call_report(2, report), Error::<Test>::InvalidVerifyP256Sig);
 			
 			// Failed when enclave is outdated
 			run_to_block(1001);
@@ -312,13 +376,25 @@ fn report_should_failed_with_legal_input() {
 }
 
 #[test]
-fn report_should_failed_when_rid_is_not_continuous() {
+fn report_failed_when_rid_is_not_continuous() {
 	ExtBuilder::default()
+		.stash(1, 2)
+		.register(2, mock_register1())
+		.files(vec![
+			(mock_file_id('A'), 100, 1100),
+		])
 		.build()
 		.execute_with(|| {
-			// after reported, rid was changed from 0 to 3
-
-			// Failed when rid starting from 4
+			assert_ok!(call_register(2, mock_register1()));
+			assert_ok!(call_report(2, mock_report1()));
+			run_to_block(11);
+			assert_err!(call_report(2, mock_report1()), Error::<Test>::InvalidVerifyP256Sig);
+			Nodes::<Test>::mutate(2, |maybe_node_info| {
+				if let Some(node_info) = maybe_node_info {
+					node_info.rid = 0;
+				}
+			});
+			assert_ok!(call_report(2, mock_report1()));
 		})
 }
 

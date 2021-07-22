@@ -134,7 +134,7 @@ impl pallet_timestamp::Config for Test {
 parameter_types! {
 	pub const SlashBalance: Balance = 100;
 	pub const RoundDuration: BlockNumber = 10;
-	pub const FileOrderRounds: u32 = 6;
+	pub const FileOrderRounds: u32 = 3;
 	pub const MaxFileReplicas: u32 = 4;
 	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
 	pub const MaxReportFiles: u32 = 10;
@@ -263,6 +263,9 @@ impl ExtBuilder {
 			for (node, register, report) in reports {
 				let machine_id = register.machine_id.clone();
 				assert_eq!(&machine_id, &report.machine_id);
+				if Registers::<Test>::contains_key(&machine_id) {
+					Registers::<Test>::remove(&machine_id);
+				}
 				FileStorage::stash(Origin::signed(9999), node).unwrap();
 				FileStorage::register(
 					Origin::signed(node),
@@ -281,7 +284,6 @@ impl ExtBuilder {
 					report.del_files,
 					report.settle_files
 				).unwrap();
-				Registers::<Test>::remove(machine_id);
 			}
 		});
 		ext
@@ -451,14 +453,50 @@ pub fn mock_report4() -> ReportData {
 }
 
 pub fn mock_report5() -> ReportData {
-	// node = mock_register4, continue with mock_repoprt4
+	// node = mock_register1, prev_rid = 3, follow mock_report1
+	ReportData {
+		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
+		rid: 4,
+		sig: hex!("bd761f9b7b97b43a68efb14dd7020343c471fc5b0df217b63642026f97e50635817fce9344a210984d52d08b6fa3501667664bba50585ff52ac90fbc165490ba").into(),
+		add_files: vec![],
+		del_files: vec![mock_file_id('A')],
+		settle_files: vec![],
+	}
+}
+
+pub fn mock_report6() -> ReportData {
+	// node = mock_register4, prev_rid = 3, follow mock_report4
 	ReportData {
 		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
-		rid: 3,
-		sig: hex!("04af5c3325848a8acf0ac7ef6f98e9ddc52185f993e81302051b64f4a9f4a39f247bbfb79878c53cd6ceaac396f989dae2f654ba8a3c158b583d3319566bd33f").into(),
+		rid: 4,
+		sig: hex!("fd3deb281497fdd1c00b2c3288f4899321c9dc9663b2876c723dd4a8d78ac01a5bd3f53382e47a1182cbe6b0f719b517b695209fd300c4c2421eedf75a86469b").into(),
 		add_files: vec![],
 		del_files: vec![],
 		settle_files: vec![],
+	}
+}
+
+pub fn mock_report7() -> ReportData {
+	// node = mock_register4, prev_rid = 3, follow mock_report6
+	ReportData {
+		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
+		rid: 5,
+		sig: hex!("0ec4851ae6ac043b6a9bb9b4129a089a7ac2d961c7782a3d66495d8fdf8f674d2cd7c864d2837253886d3e2e85cfc25d205760f2a877d2a0c171a1651554bf4f").into(),
+		add_files: vec![],
+		del_files: vec![],
+		settle_files: vec![],
+	}
+}
+
+pub fn mock_report8() -> ReportData {
+	// node = mock_register4, prev_rid = 3, follow mock_report7
+	ReportData {
+		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
+		rid: 6,
+		sig: hex!("8432947eb4622d01c4a10b5fa15ba4c8f32f07549931af84a1603fadc8f50266c3e67b9164a550e1718ea9e4ddeda9f6e49998b6905c0f69165e742a3da7d634").into(),
+		add_files: vec![],
+		del_files: vec![],
+		settle_files: vec![mock_file_id('A')],
 	}
 }
 
