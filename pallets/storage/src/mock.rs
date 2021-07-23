@@ -139,7 +139,7 @@ parameter_types! {
 	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
 	pub const MaxReportFiles: u32 = 10;
 	pub const FileBaseFee: Balance = FILE_BASE_PRICE;
-	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
+	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const HistoryRoundDepth: u32 = 90;
 }
 
@@ -494,6 +494,18 @@ pub fn mock_report8() -> ReportData {
 		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 6,
 		sig: hex!("8432947eb4622d01c4a10b5fa15ba4c8f32f07549931af84a1603fadc8f50266c3e67b9164a550e1718ea9e4ddeda9f6e49998b6905c0f69165e742a3da7d634").into(),
+		add_files: vec![],
+		del_files: vec![],
+		settle_files: vec![mock_file_id('A')],
+	}
+}
+
+pub fn mock_report9() -> ReportData {
+	// node = mock_register4, prev_rid = 4, follow mock_report6
+	ReportData {
+		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
+		rid: 5,
+		sig: hex!("31772a28ae2badd371dc729b00f52690bfb5ba7f08e74dcb53f21372f21586bb2506b7318b4a7676599df6aadb2b6955ac687d8e7d78a2395728d0724666f2b2").into(),
 		add_files: vec![],
 		del_files: vec![],
 		settle_files: vec![mock_file_id('A')],

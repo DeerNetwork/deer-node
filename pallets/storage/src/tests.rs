@@ -228,8 +228,8 @@ fn file_order_should_be_removed_if_file_size_is_wrong_and_too_small() {
 
 			assert_eq!(StoragePotReserved::<Test>::get(), 1000);
 			let stash_info = Stashs::<Test>::get(2).unwrap();
-			assert_eq!(stash_info.deposit, default_stash_balance().saturating_add(5));
-			assert_eq!(RoundsReward::<Test>::get(current_round).store_reward, 95);
+			assert_eq!(stash_info.deposit, default_stash_balance().saturating_add(12));
+			assert_eq!(RoundsReward::<Test>::get(current_round).store_reward, 88);
 
 			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')), None);
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')), None);
@@ -326,24 +326,84 @@ fn report_settle_files() {
 			assert_ok!(call_report(9, mock_report7()));
 			run_to_block(32);
 			assert_ok!(call_report(9, mock_report8()));
-			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(5));
-			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 85);
+			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(12));
+			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 88);
 			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')).is_none(), true);
 		})
 }
 
 #[test]
 fn report_settle_files_do_not_reward_unhealth_node() {
-	// also check renew order
+	ExtBuilder::default()
+		.files(vec![
+			(mock_file_id('A'), 100, 1200),
+		])
+		.reports(vec![
+			(9, mock_register4(), mock_report4()),
+		])
+		.build()
+		.execute_with(|| {
+			let stash_balance = default_stash_balance();
+			run_to_block(11);
+			assert_ok!(call_report(9, mock_report6()));
+			run_to_block(21);
+			run_to_block(32);
+			assert_ok!(call_report(9, mock_report9()));
+			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_sub(100)); // slash
+			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 100);
+			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas.len(), 0);
+		})
 }
 
 #[test]
-fn reward_reporter() {
+fn round_reward() {
+	ExtBuilder::default()
+		.files(vec![
+			(mock_file_id('A'), 100, 1100),
+		])
+		.reports(vec![
+			(9, mock_register4(), mock_report4()),
+		])
+		.build()
+		.execute_with(|| {
+			let stash_balance = default_stash_balance();
+			run_to_block(11);
+			assert_ok!(call_report(9, mock_report6()));
+			run_to_block(21);
+			assert_ok!(call_report(9, mock_report7()));
+			RoundsReward::<Test>::mutate(CurrentRound::<Test>::get(), |reward| {
+				reward.store_reward = 100;
+				reward.mine_reward = 100;
+			});
+			run_to_block(32);
+			assert_ok!(call_report(9, mock_report8()));
+			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(212));
+			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 88);
+			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')).is_none(), true);
+		})
 }
 
 #[test]
-fn slash_reporter() {
-
+fn slash_offline() {
+	ExtBuilder::default()
+		.files(vec![
+			(mock_file_id('A'), 100, 1100),
+		])
+		.reports(vec![
+			(9, mock_register4(), mock_report4()),
+		])
+		.build()
+		.execute_with(|| {
+			let stash_balance = default_stash_balance();
+			run_to_block(11);
+			assert_ok!(call_report(9, mock_report6()));
+			run_to_block(21);
+			let pot_reserved = StoragePotReserved::<Test>::get();
+			run_to_block(32);
+			assert_ok!(call_report(9, mock_report7()));
+			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_sub(100));
+			assert_eq!(StoragePotReserved::<Test>::get(), pot_reserved.saturating_add(100));
+		})
 }
 
 #[test]

@@ -864,7 +864,7 @@ parameter_types! {
 	pub const MaxReportFiles: u32 = 100;
 	pub const FileBaseFee: Balance = 1 * CENTS;
 	pub const FileBytePrice: Balance = MILLICENTS / 1000;
-	pub const StoreRewardRatio: Perbill = Perbill::from_percent(20);
+	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
 	pub const HistoryRoundDepth: u32 = 720;
 }

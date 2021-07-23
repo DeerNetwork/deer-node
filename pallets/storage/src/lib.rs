@@ -510,6 +510,20 @@ pub mod pallet {
 			let mut storage_pot_reserved = StoragePotReserved::<T>::get();
 			let mut node_inc_deposits: BTreeMap<T::AccountId, BalanceOf<T>> = BTreeMap::new();
 			let mut nodes_prev_reported: BTreeMap<T::AccountId, bool> = BTreeMap::new();
+			
+			for cid in settle_files.iter() {
+				Self::settle_file(
+					&mut replica_changes,
+					&mut current_round_reward.store_reward,
+					&mut storage_pot_reserved,
+					&mut stash_info.deposit,
+					&mut node_inc_deposits,
+					&mut nodes_prev_reported,
+					&reporter,
+					cid,
+					prev_round
+				);
+			}
 
 			for (cid, file_size, ..) in add_files.iter() {
 				Self::add_file(
@@ -526,19 +540,6 @@ pub mod pallet {
 			}
 			for cid in del_files.iter() {
 				Self::delete_file(&mut replica_changes, &reporter, cid);
-			}
-			for cid in settle_files.iter() {
-				Self::settle_file(
-					&mut replica_changes,
-					&mut current_round_reward.store_reward,
-					&mut storage_pot_reserved,
-					&mut stash_info.deposit,
-					&mut node_inc_deposits,
-					&mut nodes_prev_reported,
-					&reporter,
-					cid,
-					prev_round
-				);
 			}
 
 			if let Some(stats) = RoundsReport::<T>::get(prev_round, &reporter) {
@@ -757,8 +758,8 @@ impl<T: Config> Pallet<T> {
 			}
 
 			let file_order_fee = file_order.fee;
-			let mut total_order_reward  = T::StoreRewardRatio::get() * file_order_fee;
-			let each_order_reward = Perbill::from_rational(1, T::MaxFileReplicas::get()) * total_order_reward;
+			let mut total_order_reward: BalanceOf<T>  = Zero::zero();
+			let each_order_reward = Perbill::from_rational(1, T::MaxFileReplicas::get()) * T::StoreRewardRatio::get() * file_order_fee;
 			let mut replicas = vec![];
 			for node in file_order.replicas.iter() {
 				let reported = nodes_prev_reported.entry(node.clone()).or_insert_with(|| 
@@ -772,7 +773,7 @@ impl<T: Config> Pallet<T> {
 						*node_deposit = node_deposit.saturating_add(each_order_reward);
 					}
 
-					total_order_reward = total_order_reward.saturating_sub(each_order_reward);
+					total_order_reward = total_order_reward.saturating_add(each_order_reward);
 					replicas.push(node.clone());
 				} else {
 					replica_changes.push((node.clone(), file_order.file_size, false));
@@ -885,7 +886,7 @@ impl<T: Config> Pallet<T> {
 			return;
 		}
 		let (slash_reserved, new_deposit) = if *reporter_deposit > slash_balance {
-			(slash_balance, *reporter_deposit)
+			(slash_balance, reporter_deposit.saturating_sub(slash_balance))
 		} else {
 			(*reporter_deposit, Zero::zero())
 		};
