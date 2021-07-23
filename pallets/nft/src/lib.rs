@@ -100,7 +100,7 @@ pub mod pallet {
 
 		/// The basic amount of funds that must be reserved when adding an attribute to an asset.
 		#[pallet::constant]
-		type AttributeDepositBase: Get<DepositBalanceOf<Self, I>>;
+		type DepositBase: Get<DepositBalanceOf<Self, I>>;
 
 		/// The additional funds that must be reserved for the number of bytes store in metadata,
 		/// either "normal" metadata or attribute metadata.
@@ -437,7 +437,7 @@ pub mod pallet {
 		/// Set an attribute for an asset class or instance.
 		///
 		/// If the origin is Signed, then funds of signer are reserved according to the formula:
-		/// `AttributeDepositBase + DepositPerByte * (key.len + value.len)` taking into
+		/// `DepositBase + DepositPerByte * (key.len + value.len)` taking into
 		/// account any already reserved funds.
 		///
 		/// - `class`: The identifier of the asset class whose instance's metadata to set.
@@ -469,7 +469,7 @@ pub mod pallet {
 			let old_deposit = attribute.map_or(Zero::zero(), |m| m.1);
 			let deposit = T::DepositPerByte::get()
 				.saturating_mul(((key.len() + value.len()) as u32).into())
-				.saturating_add(T::AttributeDepositBase::get());
+				.saturating_add(T::DepositBase::get());
 			if deposit > old_deposit {
 				T::Currency::reserve(&owner, deposit - old_deposit)?;
 			} else if deposit < old_deposit {
@@ -491,21 +491,16 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Set an attribute for an asset class or instance.
+		/// Clear attribute for an asset class or instance.
 		///
 		/// Origin must be either `ForceOrigin` or Signed and the sender should be the Owner of the
 		/// asset `class`.
 		///
-		/// If the origin is Signed, then funds of signer are reserved according to the formula:
-		/// `MetadataDepositBase + DepositPerByte * (key.len + value.len)` taking into
-		/// account any already reserved funds.
-		///
 		/// - `class`: The identifier of the asset class whose instance's metadata to set.
 		/// - `instance`: The identifier of the asset instance whose metadata to set.
 		/// - `key`: The key of the attribute.
-		/// - `value`: The value to which to set the attribute.
 		///
-		/// Emits `AttributeSet`.
+		/// Emits `AttributeCleared`.
 		///
 		/// Weight: `O(1)`
 		#[pallet::weight(T::WeightInfo::clear_attribute())]

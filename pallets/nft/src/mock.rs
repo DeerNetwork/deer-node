@@ -90,7 +90,7 @@ parameter_types! {
 	pub const InstanceDeposit: u64 = 1;
 	pub const KeyLimit: u32 = 50;
 	pub const ValueLimit: u32 = 50;
-	pub const AttributeDepositBase: u64 = 1;
+	pub const DepositBase: u64 = 1;
 	pub const DepositPerByte: u64 = 1;
 }
 
@@ -101,7 +101,7 @@ impl Config for Test {
 	type Currency = Balances;
 	type ClassDeposit = ClassDeposit;
 	type InstanceDeposit = InstanceDeposit;
-	type AttributeDepositBase = AttributeDepositBase;
+	type DepositBase = DepositBase;
 	type DepositPerByte = DepositPerByte;
 	type KeyLimit = KeyLimit;
 	type ValueLimit = ValueLimit;
