@@ -110,7 +110,7 @@ fn register_works() {
 			assert_eq!(register, mock_register_info2());
 
 			// Failed when controller is not stashed
-			assert_err!(call_register(3, mock_register1()), Error::<Test>::InvalidNode);
+			assert_err!(call_register(3, mock_register1()), Error::<Test>::UnstashNode);
 
 			// Failed when machind_id don't match
 			let mut register = mock_register1();
@@ -412,7 +412,7 @@ fn report_failed_with_legal_input() {
 		.build()
 		.execute_with(|| {
 			// Failed when controller is not stashed
-			assert_err!(call_report(2, mock_report1()), Error::<Test>::InvalidNode);
+			assert_err!(call_report(2, mock_report1()), Error::<Test>::UnstashNode);
 
 			// Failed when controller is not registered
 			assert_ok!(FileStorage::stash(Origin::signed(1), 2));

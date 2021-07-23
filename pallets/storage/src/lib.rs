@@ -57,61 +57,93 @@ impl<Balance: Default> RoundPayout<Balance> for () {
 	}
 }
 
-
+/// Node information
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
 pub struct NodeInfo {
+	/// A increment id of one report
     pub rid: u64,
+	/// Effective storage space
 	pub used: u64,
+	/// Mine power of node, use this to distribute mining rewards 
 	pub power: u64,
+	/// The lastest round node reported itself
 	pub last_round: RoundIndex,
 }
 
+/// Information round rewards
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
 pub struct RewardInfo<Balance> {
+	/// Reward for node power
 	pub mine_reward: Balance,
+	/// Reward for node store file
 	pub store_reward: Balance,
+	/// How many mine reward that already assigned to the node
 	pub paid_mine_reward: Balance,
+	/// How many store reward that already assigned to the node
 	pub paid_store_reward: Balance,
 }
 
+/// Derive from StoreFile, Record the replicas and expire time
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct FileOrder<AccountId, Balance, BlockNumber> {
+	/// The cost of storing for a period of time
 	pub fee: Balance,
+	/// Store file size
 	pub file_size: u64,
+	/// When the order need to close or renew
 	pub expire_at: BlockNumber,
+	/// Nodes store the file
 	pub replicas: Vec<AccountId>,
 }
 
+/// File that users submit to the network for storage
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct StoreFile<Balance, BlockNumber> {
+	/// Funds gathered in this file
 	pub reserved: Balance,
+	/// Basic cost of sumit to network
 	pub base_fee: Balance,
+	// Store file size
 	pub file_size: u64,
+	// When added file
 	pub added_at: BlockNumber,
 }
 
+/// Information stashing a node
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct StashInfo<AccountId, Balance> {
+	/// Stasher account
     pub stasher: AccountId,
+	/// Stash funds 
     pub deposit: Balance,
+	/// Node's machine id
 	pub machine_id: Option<MachineId>,
 }
 
+/// Information for TEE node
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct RegisterInfo {
+	/// PUb key to verify signed message
 	pub key: PubKey,
+	/// Tee enclave id
 	pub enclave: EnclaveId,
 }
 
+/// Record node's effictive storage size and power
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
 pub struct NodeStats {
+	/// Node's power
 	pub power: u64,
+	/// Eeffictive storage size
 	pub used: u64,
 }
 
+/// Record network's effictive storage size and power
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
 pub struct SummaryStats {
+	/// Network's power
 	pub power: u128,
+	/// Eeffictive storage size
 	pub used: u128,
 }
 
@@ -131,47 +163,61 @@ pub mod pallet {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
+		/// Time used for validating register cert
 		type UnixTime: UnixTime;
 
+		/// The payout for mining in the current round.
 		type RoundPayout: RoundPayout<BalanceOf<Self>>;
 
+		/// The basic amount of funds that slashed when node is offline or misbehavier
 		#[pallet::constant]
 		type SlashBalance: Get<BalanceOf<Self>>;
 
+		/// Number of blocks that node's need report its work
 		#[pallet::constant]
 		type RoundDuration: Get<BlockNumberFor<Self>>;
 
+		/// Number of rounds that file order is expired and need to renew or close
 		#[pallet::constant]
 		type FileOrderRounds: Get<u32>;
 
+		/// The maximum number of replicas order included
 		#[pallet::constant]
 		type MaxFileReplicas: Get<u32>;
 
+		/// The maximum file size the network accepts
 		#[pallet::constant]
 		type MaxFileSize: Get<u64>;
 
+		/// The maximum number of files in each report
 		#[pallet::constant]
 		type MaxReportFiles: Get<u32>;
 
+		/// The basic amount of funds that must be spent when store an file to network.
 		#[pallet::constant]
 		type FileBaseFee: Get<BalanceOf<Self>>;
 
+		/// The additional funds that must be spent for the number of bytes of the file
 		#[pallet::constant]
 		type FileBytePrice: Get<BalanceOf<Self>>;
 
+		/// The ratio for divide store reward to node's have replicas and round store reward.
 		#[pallet::constant]
 		type StoreRewardRatio: Get<Perbill>;
 
+		/// Number fo founds to stash for registering a node
 		#[pallet::constant]
 		type StashBalance: Get<BalanceOf<Self>>;
 
+		/// Number of rounds to keep in history.
 		#[pallet::constant]
         type HistoryRoundDepth: Get<u32>;
 	}
 
-
+	/// The Tee enclaves
 	#[pallet::storage]
 	pub type Enclaves<T: Config> = StorageMap<
 		_,
@@ -180,9 +226,11 @@ pub mod pallet {
 		BlockNumberFor<T>,
 	>;
 
+	/// Number of rounds that reserved to storage pot
 	#[pallet::storage]
 	pub type StoragePotReserved<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
+	/// Node information
 	#[pallet::storage]
 	pub type Nodes<T: Config> = StorageMap<
 		_,
@@ -191,6 +239,7 @@ pub mod pallet {
 		NodeInfo,
 	>;
 
+	/// Node register information
 	#[pallet::storage]
 	pub type Registers<T: Config> = StorageMap<
 		_,
@@ -199,12 +248,15 @@ pub mod pallet {
 		RegisterInfo,
 	>;
 
+	/// Record current round
 	#[pallet::storage]
 	pub type CurrentRound<T: Config> = StorageValue<_, RoundIndex, ValueQuery>;
 
+	/// Record network's effictive storage size and power
 	#[pallet::storage]
 	pub type Summary<T: Config> = StorageValue<_, SummaryStats, ValueQuery>;
 
+	/// Record the block number when round end
 	#[pallet::storage]
 	pub type RoundsBlockNumber<T: Config> = StorageMap<
 		_,
@@ -213,6 +265,7 @@ pub mod pallet {
         ValueQuery,
 	>;
 
+	/// Node stats in a round
 	#[pallet::storage]
 	pub type RoundsReport<T: Config> = StorageDoubleMap<
 		_,
@@ -221,6 +274,7 @@ pub mod pallet {
 		NodeStats, OptionQuery,
 	>;
 
+	/// Network stats in a round
 	#[pallet::storage]
 	pub type RoundsSummary<T: Config> = StorageMap<
 		_,
@@ -228,6 +282,7 @@ pub mod pallet {
 		SummaryStats, ValueQuery,
 	>;
 
+	/// Information for stored files
 	#[pallet::storage]
 	pub type StoreFiles<T: Config> = StorageMap<
 		_,
@@ -235,6 +290,7 @@ pub mod pallet {
 		StoreFile<BalanceOf<T>, BlockNumberFor<T>>,
 	>;
 
+	/// Information for file orders
 	#[pallet::storage]
 	pub type FileOrders<T: Config> = StorageMap<
 		_,
@@ -242,6 +298,7 @@ pub mod pallet {
 		FileOrder<T::AccountId, BalanceOf<T>, BlockNumberFor<T>>,
 	>;
 
+	/// Information stashing 
 	#[pallet::storage]
 	pub type Stashs<T: Config> = StorageMap<
 		_,
@@ -249,6 +306,7 @@ pub mod pallet {
 		StashInfo<T::AccountId, BalanceOf<T>>,
 	>;
 
+	/// Information round rewards
 	#[pallet::storage]
 	pub type RoundsReward<T: Config> = StorageMap<
 		_,
@@ -265,33 +323,57 @@ pub mod pallet {
 		BlockNumberFor<T> = "BlockNumber",
 	)]
 	pub enum Event<T: Config> {
+		/// Add or change enclave, \[enclave_id, expire_at\]
         SetEnclave(EnclaveId, BlockNumberFor<T>),
+		/// A account have been stashed, \[node\]
         Stashed(T::AccountId),
+		/// A node was registerd, \[node, machine_id\]
 		NodeRegisted(T::AccountId, MachineId),
+		/// A node reported its work, \[node, machine_id\]
 		NodeReported(T::AccountId, MachineId),
-        Withdrawn(T::AccountId, BalanceOf<T>),
-		StoreFileRequested(FileId, T::AccountId),
-		StoreFileCharged(FileId, T::AccountId),
+		/// A account have withdrawn some founds, \[node, beneficary, amount\]
+        Withdrawn(T::AccountId, T::AccountId, BalanceOf<T>),
+		/// A file have summitted, \[file_id, account, fee\]
+		StoreFileRequested(FileId, T::AccountId, BalanceOf<T>),
+		/// More founds given to a file, \[file_id, account, fee\]
+		StoreFileCharged(FileId, T::AccountId, BalanceOf<T>),
+		/// A file have been removed, \[file_id\]
 		StoreFileRemoved(FileId),
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// Enclave's expire time should not great than current
         InvalidEnclaveExpire,
+		/// Node have been stashed with another account
 		InvalidStashPair,
+		/// Node's deposit is not enough to withdraw
 		NoEnoughToWithdraw,
-		InvalidNode,
+		/// Have not stashed node
+		UnstashNode,
+		/// Machine id incorrect
 		MismatchMacheId,
+		/// Machine id exists in system
 		MachineAlreadyRegistered,
+		/// IAS signature incorrenct
 		InvalidIASSign,
+		/// IAS cert incorrenct
 		InvalidIASSigningCert,
+		/// IAS body incorrenct
 		InvalidIASBody,
+		/// Enclave id incorrenct
 		InvalidEnclave,
+		/// Already reported in current round
 		DuplicateReport,
+		/// Fail to verify signature
 		InvalidVerifyP256Sig,
+		/// Report files incorrect
 		IllegalReportFiles,
+		/// Node is unregisterd
 		UnregisterNode,
+		/// Not enough fee 
 		NotEnoughFee,
+		/// File size incorrenct
 		InvalidFileSize,
 	}
 
@@ -332,6 +414,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// Add or change expire of TEE enclave
 		#[pallet::weight((1_000_000, DispatchClass::Operational))]
 		pub fn set_enclave(
 			origin: OriginFor<T>,
@@ -348,13 +431,14 @@ pub mod pallet {
             Ok(())
 		}
 
+		/// Stash a account so it can be used for a storage node, the amount of funds to stash is T::StashBalance
 		#[pallet::weight(1_000_000)]
 		pub fn stash(
 			origin: OriginFor<T>,
-			controller: <T::Lookup as StaticLookup>::Source,
+			node: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
 			let stasher = ensure_signed(origin)?;
-			let controller = T::Lookup::lookup(controller)?;
+			let controller = T::Lookup::lookup(node)?;
 			let stash_balance = T::StashBalance::get();
 			if let Some(mut stash_info) = Stashs::<T>::get(&controller) {
 				ensure!(&stash_info.stasher == &stasher, Error::<T>::InvalidStashPair);
@@ -376,23 +460,26 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Withdraw the mine reward, node's despoist should not below T::StashBalance
 		#[pallet::weight(1_000_000)]
 		pub fn withdraw(
 			origin: OriginFor<T>,
 		) -> DispatchResult {
 			let controller = ensure_signed(origin)?;
-            let mut stash_info = Stashs::<T>::get(&controller).ok_or(Error::<T>::InvalidNode)?;
+            let mut stash_info = Stashs::<T>::get(&controller).ok_or(Error::<T>::UnstashNode)?;
             let stash_deposit: BalanceOf<T> = stash_info.deposit;
 			let stash_balance = T::StashBalance::get();
 			let withdraw_balance = stash_deposit.saturating_sub(stash_balance);
 			ensure!(!withdraw_balance.is_zero(), Error::<T>::NoEnoughToWithdraw);
 			stash_info.deposit = stash_balance;
-			T::Currency::transfer(&Self::storage_pot(), &stash_info.stasher, withdraw_balance, ExistenceRequirement::KeepAlive)?;
+			let stasher = stash_info.stasher.clone();
+			T::Currency::transfer(&Self::storage_pot(), &stasher, withdraw_balance, ExistenceRequirement::KeepAlive)?;
             Stashs::<T>::insert(controller.clone(), stash_info);
-            Self::deposit_event(Event::<T>::Withdrawn(controller, withdraw_balance));
+            Self::deposit_event(Event::<T>::Withdrawn(controller, stasher, withdraw_balance));
             Ok(())
 		}
 
+		/// Register a node 
 		#[pallet::weight((1_000_000, DispatchClass::Operational))]
 		pub fn register(
 			origin: OriginFor<T>,
@@ -404,7 +491,7 @@ pub mod pallet {
 		) -> DispatchResult {
             let node = ensure_signed(origin)?;
 			let maybe_register_info = Registers::<T>::get(&machine_id);
-			let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::InvalidNode)?;
+			let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::UnstashNode)?;
 			if maybe_register_info.is_some() {
 				ensure!(&stash_info.machine_id.is_some(), Error::<T>::MachineAlreadyRegistered);
 			}
@@ -463,6 +550,7 @@ pub mod pallet {
             Ok(())
 		}
 
+		/// Report storage work.
 		#[pallet::weight(1_000_000)]
 		pub fn report(
 			origin: OriginFor<T>,
@@ -480,7 +568,7 @@ pub mod pallet {
 				settle_files.len() < T::MaxReportFiles::get() as usize, 
 				Error::<T>::IllegalReportFiles
 			);
-			let mut stash_info = Stashs::<T>::get(&reporter).ok_or(Error::<T>::InvalidNode)?;
+			let mut stash_info = Stashs::<T>::get(&reporter).ok_or(Error::<T>::UnstashNode)?;
 			ensure!(stash_info.machine_id.is_some(), Error::<T>::UnregisterNode);
 			ensure!(&stash_info.machine_id.clone().unwrap() == &machine_id , Error::<T>::MismatchMacheId);
 			let register = Registers::<T>::get(&machine_id).ok_or(Error::<T>::UnregisterNode)?;
@@ -607,6 +695,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Add file to storage
 		#[pallet::weight(1_000_000)]
 		pub fn store(
 			origin: OriginFor<T>,
@@ -624,7 +713,7 @@ pub mod pallet {
                 T::Currency::transfer(&who, &Self::storage_pot(), fee, ExistenceRequirement::KeepAlive)?;
 				file.reserved = new_reserved;
 				StoreFiles::<T>::insert(cid.clone(), file);
-				Self::deposit_event(Event::<T>::StoreFileCharged(cid, who));
+				Self::deposit_event(Event::<T>::StoreFileCharged(cid, who, fee));
 			} else {
 				let min_fee = Self::store_file_fee(file_size);
 				ensure!(fee >= min_fee, Error::<T>::NotEnoughFee);
@@ -636,7 +725,7 @@ pub mod pallet {
 					file_size,
 					added_at: Self::now_bn(), // TODO: file is invalid if no order for a long time
 				});
-				Self::deposit_event(Event::<T>::StoreFileRequested(cid, who));
+				Self::deposit_event(Event::<T>::StoreFileRequested(cid, who, fee));
 			}
 			Ok(())
 		}
