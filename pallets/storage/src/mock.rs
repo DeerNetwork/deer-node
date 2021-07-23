@@ -19,7 +19,7 @@ pub type BlockNumber = u64;
 pub type Balance = u128;
 
 
-pub const MAX_FILE_SIZE: u64 = 1_000_000;
+pub const MAX_FILE_SIZE: u64 = 4194304; // 4M
 pub const FILE_BASE_PRICE: Balance = 1000;
 
 #[derive(Debug, Clone)]

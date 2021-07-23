@@ -526,6 +526,9 @@ pub mod pallet {
 			}
 
 			for (cid, file_size, ..) in add_files.iter() {
+				if file_size > &T::MaxFileSize::get() {
+					continue;
+				}
 				Self::add_file(
 					&mut replica_changes,
 					&mut current_round_reward.store_reward,
