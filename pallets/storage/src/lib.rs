@@ -405,8 +405,8 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
+			CurrentRound::<T>::mutate(|v| *v = 1);
 			for (code, bn) in &self.enclaves {
-				CurrentRound::<T>::mutate(|v| *v = 1);
 				Enclaves::<T>::insert(code.clone(), bn);
 			}
 		}
