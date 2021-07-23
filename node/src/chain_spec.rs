@@ -1,6 +1,6 @@
 //! Substrate chain configurations.
 
-use sc_chain_spec::ChainSpecExtension;
+use sc_chain_spec::{ChainSpecExtension, Properties};
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use serde::{Serialize, Deserialize};
 use node_runtime::{
@@ -351,6 +351,103 @@ pub fn local_testnet_config() -> ChainSpec {
 		None,
 		None,
 		None,
+		Default::default(),
+	)
+}
+
+fn nft360_testnet_config_genesis() -> GenesisConfig {
+	// ./scripts/prepare-test-net.sh 4
+	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
+		(
+			//5CoeCei9ULeUXKKRY4MDq3Bpp2JH5JVdRHfU4B2UZsKaGtNm
+			hex!["20bf3f380a5d4888e2f7c467bb03abf0efd8780c4ea0cdf8b1ec2e70d24e2249"].into(),
+			//5HdL6KCaMwxbAR3j7wY25DW3HcrbxQLXpLqGPCupec2Fne2L
+			hex!["f60effbef7654a6590fca2b94edc9fcd80434aa08ad3ecf8c9514851cbe5057a"].into(),
+			//5CJkZKD4rRqEhHphBWvVH8kPipjccrWk7F1a8xbZgvsnt2aG
+			hex!["0ab686ffd031340ca2fb1101d8f87af4f15046df6363d0e9ce9084ab62cce95d"].unchecked_into(),
+			//5EByXQB4WQ98sJmx4aUeTsqmT9j526SZEoj1UZJwB2c63UWE
+			hex!["5e03ed5d6cca04b81f110c9704e83d0d4b291a0e04493007d3114a45949dd935"].unchecked_into(),
+			//5H6L81P5gQZmTaJby6CRhMK1gFCWUgQAKQv7b8yEpH7bMMs5
+			hex!["de6a7d5e562776ea64b3d8d67b326597512d787bb9a5477b56cab205a1bdcb62"].unchecked_into(),
+			//5HN22KVWJHrRZRwxz8mDrydKRFYnRMm477q5voKE4J67655B
+			hex!["ea617e1fe815de26e97ab5cb74f868a1f427a08abedb9ebc1d5c50f0473afe50"].unchecked_into(),
+		),
+		(
+			//5DAmdPpeV7SPB7eKb8UbBBrTMfKGrGrVCtZCu7rsPjzksHHt
+			hex!["30dc668ff7fb462ed059f5de128f46654f71858b38e22f0cf64a53158783ca1d"].into(),
+			//5EqKaozw6DP3QrCnmjgrr1S5kWAvJqrCZyEtMq3M6bGszGKQ
+			hex!["7a7f87f82846340224af31c6b5305bdd332ce93eae157c2b1aaa9b58fc1ef374"].into(),
+			//5HRfmmXSciAfCtQCPRZ2Xz94D3F2nTuC6WEwpkD96w3dj5Ti
+			hex!["ed2a4dc256fb49b8956790a3bc3b50188e6903a7344b57882c4c32d34d29721a"].unchecked_into(),
+			//5CQ5vYWJcjXt4PiL8uh8Evyzx8imhyg8Wn5ADiRDC599YEre
+			hex!["0ec7f23a5fa3fe572ffb34473c1e28b1b2768ed1e76675d1aa292c53a7682002"].unchecked_into(),
+			//5Fmr5S6FM7rFcfYVXjXVuLABEV9wN67i9bs3RWDXdbkvaWaX
+			hex!["a4156ee5daea942eebdd55339483a59db2112eb9ca2209781170afc29942f745"].unchecked_into(),
+			//5DAkFCvxMLK6mAByFE6RotATqprCH4sGmPyfRT9hfLNL3JvA
+			hex!["30d7bf1ec2186c7922958cdc634e51aafbaaf19e98dd2f48443eb8eaf7c2ef56"].unchecked_into(),
+		),
+		(
+			//5GVtzvvzFY81WLyMajvLSVS5BebzTRBkdhJReocH75LCefgL
+			hex!["c42793e6c4dd445202c478ea8757fcb772c54c7404f366090ecf5b9461123e38"].into(),
+			//5HmAsCXEv7qf1Ct7Khwt8qvbq6poiHKro1DQiqtnAsyeapqs
+			hex!["fc09e7830fb8509d4e9a9791c18dbf0dd0d2adacd340f6d5213bf55ea4bc2d2b"].into(),
+			//5GiMEz7HFB3kL6NqFe6DZUy8KVbvfpFZY2kfy3N85YRpxWe5
+			hex!["cda6dcb47ea1d0107d49314c7703784a0353a20e9dc52d9545dceb161dc4a229"].unchecked_into(),
+			//5CXD8tyrkhxsHqkYNQWXAeSzQzhtsz2XfQoshBr9f14fxJZv
+			hex!["1436f1f205b2537f090f30a45f7f5df08001d212d68b5a1a99f078d5b7c8ca22"].unchecked_into(),
+			//5Cqfe3y575fEGdDtRYtgwxtFyuGdaHepW8nFU8a5tRaCwPyM
+			hex!["224a940cee0e91d36c38edc0e901c39f0de4c4bfe9785039db9e37c640c4832f"].unchecked_into(),
+			//5DF4VLHLBgJ4Fn8bv1F9rVQCGh16CTAvDm82Gm7Yc7Yp5HV4
+			hex!["34222438e9a2dd5417e9c0952365bf136969eac2759775d8505a1bcb41b81332"].unchecked_into(),
+		),
+		(
+			//5CCzfrdLEtFGG3F4TU93R5Qjuyki9JKCHoGAFFPcNZ4D4UQc
+			hex!["065290133d4c90bbdb535ee0c407ce2d89e63d7e2938b183801af21cf386b842"].into(),
+			//5F4LDWLGdSwGw6UUM7XAnvJfjGjCsnQFcaXvnumMvRscTqcb
+			hex!["846bd9e6a583f31c7d7a99d350fa78e9bde049517d311efba426e73f1c945f20"].into(),
+			//5Fi7xnxhzKiQLiZngV9hqwEQya9fhyc5aQt8aUrs73GWRMpp
+			hex!["a13ded4ee76fbf579a2f8a882fb96f9ddce9b8c5a52f4a8bbfc02def6e96efb2"].unchecked_into(),
+			//5F92uUnZpyjqugxfSUCVthfxyK9jwE9pTxZKJocc7n12MJx3
+			hex!["8801ce09a54c7c65db57983f5b04431043e4999a936a9cd955a755d57ba5315a"].unchecked_into(),
+			//5CyV1HXSGYfWiLB1e9mZ5pZHX5KurqrWtRwxMvBe4i6ifTxh
+			hex!["2840bea1cdcfdf1f4ef192b487e23a3bef7babae1da8e494a73f55b974649757"].unchecked_into(),
+			//5HRLdeWuTwy7uya6V46h2jgKf4WBZ1S8nsudbCngpnKP6jfx
+			hex!["ece9df6a2db6cc1d563fa84a6e7ddb5bbfd7751897d80f212dc3e12c72c0a10d"].unchecked_into(),
+		),
+	];
+	// generated with secret: subkey inspect --scheme sr25519 "$SECRET"/n360t
+	let root_key: AccountId = hex!["624db4345f31b2432be2cc2cf6305ac0a1bd119b142ba1da7dffe27092529e4b"].into();
+
+	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
+
+	testnet_genesis(
+		initial_authorities,
+		vec![],
+		root_key,
+		Some(endowed_accounts),
+	)
+}
+
+pub fn nft360_testnet_local_config() -> ChainSpec {
+	let boot_nodes = vec![];
+	let protocol_id: &str = "n360t1";
+	let properties = {
+		let mut p = Properties::new();
+		p.insert("tokenSymbol".into(), "N360".into());
+		p.insert("tokenDecimals".into(), 12.into());
+		p.insert("ss58Format".into(), 333.into());
+		p
+	};
+
+	ChainSpec::from_genesis(
+		"NFT360 PoC-1",
+		"nft360_poc_1",
+		ChainType::Local,
+		nft360_testnet_config_genesis,
+		boot_nodes,
+		None,
+		Some(protocol_id),
+		Some(properties),
 		Default::default(),
 	)
 }

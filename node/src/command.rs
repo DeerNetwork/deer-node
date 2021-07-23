@@ -36,6 +36,7 @@ impl SubstrateCli for Cli {
 				"" => return Err("Please specify which chain you want to run, e.g. --dev or --chain=local".into()),
 				"dev" => Box::new(chain_spec::development_config()),
 				"local" => Box::new(chain_spec::local_testnet_config()),
+				"nft360-local" => Box::new(chain_spec::nft360_testnet_local_config()),
 				"staging" => Box::new(chain_spec::staging_testnet_config()),
 				path => Box::new(chain_spec::ChainSpec::from_json_file(
 					std::path::PathBuf::from(path),
