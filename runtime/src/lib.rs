@@ -921,10 +921,10 @@ impl pallet_vesting::Config for Runtime {
 parameter_types! {
 	pub const ClassDeposit: Balance = 5 * DOLLARS;
 	pub const InstanceDeposit: Balance = 1 * DOLLARS;
-	pub const KeyLimit: u32 = 32;
+	pub const KeyLimit: u32 = 256;
 	pub const ValueLimit: u32 = 4096;
 	pub const NftDepositBase: Balance = 15 * CENTS;
-	pub const NftDepositPerByte: Balance = 6 * CENTS;
+	pub const NftDepositPerByte: Balance = CENTS / 10;
 }
 
 impl pallet_nft::Config for Runtime {
@@ -961,8 +961,8 @@ parameter_types! {
 	pub const MaxFileReplicas: u32 = 15;
 	pub const MaxFileSize: u64 = 137_438_953_472; // 128G
 	pub const MaxReportFiles: u32 = 200;
-	pub const FileBaseFee: Balance = 1 * CENTS;
-	pub const FileBytePrice: Balance = MILLICENTS / 1000;
+	pub const FileBaseFee: Balance = MILLICENTS;
+	pub const FileBytePrice: Balance = MILLICENTS / 5;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
 	pub const HistoryRoundDepth: u32 = 7 * 24;
