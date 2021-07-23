@@ -34,8 +34,10 @@ pallet-identity = { version = "3.0.0", default-features = false, path = "../subs
 pallet-im-online = { version = "3.0.0", default-features = false, path = "../substrate/frame/im-online" }
 pallet-indices = { version = "3.0.0", default-features = false, path = "../substrate/frame/indices" }
 pallet-membership = { version = "3.0.0", default-features = false, path = "../substrate/frame/membership" }
+pallet-multisig = { version = '3.0.0', path = '../substrate/frame/multisig', default-features = false }
 pallet-offences = { version = "3.0.0", default-features = false, path = "../substrate/frame/offences" }
 pallet-offences-benchmarking = { version = "3.0.0", path = "../substrate/frame/offences/benchmarking", default-features = false, optional = true }
+pallet-proxy = { version = '3.0.0', path = '../substrate/frame/proxy', default-features = false }
 pallet-randomness-collective-flip = { version = '3.0.0', path = '../substrate/frame/randomness-collective-flip', default-features = false }
 pallet-scheduler = { version = "3.0.0", default-features = false, path = "../substrate/frame/scheduler" }
 pallet-session = { version = '3.0.0', path = '../substrate/frame/session', default-features = false }
@@ -44,10 +46,12 @@ pallet-sudo = { version = '3.0.0', path = '../substrate/frame/sudo', default-fea
 pallet-staking = { version = '3.0.0', path = '../substrate/frame/staking', default-features = false }
 pallet-staking-reward-curve = { version = "3.0.0", default-features = false, path = "../substrate/frame/staking/reward-curve" }
 pallet-timestamp = { version = '3.0.0', path = '../substrate/frame/timestamp', default-features = false }
+pallet-tips = { version = '3.0.0', path = '../substrate/frame/tips', default-features = false }
 pallet-transaction-payment = { version = '3.0.0', path = '../substrate/frame/transaction-payment', default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { version = '3.0.0', path = '../substrate/frame/transaction-payment/rpc/runtime-api', default-features = false }
 pallet-transaction-storage = { version = '3.0.0', path = '../substrate/frame/transaction-storage', default-features = false  }
 pallet-treasury = { version = "3.0.0", default-features = false, path = "../substrate/frame/treasury" }
+pallet-vesting = { version = '3.0.0', path = '../substrate/frame/vesting', default-features = false }
 pallet-utility = { version = '3.0.0', path = '../substrate/frame/utility', default-features = false }
 node-primitives = { package = "nft360-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
 sp-api = { version = '3.0.0', path = '../substrate/primitives/api', default-features = false }
@@ -65,6 +69,7 @@ sp-std = { version = '3.0.0', path = '../substrate/primitives/std', default-feat
 sp-transaction-pool = { version = '3.0.0', path = '../substrate/primitives/transaction-pool', default-features = false }
 sp-version = { version = '3.0.0', path = '../substrate/primitives/version', default-features = false }
 sp-npos-elections = { version = "3.0.0", default-features = false, path = "../substrate/primitives/npos-elections" }
+max-encoded-len = { version = "3.0.0", default-features = false, path = "../substrate/max-encoded-len", features = [ "derive" ] }
 
 pallet-nft = { version = "0.1.0", path = "../pallets/nft", default-features = false }
 pallet-nft-order = { version = "0.1.0", path = "../pallets/nft-order", default-features = false }
@@ -93,13 +98,17 @@ runtime-benchmarks = [
 	'pallet-im-online/runtime-benchmarks',
 	'pallet-indices/runtime-benchmarks',
 	'pallet-membership/runtime-benchmarks',
+	'pallet-multisig/runtime-benchmarks',
     'pallet-offences-benchmarking',
+	'pallet-proxy/runtime-benchmarks',
 	'pallet-scheduler/runtime-benchmarks',
 	'pallet-session-benchmarking',
 	'pallet-staking/runtime-benchmarks',
     'pallet-timestamp/runtime-benchmarks',
+    'pallet-tips/runtime-benchmarks',
 	'pallet-transaction-storage/runtime-benchmarks',
 	'pallet-treasury/runtime-benchmarks',
+	'pallet-vesting/runtime-benchmarks',
     'pallet-utility/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
     'pallet-nft/runtime-benchmarks',
@@ -127,16 +136,20 @@ std = [
     'pallet-indices/std',
     'pallet-identity/std',
     'pallet-membership/std',
+    'pallet-multisig/std',
     'pallet-offences/std',
+    'pallet-proxy/std',
     'pallet-randomness-collective-flip/std',
     'pallet-sudo/std',
     'pallet-scheduler/std',
 	'pallet-staking/std',
     'pallet-timestamp/std',
+    'pallet-tips/std',
     'pallet-transaction-payment/std',
     'pallet-transaction-payment-rpc-runtime-api/std',
 	'pallet-transaction-storage/std',
 	'pallet-treasury/try-runtime',
+    'pallet-vesting/std',
     'pallet-utility/std',
     'sp-api/std',
 	'sp-authority-discovery/std',

@@ -4118,6 +4118,7 @@ dependencies = [
  "frame-try-runtime",
  "hex-literal",
  "log",
+ "max-encoded-len",
  "nft360-primitives",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -4133,10 +4134,12 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-multisig",
  "pallet-nft",
  "pallet-nft-order",
  "pallet-offences",
  "pallet-offences-benchmarking",
+ "pallet-proxy",
  "pallet-randomness-collective-flip",
  "pallet-scheduler",
  "pallet-session",
@@ -4146,11 +4149,13 @@ dependencies = [
  "pallet-storage",
  "pallet-sudo",
  "pallet-timestamp",
+ "pallet-tips",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-transaction-storage",
  "pallet-treasury",
  "pallet-utility",
+ "pallet-vesting",
  "parity-scale-codec",
  "sp-api",
  "sp-authority-discovery",
@@ -4640,6 +4645,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-multisig"
+version = "3.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-nft"
 version = "0.1.0"
 dependencies = [
@@ -4704,6 +4723,21 @@ dependencies = [
  "parity-scale-codec",
  "sp-runtime",
  "sp-staking",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-proxy"
+version = "3.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "max-encoded-len",
+ "parity-scale-codec",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-std",
 ]
 
@@ -4852,6 +4886,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-tips"
+version = "3.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-treasury",
+ "parity-scale-codec",
+ "serde",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-transaction-payment"
 version = "3.0.0"
 dependencies = [
@@ -4935,6 +4983,19 @@ dependencies = [
  "parity-scale-codec",
  "sp-core",
  "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-vesting"
+version = "3.0.0"
+dependencies = [
+ "enumflags2",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
  "sp-runtime",
  "sp-std",
 ]

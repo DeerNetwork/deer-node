@@ -10,7 +10,6 @@ impl OnUnbalanced<NegativeImbalance> for Author {
 	}
 }
 
-
 pub struct SimpleRoundPayout;
 impl RoundPayout<Balance> for SimpleRoundPayout {
 	fn round_payout(_total_size: u128) -> Balance {

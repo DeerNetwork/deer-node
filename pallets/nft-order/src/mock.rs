@@ -72,7 +72,6 @@ parameter_types! {
 	pub const InstanceDeposit: u64 = 1;
 	pub const KeyLimit: u32 = 50;
 	pub const ValueLimit: u32 = 50;
-	pub const StringLimit: u32 = 50;
 	pub const MetadataDepositBase: u64 = 1;
 	pub const AttributeDepositBase: u64 = 1;
 	pub const MetadataDepositPerByte: u64 = 1;
