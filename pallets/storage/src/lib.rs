@@ -747,19 +747,29 @@ impl<T: Config> Pallet<T> {
 	fn on_round_end() {
         let current_round = CurrentRound::<T>::get();
         let next_round =  current_round.saturating_add(1);
+        let prev_round =  current_round.saturating_sub(1);
 
 		let summary = Summary::<T>::get();
 		let mine_reward = T::RoundPayout::round_payout(summary.power);
 		if !mine_reward.is_zero() {
 			T::Currency::deposit_creating(&Self::storage_pot(), mine_reward);
-			RoundsReward::<T>::mutate(
-				current_round, 
-				|reward| {
-					reward.mine_reward = mine_reward
-				}
-			);
 		}
-		// TODO collect dust reward to treasure
+		let mut store_reward = Zero::zero();
+		if !prev_round.is_zero() {
+			let prev_reward = RoundsReward::<T>::get(prev_round);
+			store_reward = prev_reward.store_reward
+				.saturating_add(prev_reward.mine_reward)
+				.saturating_sub(prev_reward.paid_mine_reward)
+				.saturating_sub(prev_reward.paid_store_reward);
+		}
+		RoundsReward::<T>::mutate(
+			current_round, 
+			|reward| {
+				reward.mine_reward = reward.mine_reward.saturating_add(mine_reward);
+				reward.store_reward = reward.store_reward.saturating_add(store_reward);
+			}
+		);
+
 		RoundsSummary::<T>::insert(current_round, summary);
         RoundsBlockNumber::<T>::insert(next_round, Self::get_next_round_bn());
 		CurrentRound::<T>::mutate(|v| *v = next_round);
