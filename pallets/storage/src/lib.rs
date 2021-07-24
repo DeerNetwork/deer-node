@@ -406,6 +406,11 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
 			CurrentRound::<T>::mutate(|v| *v = 1);
+			let storage_pot = <Pallet<T>>::storage_pot();
+			let min = T::Currency::minimum_balance();
+			if T::Currency::free_balance(&storage_pot) < min {
+				let _ = T::Currency::make_free_balance_be(&storage_pot, min);
+			}
 			for (code, bn) in &self.enclaves {
 				Enclaves::<T>::insert(code.clone(), bn);
 			}
@@ -469,13 +474,13 @@ pub mod pallet {
             let mut stash_info = Stashs::<T>::get(&controller).ok_or(Error::<T>::UnstashNode)?;
             let stash_deposit: BalanceOf<T> = stash_info.deposit;
 			let stash_balance = T::StashBalance::get();
-			let withdraw_balance = stash_deposit.saturating_sub(stash_balance);
-			ensure!(!withdraw_balance.is_zero(), Error::<T>::NoEnoughToWithdraw);
+			let profit = stash_deposit.saturating_sub(stash_balance);
+			ensure!(!profit.is_zero(), Error::<T>::NoEnoughToWithdraw);
 			stash_info.deposit = stash_balance;
 			let stasher = stash_info.stasher.clone();
-			T::Currency::transfer(&Self::storage_pot(), &stasher, withdraw_balance, ExistenceRequirement::KeepAlive)?;
+			T::Currency::transfer(&Self::storage_pot(), &stasher, profit, ExistenceRequirement::KeepAlive)?;
             Stashs::<T>::insert(controller.clone(), stash_info);
-            Self::deposit_event(Event::<T>::Withdrawn(controller, stasher, withdraw_balance));
+            Self::deposit_event(Event::<T>::Withdrawn(controller, stasher, profit));
             Ok(())
 		}
 

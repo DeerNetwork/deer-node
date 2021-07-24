@@ -31,7 +31,7 @@ fn stash_works() {
 			let u1_b = Balances::free_balance(1);
 			assert_ok!(FileStorage::stash(Origin::signed(1), 2));
 			assert_eq!(Balances::free_balance(1), u1_b.saturating_sub(stash_balance));
-			assert_eq!(balance_of_storage_pot(), stash_balance);
+			assert_eq!(balance_of_storage_pot(), stash_balance + 1);
 			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance);
 
 			// should recharge when account's stash_balance < T::StashBalance
@@ -40,14 +40,14 @@ fn stash_works() {
 			assert_ok!(FileStorage::stash(Origin::signed(1), 2));
 			assert_eq!(Balances::free_balance(1), u1_b.saturating_sub(stash_balance_x3));
 			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance_x3);
-			assert_eq!(balance_of_storage_pot(), stash_balance_x3);
+			assert_eq!(balance_of_storage_pot(), stash_balance_x3 + 1);
 
 			// should do nothing when account's stash_balance > T::StashBalance
 			change_stash_balance(stash_balance);
 			assert_ok!(FileStorage::stash(Origin::signed(1), 2));
 			assert_eq!(Balances::free_balance(1), u1_b.saturating_sub(stash_balance_x3));
 			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance_x3);
-			assert_eq!(balance_of_storage_pot(), stash_balance_x3);
+			assert_eq!(balance_of_storage_pot(), stash_balance_x3 + 1);
 
 			// one stasher multiple controller
 			assert_ok!(FileStorage::stash(Origin::signed(1), 3));
