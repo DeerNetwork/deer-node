@@ -958,8 +958,10 @@ parameter_types! {
 	pub const SlashBalance: Balance = 100 * DOLLARS;
 	pub const RoundDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
 	pub const FileOrderRounds: u32 = 24;
-	pub const MaxFileReplicas: u32 = 15;
-	pub const MaxFileSize: u64 = 137_438_953_472; // 128G
+	pub const MaxFileReplicas: u32 = 30;
+	pub const EffectiveFileReplicas: u32 = 15;
+	pub const MaxFileSize: u64 = 1_073_741_824; // 1G
+	pub const MaxPower: u64 = 1_125_899_906_842_624; // 1P
 	pub const MaxReportFiles: u32 = 200;
 	pub const FileBaseFee: Balance = MILLICENTS;
 	pub const FileBytePrice: Balance = MILLICENTS / 5;
@@ -978,7 +980,9 @@ impl pallet_storage::Config for Runtime {
 	type FileOrderRounds = FileOrderRounds;
 	type MaxFileReplicas = MaxFileReplicas;
 	type MaxFileSize = MaxFileSize;
+	type MaxPower = MaxPower;
 	type MaxReportFiles = MaxReportFiles;
+	type EffectiveFileReplicas = EffectiveFileReplicas;
 	type FileBaseFee = FileBaseFee;
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
