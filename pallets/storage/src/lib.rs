@@ -21,7 +21,7 @@ use sp_std::{prelude::*, collections::btree_map::BTreeMap};
 use sp_runtime::{Perbill, RuntimeDebug, SaturatedConversion, traits::{Zero, One, StaticLookup, Saturating, AccountIdConversion}};
 use codec::{Encode, Decode};
 use frame_support::{
-	traits::{Currency, ReservableCurrency, ExistenceRequirement, UnixTime, Get},
+	traits::{Currency, ReservableCurrency, ExistenceRequirement, UnixTime, Get}, PalletId,
 };
 use frame_system::{Config as SystemConfig, pallet_prelude::BlockNumberFor};
 use p256::ecdsa::{VerifyingKey, signature::{Verifier, Signature}};
@@ -162,6 +162,9 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// The module id, used for deriving its sovereign account ID.
+		type PalletId: Get<PalletId>;
 
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
@@ -747,7 +750,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 
 	pub fn storage_pot() -> T::AccountId {
-		PALLET_ID.into_sub_account("stor")
+		T::PalletId::get().into_account()
 	}
 
 	fn on_round_end() {

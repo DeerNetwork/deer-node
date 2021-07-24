@@ -955,6 +955,7 @@ impl pallet_nft_order::Config for Runtime {
 }
 
 parameter_types! {
+	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
 	pub const SlashBalance: Balance = 100 * DOLLARS;
 	pub const RoundDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
 	pub const FileOrderRounds: u32 = 24;
@@ -972,6 +973,7 @@ parameter_types! {
 
 impl pallet_storage::Config for Runtime {
 	type Event = Event;
+	type PalletId = StoragePalletId;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type RoundPayout = SimpleRoundPayout;

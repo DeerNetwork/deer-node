@@ -3,7 +3,11 @@ use crate as pallet_storage;
 
 use sp_core::{H256};
 use sp_runtime::{DispatchResult, testing::Header, traits::{IdentityLookup}};
-use frame_support::{construct_runtime, parameter_types, traits::{GenesisBuild, Hooks}, weights::constants::RocksDbWeight};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{GenesisBuild, Hooks},
+	weights::constants::RocksDbWeight, PalletId,
+};
 
 use sp_std::{collections::btree_map::BTreeMap};
 use hex_literal::hex;
@@ -134,6 +138,7 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
+	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
 	pub const SlashBalance: Balance = 100;
 	pub const RoundDuration: BlockNumber = 10;
 	pub const FileOrderRounds: u32 = 3;
@@ -150,6 +155,7 @@ parameter_types! {
 impl Config for Test {
 	type Event = Event;
 	type Currency = Balances;
+	type PalletId = StoragePalletId;
 	type UnixTime = Timestamp;
 	type RoundPayout = ();
 	type SlashBalance = SlashBalance;
