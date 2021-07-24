@@ -337,13 +337,13 @@ pub mod pallet {
 		/// A node reported its work, \[node, machine_id\]
 		NodeReported(T::AccountId, MachineId),
 		/// A file have summitted, \[file_id, account, fee\]
-		StoreFileRequested(FileId, T::AccountId, BalanceOf<T>),
+		StoreFileSubmitted(FileId, T::AccountId, BalanceOf<T>),
 		/// More founds given to a file, \[file_id, account, fee\]
 		StoreFileCharged(FileId, T::AccountId, BalanceOf<T>),
 		/// A file have been removed, \[file_id\]
 		StoreFileRemoved(FileId),
 		/// A file was renewed and can accepte more replicas, \[file_id, replicas\]
-		StoreFileSettleIncomplete(FileId, u32)
+		StoreFileSettledIncomplete(FileId, u32)
 	}
 
 	#[pallet::error]
@@ -735,7 +735,7 @@ pub mod pallet {
 					file_size,
 					added_at: Self::now_bn(), // TODO: file is invalid if no order for a long time
 				});
-				Self::deposit_event(Event::<T>::StoreFileRequested(cid, who, fee));
+				Self::deposit_event(Event::<T>::StoreFileSubmitted(cid, who, fee));
 			}
 			Ok(())
 		}
@@ -955,7 +955,7 @@ impl<T: Config> Pallet<T> {
 				}
 			}
 			if maybe_file_size.is_none() && nodes.len() < T::EffectiveFileReplicas::get() as usize {
-				Self::deposit_event(Event::<T>::StoreFileSettleIncomplete(cid.clone(), nodes.len() as u32));
+				Self::deposit_event(Event::<T>::StoreFileSettledIncomplete(cid.clone(), nodes.len() as u32));
 			}
 			FileOrders::<T>::insert(cid, FileOrder {
 				fee: order_fee,
