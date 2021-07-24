@@ -23,6 +23,19 @@ fn set_enclave_works() {
 
 
 #[test]
+fn round() {
+	ExtBuilder::default()
+		.build()
+		.execute_with(|| {
+			assert_eq!(CurrentRound::<Test>::get(), 1);
+			assert_eq!(NextRoundAt::<Test>::get(), 10);
+			run_to_block(10);
+			assert_eq!(CurrentRound::<Test>::get(), 2);
+			assert_eq!(NextRoundAt::<Test>::get(), 20);
+		});
+}
+
+#[test]
 fn stash_works() {
 	ExtBuilder::default()
 		.build()

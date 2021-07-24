@@ -267,14 +267,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type CurrentRound<T: Config> = StorageValue<_, RoundIndex, ValueQuery>;
 
-	/// Record the block number when round end
+	/// Record the block number next round starts
 	#[pallet::storage]
-	pub type RoundsBlockNumber<T: Config> = StorageMap<
-		_,
-		Twox64Concat, RoundIndex,
-		BlockNumberFor<T>,
-        ValueQuery,
-	>;
+	pub type NextRoundAt<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
 	/// Node stats in a round
 	#[pallet::storage]
@@ -385,8 +380,8 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
-            let next_round_bn = Self::get_next_round_bn();
-			if now >= next_round_bn {
+            let next_round_at = NextRoundAt::<T>::get();
+			if now >= next_round_at {
 				Self::on_round_end();
 			}
 			// TODO: weights
@@ -410,7 +405,7 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
-			CurrentRound::<T>::mutate(|v| *v = 1);
+			<Pallet<T>>::next_round();
 			let storage_pot = <Pallet<T>>::storage_pot();
 			let min = T::Currency::minimum_balance();
 			if T::Currency::free_balance(&storage_pot) < min {
@@ -751,7 +746,6 @@ impl<T: Config> Pallet<T> {
 
 	fn on_round_end() {
         let current_round = CurrentRound::<T>::get();
-        let next_round =  current_round.saturating_add(1);
         let prev_round =  current_round.saturating_sub(1);
 
 		let summary = RoundsSummary::<T>::get(current_round);
@@ -775,15 +769,18 @@ impl<T: Config> Pallet<T> {
 			}
 		);
 
-        RoundsBlockNumber::<T>::insert(next_round, Self::get_next_round_bn());
-		CurrentRound::<T>::mutate(|v| *v = next_round);
+		Self::next_round();
 
         Self::clear_round_information(prev_round);
 	}
 
+	fn next_round() {
+		NextRoundAt::<T>::mutate(|v| *v = v.saturating_add(T::RoundDuration::get()));
+		CurrentRound::<T>::mutate(|v| *v = v.saturating_add(1));
+	}
+
     fn clear_round_information(round: RoundIndex) {
 		if round.is_zero() { return; }
-        RoundsBlockNumber::<T>::remove(round);
         RoundsReport::<T>::remove_prefix(round, None);
         RoundsSummary::<T>::remove(round);
         RoundsReward::<T>::remove(round);
@@ -1041,11 +1038,6 @@ impl<T: Config> Pallet<T> {
 		let rounds = T::FileOrderRounds::get();
 		now_at.saturating_add(T::RoundDuration::get().saturating_mul(rounds.saturated_into()))
 	}
-
-    fn get_next_round_bn() -> BlockNumberFor<T> {
-        let current_round = CurrentRound::<T>::get();
-        RoundsBlockNumber::<T>::get(current_round) + T::RoundDuration::get()
-    }
 
 	fn now_bn() -> BlockNumberFor<T> {
 		<frame_system::Pallet<T>>::block_number()
