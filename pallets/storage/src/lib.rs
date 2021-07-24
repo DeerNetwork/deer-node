@@ -192,6 +192,10 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxFileSize: Get<u64>;
 
+		/// The maximum power of node
+		#[pallet::constant]
+		type MaxPower: Get<u64>;
+
 		/// The maximum number of files in each report
 		#[pallet::constant]
 		type MaxReportFiles: Get<u32>;
@@ -226,6 +230,14 @@ pub mod pallet {
 		BlockNumberFor<T>,
 	>;
 
+	/// Information stashing 
+	#[pallet::storage]
+	pub type Stashs<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat, T::AccountId,
+		StashInfo<T::AccountId, BalanceOf<T>>,
+	>;
+
 	/// Number of rounds that reserved to storage pot
 	#[pallet::storage]
 	pub type StoragePotReserved<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
@@ -251,10 +263,6 @@ pub mod pallet {
 	/// Record current round
 	#[pallet::storage]
 	pub type CurrentRound<T: Config> = StorageValue<_, RoundIndex, ValueQuery>;
-
-	/// Record network's effictive storage size and power
-	#[pallet::storage]
-	pub type Summary<T: Config> = StorageValue<_, SummaryStats, ValueQuery>;
 
 	/// Record the block number when round end
 	#[pallet::storage]
@@ -282,6 +290,14 @@ pub mod pallet {
 		SummaryStats, ValueQuery,
 	>;
 
+	/// Information round rewards
+	#[pallet::storage]
+	pub type RoundsReward<T: Config> = StorageMap<
+		_,
+		Twox64Concat, RoundIndex,
+		RewardInfo<BalanceOf<T>>, ValueQuery,
+	>;
+
 	/// Information for stored files
 	#[pallet::storage]
 	pub type StoreFiles<T: Config> = StorageMap<
@@ -296,22 +312,6 @@ pub mod pallet {
 		_,
 		Twox64Concat, FileId,
 		FileOrder<T::AccountId, BalanceOf<T>, BlockNumberFor<T>>,
-	>;
-
-	/// Information stashing 
-	#[pallet::storage]
-	pub type Stashs<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat, T::AccountId,
-		StashInfo<T::AccountId, BalanceOf<T>>,
-	>;
-
-	/// Information round rewards
-	#[pallet::storage]
-	pub type RoundsReward<T: Config> = StorageMap<
-		_,
-		Twox64Concat, RoundIndex,
-		RewardInfo<BalanceOf<T>>, ValueQuery,
 	>;
 
 	#[pallet::event]
@@ -367,8 +367,8 @@ pub mod pallet {
 		DuplicateReport,
 		/// Fail to verify signature
 		InvalidVerifyP256Sig,
-		/// Report files incorrect
-		IllegalReportFiles,
+		/// Report files or power exceed limit
+		ReportExceedLimit,
 		/// Node is unregisterd
 		UnregisterNode,
 		/// Not enough fee 
@@ -564,14 +564,15 @@ pub mod pallet {
 			sig: Vec<u8>,
 			add_files: Vec<(FileId, u64)>,
 			del_files: Vec<FileId>,
+			power: u64,
 			settle_files: Vec<FileId>
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
             ensure!(
-				add_files.len() < T::MaxReportFiles::get() as usize ||
-				del_files.len() < T::MaxReportFiles::get() as usize ||
-				settle_files.len() < T::MaxReportFiles::get() as usize, 
-				Error::<T>::IllegalReportFiles
+				add_files.len() <= T::MaxReportFiles::get() as usize ||
+				del_files.len() <= T::MaxReportFiles::get() as usize ||
+				settle_files.len() <= T::MaxReportFiles::get() as usize,
+				Error::<T>::ReportExceedLimit
 			);
 			let mut stash_info = Stashs::<T>::get(&reporter).ok_or(Error::<T>::UnstashNode)?;
 			ensure!(stash_info.machine_id.is_some(), Error::<T>::UnregisterNode);
@@ -593,6 +594,7 @@ pub mod pallet {
 				&register.key[..],
 				&encode_u64(node_info.rid)[..],
 				&encode_u64(rid)[..],
+				&encode_u64(power)[..],
 				&encode_add_files(&add_files)[..],
 				&encode_del_files(&del_files)[..],
 			].concat();
@@ -658,24 +660,22 @@ pub mod pallet {
 				}
 			}
 
-			let mut sumary = Summary::<T>::get();
-			for (account, (size_inc, size_sub)) in node_changes.iter() {
+			let mut summary = RoundsSummary::<T>::get(current_round);
+			for (account, (size_inc, size_dec)) in node_changes.iter() {
 				if account == &reporter {
-					node_info.power = node_info.power.saturating_add(*size_inc);
-					node_info.used = node_info.used.saturating_add(*size_inc).saturating_sub(*size_sub);
-					sumary.power = sumary.power.saturating_add(*size_inc as u128);
-					sumary.used = sumary.used.saturating_add(*size_inc as u128).saturating_sub(*size_sub as u128);
+					node_info.used = node_info.used.saturating_add(*size_inc).saturating_sub(*size_dec);
+					summary.used = summary.used.saturating_add(node_info.used as u128);
 				} else {
 					Nodes::<T>::mutate(account, |maybe_node| {
 						if let Some(other_node) = maybe_node {
-							other_node.power = other_node.power.saturating_add(*size_inc);
-							other_node.used = other_node.used.saturating_add(*size_inc).saturating_sub(*size_sub);
-							sumary.power = sumary.power.saturating_add(*size_inc as u128);
-							sumary.used = sumary.used.saturating_add(*size_inc as u128).saturating_sub(*size_sub as u128);
+							other_node.used = other_node.used.saturating_add(*size_inc).saturating_sub(*size_dec);
+							summary.used = summary.used.saturating_add(other_node.used as u128);
 						}
 					})
 				}
 			}
+			node_info.power = power.min(T::MaxPower::get());
+			summary.power = summary.power.saturating_add(node_info.power as u128);
 
 			for (account, inc) in node_inc_deposits.iter() {
 				Stashs::<T>::mutate(account, |maybe_stash_info| {
@@ -693,7 +693,7 @@ pub mod pallet {
 			StoragePotReserved::<T>::mutate(|v| *v = storage_pot_reserved);
 			RoundsReward::<T>::insert(current_round, current_round_reward);
 			RoundsReport::<T>::insert(current_round, reporter.clone(),  NodeStats { power: node_info.power, used: node_info.used });
-			Summary::<T>::mutate(|v|  *v = sumary);
+			RoundsSummary::<T>::insert(current_round, summary);
 			Nodes::<T>::insert(reporter.clone(), node_info);
 			Stashs::<T>::insert(reporter.clone(), stash_info);
 			Self::deposit_event(Event::<T>::NodeReported(reporter, machine_id));
@@ -749,7 +749,7 @@ impl<T: Config> Pallet<T> {
         let next_round =  current_round.saturating_add(1);
         let prev_round =  current_round.saturating_sub(1);
 
-		let summary = Summary::<T>::get();
+		let summary = RoundsSummary::<T>::get(current_round);
 		let mine_reward = T::RoundPayout::round_payout(summary.power);
 		if !mine_reward.is_zero() {
 			T::Currency::deposit_creating(&Self::storage_pot(), mine_reward);
@@ -770,7 +770,6 @@ impl<T: Config> Pallet<T> {
 			}
 		);
 
-		RoundsSummary::<T>::insert(current_round, summary);
         RoundsBlockNumber::<T>::insert(next_round, Self::get_next_round_bn());
 		CurrentRound::<T>::mutate(|v| *v = next_round);
 
@@ -780,8 +779,8 @@ impl<T: Config> Pallet<T> {
 
     // fn clear_round_information(round: RoundIndex) {
 	// 	if round.is_zero() { return; }
-    //     RoundsReport::<T>::remove_prefix(round, None);
     //     RoundsBlockNumber::<T>::remove(round);
+    //     RoundsReport::<T>::remove_prefix(round, None);
     //     RoundsSummary::<T>::remove(round);
     //     RoundsReward::<T>::remove(round);
     // }

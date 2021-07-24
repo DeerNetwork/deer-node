@@ -178,12 +178,12 @@ fn report_works_then_check_storage() {
 				paid_mine_reward: 0,
 				paid_store_reward: 0,
 			});
-			assert_eq!(RoundsReport::<Test>::get(current_round, 2).unwrap(), NodeStats { power: 100, used: 100 });
-			assert_eq!(Summary::<Test>::get(), SummaryStats { power: 100, used: 100 });
+			assert_eq!(RoundsReport::<Test>::get(current_round, 2).unwrap(), NodeStats { power: 200, used: 100 });
+			assert_eq!(RoundsSummary::<Test>::get(current_round), SummaryStats { power: 200, used: 100 });
 			assert_eq!(Nodes::<Test>::get(2).unwrap(), NodeInfo { 
 				rid: 3,
 				last_round: current_round,
-				power: 100,
+				power: 200,
 				used: 100,
 			});
 			let stash_info = Stashs::<Test>::get(2).unwrap();
@@ -206,7 +206,7 @@ fn report_works_when_files_are_miss() {
 			assert_eq!(Nodes::<Test>::get(2).unwrap(), NodeInfo { 
 				rid: 3,
 				last_round: current_round,
-				power: 0,
+				power: 200,
 				used: 0,
 			});
 		})
@@ -276,9 +276,9 @@ fn file_order_replicas_will_be_replace_if_node_fail_to_report() {
 			assert_ok!(call_report(9, mock_report6()));
 			run_to_block(21);
 			assert_ok!(call_report(2, mock_report1()));
-			 let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
-			 assert_eq!(file_order.replicas, vec![9, 2]);
-			assert_eq!(Summary::<Test>::get(), SummaryStats { power: 500, used: 200 });
+			let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
+			assert_eq!(file_order.replicas, vec![9, 2]);
+			assert_eq!(RoundsSummary::<Test>::get(CurrentRound::<Test>::get()), SummaryStats { power: 200, used: 100 });
 		})
 }
 

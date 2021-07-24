@@ -20,6 +20,7 @@ pub type Balance = u128;
 
 
 pub const MAX_FILE_SIZE: u64 = 4194304; // 4M
+pub const MAX_POWER: u64 = 8388608; // 4M
 pub const FILE_BASE_PRICE: Balance = 1000;
 
 #[derive(Debug, Clone)]
@@ -38,6 +39,7 @@ pub struct ReportData {
 	pub sig: Vec<u8>,
 	pub add_files: Vec<(FileId, u64)>,
 	pub del_files: Vec<FileId>,
+	pub power: u64,
 	pub settle_files: Vec<FileId>,
 }
 
@@ -137,6 +139,7 @@ parameter_types! {
 	pub const FileOrderRounds: u32 = 3;
 	pub const MaxFileReplicas: u32 = 4;
 	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
+	pub const MaxPower: u64 = MAX_POWER;
 	pub const MaxReportFiles: u32 = 10;
 	pub const FileBaseFee: Balance = FILE_BASE_PRICE;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
@@ -153,6 +156,7 @@ impl Config for Test {
 	type FileOrderRounds = FileOrderRounds;
 	type MaxFileReplicas = MaxFileReplicas;
 	type MaxFileSize = MaxFileSize;
+	type MaxPower = MaxPower;
 	type MaxReportFiles = MaxReportFiles;
 	type FileBaseFee = FileBaseFee;
 	type FileBytePrice = FileBytePrice;
@@ -250,15 +254,8 @@ impl ExtBuilder {
 				file_sizes.insert(cid.clone(), file_size);
 				FileStorage::store(Origin::signed(9999), cid.clone(), file_size, fee).unwrap();
 			}
-			for (controller, info) in registers {
-				FileStorage::register(
-					Origin::signed(controller),
-					info.machine_id,
-					info.ias_cert,
-					info.ias_sig,
-					info.ias_body,
-					info.sig
-				).unwrap();
+			for (controller, register) in registers {
+				call_register(controller, register).unwrap();
 			}
 			for (node, register, report) in reports {
 				let machine_id = register.machine_id.clone();
@@ -267,23 +264,8 @@ impl ExtBuilder {
 					Registers::<Test>::remove(&machine_id);
 				}
 				FileStorage::stash(Origin::signed(9999), node).unwrap();
-				FileStorage::register(
-					Origin::signed(node),
-					register.machine_id,
-					register.ias_cert,
-					register.ias_sig,
-					register.ias_body,
-					register.sig
-				).unwrap();
-				FileStorage::report(
-					Origin::signed(node),
-					report.machine_id,
-					report.rid,
-					report.sig,
-					report.add_files,
-					report.del_files,
-					report.settle_files
-				).unwrap();
+				call_register(node, register).unwrap();
+				call_report(node, report).unwrap();
 			}
 		});
 		ext
@@ -397,11 +379,12 @@ pub fn mock_report1() -> ReportData {
 	ReportData {
 		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
 		rid: 3,
-		sig: hex!("423c052efcc01b9f6aed34cb7616c2678951ef0de0c0f4aa1903fd3e82fa6d16cb964d3b65042b4b02369c47984204709330da0791c1292dc5251e8a1ae1a70e").into(),
+		sig: hex!("c01c0d293930cbcd5ec1a0e0bdb425f85de7c48d188be1d156c5cc0098fb63955ad7c66cbc2fa6f39941f3e6de0772bd327932fefbb06d113aa9d3948b47cca2").into(),
 		add_files: vec![
 			(mock_file_id('A'), 100),
 		],
 		del_files: vec![],
+		power: 200,
 		settle_files: vec![],
 	}
 }
@@ -411,11 +394,12 @@ pub fn mock_report2() -> ReportData {
 	ReportData {
 		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
 		rid: 3,
-		sig: hex!("ccb46b9dfe4cd24ccad7687beb7b9033828bf36c08c03653643d9146019831719773bbe9e9d269e989816a9547b41f1c2906cccc3757225df40e2908b06e5c01").into(),
+		sig: hex!("eaeef3613f8090437798b707c1be4570aae6973a77ac48a13142d77cf53f8588496df0c109c8e4d2840a0a0267f7a4f0698792601bcaa7617441e28c253d60a1").into(),
 		add_files: vec![
 			(mock_file_id('A'), 2097152),
 		],
 		del_files: vec![],
+		power: 2097152,
 		settle_files: vec![],
 	}
 }
@@ -425,13 +409,14 @@ pub fn mock_report3() -> ReportData {
 	ReportData {
 		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
 		rid: 3,
-		sig: hex!("7fb4c4eeabc40f94cca8283a5ce4bddfe4f70462317115d6bc5f6d48773af3d0376fe225d10c3de5fbce16ca1f1e2db178a9450b0436feb69a95034673ee2357").into(),
+		sig: hex!("1e1306b5afd82d7fd3a21d41cacd8bab6b1c122f710934176091a7a45a3ade16e15aa3b4f8fdcbef26f3bd3a40a52911720c60c3886fe6b3a3e365aa444986de").into(),
 		add_files: vec![
 			(mock_file_id('A'), 100),
 		],
 		del_files: vec![
 			mock_file_id('B')
 		],
+		power: 200,
 		settle_files: vec![
 			mock_file_id('C')
 		],
@@ -443,11 +428,12 @@ pub fn mock_report4() -> ReportData {
 	ReportData {
 		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 3,
-		sig: hex!("917dfac36f118e25851c96146683055588eaf1c391bfac2b091f8bc010bbb3ec9ef5177cba4e186a53ad2ef14d9e3adae9b6ce3c67564d2f5cc7f3bc57e025ce").into(),
+		sig: hex!("7d9ffe6ed60e2ad807c3b395f72e0de8852128779e43877f04e9d0c51993ccc22fced86e6013c35bb61e594290ed21de907fefeb20708c992b81541f12e32d01").into(),
 		add_files: vec![
 			(mock_file_id('A'), 100),
 		],
 		del_files: vec![],
+		power: 200,
 		settle_files: vec![],
 	}
 }
@@ -456,10 +442,11 @@ pub fn mock_report5() -> ReportData {
 	// node = mock_register1, prev_rid = 3, follow mock_report1
 	ReportData {
 		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
-		rid: 4,
-		sig: hex!("bd761f9b7b97b43a68efb14dd7020343c471fc5b0df217b63642026f97e50635817fce9344a210984d52d08b6fa3501667664bba50585ff52ac90fbc165490ba").into(),
+		rid: 5,
+		sig: hex!("3be06e56801a01a06fe4fe65edfd99249e31f343ad311cb20ad8200eb42efe58813aeca32e30189b1b0734362b4e270b1dfd9bacada87acdc99c532f8d846ede").into(),
 		add_files: vec![],
 		del_files: vec![mock_file_id('A')],
+		power: 100,
 		settle_files: vec![],
 	}
 }
@@ -469,33 +456,36 @@ pub fn mock_report6() -> ReportData {
 	ReportData {
 		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 4,
-		sig: hex!("fd3deb281497fdd1c00b2c3288f4899321c9dc9663b2876c723dd4a8d78ac01a5bd3f53382e47a1182cbe6b0f719b517b695209fd300c4c2421eedf75a86469b").into(),
+		sig: hex!("3a579cb011740255785076d52c49f7f841d934e73074ae494b23cbef6619874b963d6b95bf6e7eae1d5e625a7e6e93df07773fe614910115490ff9535cdf835c").into(),
 		add_files: vec![],
 		del_files: vec![],
+		power: 200,
 		settle_files: vec![],
 	}
 }
 
 pub fn mock_report7() -> ReportData {
-	// node = mock_register4, prev_rid = 3, follow mock_report6
+	// node = mock_register4, prev_rid = 4, follow mock_report6
 	ReportData {
 		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 5,
-		sig: hex!("0ec4851ae6ac043b6a9bb9b4129a089a7ac2d961c7782a3d66495d8fdf8f674d2cd7c864d2837253886d3e2e85cfc25d205760f2a877d2a0c171a1651554bf4f").into(),
+		sig: hex!("bf5ae463f4003517266d0eebec969cbac61717c087ce829dc6d31340d1936fadd1771ee99c05176eaf43b639b0dcc34ec26045fec6758718f5946e7422408ce6").into(),
 		add_files: vec![],
 		del_files: vec![],
+		power: 200,
 		settle_files: vec![],
 	}
 }
 
 pub fn mock_report8() -> ReportData {
-	// node = mock_register4, prev_rid = 3, follow mock_report7
+	// node = mock_register4, prev_rid = 5, follow mock_report7
 	ReportData {
 		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 6,
-		sig: hex!("8432947eb4622d01c4a10b5fa15ba4c8f32f07549931af84a1603fadc8f50266c3e67b9164a550e1718ea9e4ddeda9f6e49998b6905c0f69165e742a3da7d634").into(),
+		sig: hex!("7d6c525a0ff0efe52a87e842443c878a68cea2b1ac3e0a5bb799dafe404de90bb129c4b25b6548a49a3d00a30362ce480a0c705c26906094e85d2bb7a2c863bf").into(),
 		add_files: vec![],
 		del_files: vec![],
+		power: 200,
 		settle_files: vec![mock_file_id('A')],
 	}
 }
@@ -505,9 +495,10 @@ pub fn mock_report9() -> ReportData {
 	ReportData {
 		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 5,
-		sig: hex!("31772a28ae2badd371dc729b00f52690bfb5ba7f08e74dcb53f21372f21586bb2506b7318b4a7676599df6aadb2b6955ac687d8e7d78a2395728d0724666f2b2").into(),
+		sig: hex!("3acf2cc8ba80793429ad9f94b571fabf9cd2b9c1a7302e72ea75a61acac5246b54f706e9d09bdc638a2ea903898feef6dc14bd4c93fa1875b833bfd8165a72c7").into(),
 		add_files: vec![],
 		del_files: vec![],
+		power: 200,
 		settle_files: vec![mock_file_id('A')],
 	}
 }
@@ -520,6 +511,7 @@ pub fn call_report(node: AccountId, report: ReportData) -> DispatchResult {
 		report.sig,
 		report.add_files,
 		report.del_files,
+		report.power,
 		report.settle_files
 	)
 }
