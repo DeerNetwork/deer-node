@@ -222,10 +222,6 @@ pub mod pallet {
 		/// Number fo founds to stash for registering a node
 		#[pallet::constant]
 		type StashBalance: Get<BalanceOf<Self>>;
-
-		/// Number of rounds to keep in history.
-		#[pallet::constant]
-        type HistoryRoundDepth: Get<u32>;
 	}
 
 	/// The Tee enclaves
@@ -782,17 +778,16 @@ impl<T: Config> Pallet<T> {
         RoundsBlockNumber::<T>::insert(next_round, Self::get_next_round_bn());
 		CurrentRound::<T>::mutate(|v| *v = next_round);
 
-        // let to_remove_round = current_round.saturating_sub(T::HistoryRoundDepth::get());
-        // Self::clear_round_information(to_remove_round);
+        Self::clear_round_information(prev_round);
 	}
 
-    // fn clear_round_information(round: RoundIndex) {
-	// 	if round.is_zero() { return; }
-    //     RoundsBlockNumber::<T>::remove(round);
-    //     RoundsReport::<T>::remove_prefix(round, None);
-    //     RoundsSummary::<T>::remove(round);
-    //     RoundsReward::<T>::remove(round);
-    // }
+    fn clear_round_information(round: RoundIndex) {
+		if round.is_zero() { return; }
+        RoundsBlockNumber::<T>::remove(round);
+        RoundsReport::<T>::remove_prefix(round, None);
+        RoundsSummary::<T>::remove(round);
+        RoundsReward::<T>::remove(round);
+    }
 
 	fn add_file(
 		replica_changes: &mut Vec<(T::AccountId, u64, bool)>,

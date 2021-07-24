@@ -149,7 +149,6 @@ parameter_types! {
 	pub const MaxReportFiles: u32 = 10;
 	pub const FileBaseFee: Balance = FILE_BASE_PRICE;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
-	pub const HistoryRoundDepth: u32 = 90;
 }
 
 impl Config for Test {
@@ -170,7 +169,6 @@ impl Config for Test {
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
-	type HistoryRoundDepth = HistoryRoundDepth;
 }
 
 pub struct ExtBuilder {

@@ -968,7 +968,6 @@ parameter_types! {
 	pub const FileBytePrice: Balance = MILLICENTS / 5;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
-	pub const HistoryRoundDepth: u32 = 7 * 24;
 }
 
 impl pallet_storage::Config for Runtime {
@@ -989,7 +988,6 @@ impl pallet_storage::Config for Runtime {
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
-	type HistoryRoundDepth = HistoryRoundDepth;
 }
 
 impl pallet_transaction_storage::Config for Runtime {
