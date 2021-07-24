@@ -59,15 +59,15 @@ impl<Balance: Default> RoundPayout<Balance> for () {
 
 /// Node information
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
-pub struct NodeInfo {
+pub struct NodeInfo<BlockNumber> {
 	/// A increment id of one report
     pub rid: u64,
 	/// Effective storage space
 	pub used: u64,
 	/// Mine power of node, use this to distribute mining rewards 
 	pub power: u64,
-	/// The lastest round node reported itself
-	pub last_round: RoundIndex,
+	/// Latest report at
+	pub reported_at: BlockNumber,
 }
 
 /// Information round rewards
@@ -251,7 +251,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		NodeInfo,
+		NodeInfo<BlockNumberFor<T>>,
 	>;
 
 	/// Node register information
@@ -584,7 +584,7 @@ pub mod pallet {
 
             let current_round = CurrentRound::<T>::get();
 			let prev_round = current_round.saturating_sub(One::one());
-			let maybe_node_info: Option<NodeInfo> = Nodes::<T>::get(&reporter);
+			let maybe_node_info = Nodes::<T>::get(&reporter);
 			if let Some(_) = &maybe_node_info {
 				ensure!(!RoundsReport::<T>::contains_key(current_round, &reporter), Error::<T>::DuplicateReport);
 			}
@@ -643,7 +643,7 @@ pub mod pallet {
 			if let Some(stats) = RoundsReport::<T>::get(prev_round, &reporter) {
 				Self::round_reward(prev_round, stats, &mut stash_info);
 			} else {
-				if !node_info.last_round.is_zero() {
+				if !node_info.reported_at.is_zero() {
 					Self::slash_offline(
 						&mut storage_pot_reserved,
 						&mut stash_info.deposit
@@ -688,7 +688,7 @@ pub mod pallet {
 			}
 
 			node_info.rid = rid;
-			node_info.last_round = current_round;
+			node_info.reported_at = now_at;
 
 			StoragePotReserved::<T>::mutate(|v| *v = storage_pot_reserved);
 			RoundsReward::<T>::insert(current_round, current_round_reward);
@@ -1012,7 +1012,7 @@ impl<T: Config> Pallet<T> {
 		if RoundsReport::<T>::contains_key(round, node) {
 			return true;
 		}
-		Nodes::<T>::get(&node).map(|v| v.last_round.is_zero()).unwrap_or_default()
+		Nodes::<T>::get(&node).map(|v| v.reported_at.is_zero()).unwrap_or_default()
 	}
 
 	fn clear_store_file(cid: &FileId) {

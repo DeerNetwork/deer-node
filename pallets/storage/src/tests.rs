@@ -195,7 +195,7 @@ fn report_works_then_check_storage() {
 			assert_eq!(RoundsSummary::<Test>::get(current_round), SummaryStats { power: 200, used: 100 });
 			assert_eq!(Nodes::<Test>::get(2).unwrap(), NodeInfo { 
 				rid: 3,
-				last_round: current_round,
+				reported_at: now_bn,
 				power: 200,
 				used: 100,
 			});
@@ -214,11 +214,12 @@ fn report_works_when_files_are_miss() {
 		.register(2, mock_register1())
 		.build()
 		.execute_with(|| {
+			let now_bn = FileStorage::now_bn();
 			let current_round = CurrentRound::<Test>::get();
 			assert_ok!(call_report(2, mock_report3()));
 			assert_eq!(Nodes::<Test>::get(2).unwrap(), NodeInfo { 
 				rid: 3,
-				last_round: current_round,
+				reported_at: now_bn,
 				power: 200,
 				used: 0,
 			});
