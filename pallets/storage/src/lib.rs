@@ -188,6 +188,10 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxFileReplicas: Get<u32>;
 
+		/// The number of replicas will be rewarded
+		#[pallet::constant]
+		type EffectiveFileReplicas: Get<u32>;
+
 		/// The maximum file size the network accepts
 		#[pallet::constant]
 		type MaxFileSize: Get<u64>;
@@ -327,18 +331,20 @@ pub mod pallet {
         SetEnclave(EnclaveId, BlockNumberFor<T>),
 		/// A account have been stashed, \[node\]
         Stashed(T::AccountId),
+		/// A account have withdrawn some founds, \[node, beneficary, amount\]
+        Withdrawn(T::AccountId, T::AccountId, BalanceOf<T>),
 		/// A node was registerd, \[node, machine_id\]
 		NodeRegisted(T::AccountId, MachineId),
 		/// A node reported its work, \[node, machine_id\]
 		NodeReported(T::AccountId, MachineId),
-		/// A account have withdrawn some founds, \[node, beneficary, amount\]
-        Withdrawn(T::AccountId, T::AccountId, BalanceOf<T>),
 		/// A file have summitted, \[file_id, account, fee\]
 		StoreFileRequested(FileId, T::AccountId, BalanceOf<T>),
 		/// More founds given to a file, \[file_id, account, fee\]
 		StoreFileCharged(FileId, T::AccountId, BalanceOf<T>),
 		/// A file have been removed, \[file_id\]
 		StoreFileRemoved(FileId),
+		/// A file was renewed and can accepte more replicas, \[file_id, replicas\]
+		StoreFileSettleIncomplete(FileId, u32)
 	}
 
 	#[pallet::error]
@@ -865,7 +871,8 @@ impl<T: Config> Pallet<T> {
 
 			let file_order_fee = file_order.fee;
 			let mut total_order_reward: BalanceOf<T>  = Zero::zero();
-			let each_order_reward = Perbill::from_rational(1, T::MaxFileReplicas::get()) * T::StoreRewardRatio::get() * file_order_fee;
+			let each_order_reward = Perbill::from_rational(1, T::EffectiveFileReplicas::get()) * 
+				T::StoreRewardRatio::get() * file_order_fee;
 			let mut replicas = vec![];
 			for node in file_order.replicas.iter() {
 				let reported = nodes_prev_reported.entry(node.clone()).or_insert_with(|| 
@@ -920,7 +927,7 @@ impl<T: Config> Pallet<T> {
 					*storage_pot_reserved =  storage_pot_reserved.saturating_add(file.base_fee);
 					// user underreported the file size
 					if file.file_size < file_size && file.reserved < expect_order_fee {
-						let to_reporter_reward = Perbill::from_rational(1, T::MaxFileReplicas::get()) * T::StoreRewardRatio::get() * file.reserved;
+						let to_reporter_reward = Perbill::from_rational(1, T::EffectiveFileReplicas::get()) * T::StoreRewardRatio::get() * file.reserved;
 						*reporter_despoit = reporter_despoit.saturating_add(to_reporter_reward);
 						*current_round_store_reward = current_round_store_reward.saturating_add(file.reserved.saturating_sub(to_reporter_reward));
 						Self::clear_store_file(cid);
@@ -948,6 +955,9 @@ impl<T: Config> Pallet<T> {
 					order_fee = order_fee.saturating_add(*storage_pot_reserved);
 					*storage_pot_reserved = Zero::zero();
 				}
+			}
+			if maybe_file_size.is_none() && nodes.len() < T::EffectiveFileReplicas::get() as usize {
+				Self::deposit_event(Event::<T>::StoreFileSettleIncomplete(cid.clone(), nodes.len() as u32));
 			}
 			FileOrders::<T>::insert(cid, FileOrder {
 				fee: order_fee,

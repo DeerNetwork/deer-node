@@ -137,7 +137,8 @@ parameter_types! {
 	pub const SlashBalance: Balance = 100;
 	pub const RoundDuration: BlockNumber = 10;
 	pub const FileOrderRounds: u32 = 3;
-	pub const MaxFileReplicas: u32 = 4;
+	pub const MaxFileReplicas: u32 = 6;
+	pub const EffectiveFileReplicas: u32 = 4;
 	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
 	pub const MaxPower: u64 = MAX_POWER;
 	pub const MaxReportFiles: u32 = 10;
@@ -155,6 +156,7 @@ impl Config for Test {
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
 	type MaxFileReplicas = MaxFileReplicas;
+	type EffectiveFileReplicas = EffectiveFileReplicas;
 	type MaxFileSize = MaxFileSize;
 	type MaxPower = MaxPower;
 	type MaxReportFiles = MaxReportFiles;
