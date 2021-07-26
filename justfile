@@ -24,7 +24,7 @@ bench crate:
         --output=./pallets/{{crate}}/src/weights.rs \
         --template=./.maintain/frame-weight-template.hbs
 
-start args:
+run args:
     ./target/release/{{name}} \
     {{args}} \
     --port 30333 \

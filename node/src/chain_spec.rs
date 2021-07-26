@@ -435,7 +435,7 @@ pub fn nft360_testnet_local_config() -> ChainSpec {
 		let mut p = Properties::new();
 		p.insert("tokenSymbol".into(), "N360".into());
 		p.insert("tokenDecimals".into(), 12.into());
-		p.insert("ss58Format".into(), 333.into());
+		p.insert("ss58Format".into(), 88.into());
 		p
 	};
 
