@@ -5,7 +5,7 @@ use sp_core::{H256};
 use sp_runtime::{DispatchResult, testing::Header, traits::{IdentityLookup}};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{GenesisBuild, Hooks},
+	traits::{GenesisBuild, Hooks, tokens::imbalance::Imbalance},
 	weights::constants::RocksDbWeight, PalletId,
 };
 
@@ -48,8 +48,20 @@ pub struct ReportData {
 }
 
 thread_local! {
-    static STASH_BALANCE: RefCell<Balance> = RefCell::new(default_stash_balance());
-	static FILE_BYTE_PRICE: RefCell<Balance> = RefCell::new(default_file_byte_price());
+	pub static STASH_BALANCE: RefCell<Balance> = RefCell::new(default_stash_balance());
+	pub static FILE_BYTE_PRICE: RefCell<Balance> = RefCell::new(default_file_byte_price());
+	pub static TREASURY_UNBALANCED: RefCell<u128> = RefCell::new(0);
+}
+
+pub struct TreasuryMock;
+
+impl OnUnbalanced<NegativeImbalanceOf<Test>> for TreasuryMock {
+	fn on_nonzero_unbalanced(amount: NegativeImbalanceOf<Test>) {
+		TREASURY_UNBALANCED.with(|v| {
+			*v.borrow_mut() += amount.peek();
+		});
+		drop(amount);
+	}
 }
 
 pub struct StashBalance;
@@ -155,8 +167,9 @@ impl Config for Test {
 	type Event = Event;
 	type Currency = Balances;
 	type PalletId = StoragePalletId;
+	type Treasury = TreasuryMock;
 	type UnixTime = Timestamp;
-	type RoundPayout = ();
+	type Payout = ();
 	type SlashBalance = SlashBalance;
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
@@ -294,7 +307,7 @@ pub const fn default_file_byte_price() -> Balance {
 }
 
 pub fn balance_of_storage_pot() -> Balance {
-	Balances::free_balance(&FileStorage::storage_pot())
+	Balances::free_balance(&FileStorage::account_id())
 }
 
 pub fn change_stash_balance(v: Balance) {

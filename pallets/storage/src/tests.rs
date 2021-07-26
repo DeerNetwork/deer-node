@@ -79,7 +79,7 @@ fn withdraw_works() {
 		.build()
 		.execute_with(|| {
 			let stash_balance = default_stash_balance();
-			Balances::make_free_balance_be(&FileStorage::storage_pot(), 2_000);
+			Balances::make_free_balance_be(&FileStorage::account_id(), 2_000);
 
 			assert_ok!(FileStorage::stash(Origin::signed(1), 2));
 			Stashs::<Test>::mutate(2, |maybe_stash_info| {
@@ -215,7 +215,6 @@ fn report_works_when_files_are_miss() {
 		.build()
 		.execute_with(|| {
 			let now_bn = FileStorage::now_bn();
-			let current_round = CurrentRound::<Test>::get();
 			assert_ok!(call_report(2, mock_report3()));
 			assert_eq!(Nodes::<Test>::get(2).unwrap(), NodeInfo { 
 				rid: 3,
@@ -527,4 +526,8 @@ fn store_works() {
 				u128::max_value(),
 			), Error::<Test>::InvalidFileSize);
 		})
+}
+
+#[test]
+fn unpaid_reward_to_treasury() {
 }

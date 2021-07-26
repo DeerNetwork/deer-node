@@ -20,9 +20,7 @@ pub use constants::*;
 use sp_std::{prelude::*, collections::btree_map::BTreeMap};
 use sp_runtime::{Perbill, RuntimeDebug, SaturatedConversion, traits::{Zero, One, StaticLookup, Saturating, AccountIdConversion}};
 use codec::{Encode, Decode};
-use frame_support::{
-	traits::{Currency, ReservableCurrency, ExistenceRequirement, UnixTime, Get}, PalletId,
-};
+use frame_support::{PalletId, traits::{Currency, ExistenceRequirement, Get, OnUnbalanced, ReservableCurrency, UnixTime, WithdrawReasons}};
 use frame_system::{Config as SystemConfig, pallet_prelude::BlockNumberFor};
 use p256::ecdsa::{VerifyingKey, signature::{Verifier, Signature}};
 
@@ -30,8 +28,10 @@ pub type FileId = Vec<u8>;
 pub type EnclaveId = Vec<u8>;
 pub type PubKey = Vec<u8>;
 pub type MachineId = Vec<u8>;
-pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance;
 pub type RoundIndex = u32;
+pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance;
+
+type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
 // pub use weights::WeightInfo;
 pub use pallet::*;
@@ -47,16 +47,15 @@ macro_rules! log {
 	};
 }
 
-pub trait RoundPayout<Balance> {
-	fn round_payout(total_size: u128) -> Balance;
+pub trait Payout<Balance, BlockNumber> {
+	fn payout(now: BlockNumber) -> Balance;
 }
 
-impl<Balance: Default> RoundPayout<Balance> for () {
-	fn round_payout(_total_size: u128) -> Balance {
+impl<Balance: Default, BlockNumber> Payout<Balance, BlockNumber> for () {
+	fn payout(_node: BlockNumber) -> Balance {
 		Default::default()
 	}
 }
-
 /// Node information
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
 pub struct NodeInfo<BlockNumber> {
@@ -169,11 +168,14 @@ pub mod pallet {
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
+		/// The Treasury trait.
+		type Treasury: OnUnbalanced<NegativeImbalanceOf<Self>>;
+
 		/// Time used for validating register cert
 		type UnixTime: UnixTime;
 
 		/// The payout for mining in the current round.
-		type RoundPayout: RoundPayout<BalanceOf<Self>>;
+		type Payout: Payout<BalanceOf<Self>, BlockNumberFor<Self>>;
 
 		/// The basic amount of funds that slashed when node is offline or misbehavier
 		#[pallet::constant]
@@ -382,7 +384,7 @@ pub mod pallet {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
             let next_round_at = NextRoundAt::<T>::get();
 			if now >= next_round_at {
-				Self::on_round_end();
+				Self::on_round_end(now);
 			}
 			// TODO: weights
 			0
@@ -406,7 +408,7 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
 			<Pallet<T>>::next_round();
-			let storage_pot = <Pallet<T>>::storage_pot();
+			let storage_pot = <Pallet<T>>::account_id();
 			let min = T::Currency::minimum_balance();
 			if T::Currency::free_balance(&storage_pot) < min {
 				let _ = T::Currency::make_free_balance_be(&storage_pot, min);
@@ -449,12 +451,12 @@ pub mod pallet {
 				ensure!(&stash_info.stasher == &stasher, Error::<T>::InvalidStashPair);
 				if stash_info.deposit < stash_balance {
 					let lack = stash_balance.saturating_sub(stash_info.deposit);
-					T::Currency::transfer(&stasher, &Self::storage_pot(), lack, ExistenceRequirement::KeepAlive)?;
+					T::Currency::transfer(&stasher, &Self::account_id(), lack, ExistenceRequirement::KeepAlive)?;
 					stash_info.deposit = stash_balance;
 					Stashs::<T>::insert(controller, stash_info);
 				}
 			} else {
-				T::Currency::transfer(&stasher, &Self::storage_pot(), stash_balance, ExistenceRequirement::KeepAlive)?;
+				T::Currency::transfer(&stasher, &Self::account_id(), stash_balance, ExistenceRequirement::KeepAlive)?;
 				Stashs::<T>::insert(&controller, StashInfo {
 					stasher,
 					deposit: stash_balance,
@@ -478,7 +480,7 @@ pub mod pallet {
 			ensure!(!profit.is_zero(), Error::<T>::NoEnoughToWithdraw);
 			stash_info.deposit = stash_balance;
 			let stasher = stash_info.stasher.clone();
-			T::Currency::transfer(&Self::storage_pot(), &stasher, profit, ExistenceRequirement::KeepAlive)?;
+			T::Currency::transfer(&Self::account_id(), &stasher, profit, ExistenceRequirement::KeepAlive)?;
             Stashs::<T>::insert(controller.clone(), stash_info);
             Self::deposit_event(Event::<T>::Withdrawn(controller, stasher, profit));
             Ok(())
@@ -715,14 +717,14 @@ pub mod pallet {
 				let new_reserved = fee.saturating_add(file.reserved);
 				let min_fee = Self::store_file_bytes_fee(file.file_size);
 				ensure!(new_reserved >= min_fee, Error::<T>::NotEnoughFee);
-                T::Currency::transfer(&who, &Self::storage_pot(), fee, ExistenceRequirement::KeepAlive)?;
+                T::Currency::transfer(&who, &Self::account_id(), fee, ExistenceRequirement::KeepAlive)?;
 				file.reserved = new_reserved;
 				StoreFiles::<T>::insert(cid.clone(), file);
 				Self::deposit_event(Event::<T>::StoreFileCharged(cid, who, fee));
 			} else {
 				let min_fee = Self::store_file_fee(file_size);
 				ensure!(fee >= min_fee, Error::<T>::NotEnoughFee);
-                T::Currency::transfer(&who, &Self::storage_pot(), fee, ExistenceRequirement::KeepAlive)?;
+                T::Currency::transfer(&who, &Self::account_id(), fee, ExistenceRequirement::KeepAlive)?;
 				let base_fee = T::FileBaseFee::get();
 				StoreFiles::<T>::insert(cid.clone(), StoreFile {
 					reserved: fee.saturating_sub(base_fee),
@@ -740,34 +742,42 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 
-	pub fn storage_pot() -> T::AccountId {
+	pub fn account_id() -> T::AccountId {
 		T::PalletId::get().into_account()
 	}
 
-	fn on_round_end() {
+	fn on_round_end(now: BlockNumberFor<T>) {
         let current_round = CurrentRound::<T>::get();
         let prev_round =  current_round.saturating_sub(1);
-
-		let summary = RoundsSummary::<T>::get(current_round);
-		let mine_reward = T::RoundPayout::round_payout(summary.power);
+		let multiper: u64 = T::RoundDuration::get().saturated_into();
+		let mine_reward = T::Payout::payout(now).saturating_mul(multiper.saturated_into());
 		if !mine_reward.is_zero() {
-			T::Currency::deposit_creating(&Self::storage_pot(), mine_reward);
+			T::Currency::deposit_creating(&Self::account_id(), mine_reward);
+			RoundsReward::<T>::mutate(
+				current_round, 
+				|reward| {
+					reward.mine_reward = reward.mine_reward.saturating_add(mine_reward);
+				}
+			);
 		}
-		let mut store_reward = Zero::zero();
+
 		if !prev_round.is_zero() {
 			let prev_reward = RoundsReward::<T>::get(prev_round);
-			store_reward = prev_reward.store_reward
+			let store_reward = prev_reward.store_reward
 				.saturating_add(prev_reward.mine_reward)
 				.saturating_sub(prev_reward.paid_mine_reward)
 				.saturating_sub(prev_reward.paid_store_reward);
-		}
-		RoundsReward::<T>::mutate(
-			current_round, 
-			|reward| {
-				reward.mine_reward = reward.mine_reward.saturating_add(mine_reward);
-				reward.store_reward = reward.store_reward.saturating_add(store_reward);
+			if !store_reward.is_zero() {
+				if let Err(e) = T::Currency::withdraw(
+					&Self::account_id(), 
+					store_reward, 
+					WithdrawReasons::TRANSFER, 
+					ExistenceRequirement::KeepAlive,
+				) {
+					log!(error, "Storage pot is lack of funds {:?}", e);
+				}
 			}
-		);
+		}
 
 		Self::next_round();
 

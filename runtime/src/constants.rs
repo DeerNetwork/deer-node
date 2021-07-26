@@ -8,6 +8,8 @@ pub mod currency {
 	pub const CENTS: Balance = DOLLARS / 100;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
+	pub const FILE_STORAGE_FIRST_YEAR_MINE: Balance = 50_000_000 * DOLLARS;
+
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
 		items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
 	}
@@ -57,4 +59,6 @@ pub mod time {
 	pub const MINUTES: BlockNumber = 60 / (SECS_PER_BLOCK as BlockNumber);
 	pub const HOURS: BlockNumber = MINUTES * 60;
 	pub const DAYS: BlockNumber = HOURS * 24;
+
+	pub const YEARS: BlockNumber = DAYS * 36525 / 100;
 }

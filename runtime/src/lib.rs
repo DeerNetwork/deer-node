@@ -66,7 +66,7 @@ pub use pallet_staking::StakerStatus;
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
 use impls::Author;
-use impls::SimpleRoundPayout;
+use impls::FileStoragePayout;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -974,8 +974,9 @@ impl pallet_storage::Config for Runtime {
 	type Event = Event;
 	type PalletId = StoragePalletId;
 	type Currency = Balances;
+	type Treasury = Treasury;
 	type UnixTime = Timestamp;
-	type RoundPayout = SimpleRoundPayout;
+	type Payout = FileStoragePayout;
 	type SlashBalance = SlashBalance;
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
