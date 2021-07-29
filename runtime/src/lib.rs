@@ -168,7 +168,7 @@ parameter_types! {
 		})
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
-	pub const SS58Prefix: u16 = 88;
+	pub const SS58Prefix: u16 = 0; // Will be 88
 }
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
@@ -195,7 +195,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = frame_system::weights::SubstrateWeight<Runtime>;
-	type SS58Prefix = SS58Prefix;
+	type SS58Prefix = SS58Prefix; 
 	type OnSetCode = ();
 }
 
@@ -964,8 +964,8 @@ parameter_types! {
 	pub const MaxFileSize: u64 = 1_073_741_824; // 1G
 	pub const MaxPower: u64 = 1_125_899_906_842_624; // 1P
 	pub const MaxReportFiles: u32 = 200;
-	pub const FileBaseFee: Balance = MILLICENTS;
-	pub const FileBytePrice: Balance = MILLICENTS / 5;
+	pub const FileBaseFee: Balance = 10 * MILLICENTS;
+	pub const FileBytePrice: Balance = 3 * MILLICENTS / 10;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
 }
