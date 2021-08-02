@@ -9,11 +9,8 @@ exclude = [
 ]
 
 members = [
-    'node',
-	'rpc',
-	'primitives',
+    'node/*',
     'pallets/*',
-    'runtime',
 ]
 
 resolver = "2"

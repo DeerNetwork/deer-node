@@ -1,5 +1,4 @@
 pub mod chain_spec;
-pub mod executor;
 
 #[macro_use]
 mod service;

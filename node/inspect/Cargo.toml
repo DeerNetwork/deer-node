@@ -1,0 +1,19 @@
+[package]
+name = "nft360-inspect"
+version = "0.1.0"
+edition = "2018"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0" }
+derive_more = "0.99"
+log = "0.4.8"
+sc-cli = { version = "0.9.0", path = "../../substrate/client/cli" }
+sc-client-api = { version = "3.0.0", path = "../../substrate/client/api" }
+sc-service = { version = "0.9.0", default-features = false, path = "../../substrate/client/service" }
+sp-blockchain = { version = "3.0.0", path = "../../substrate/primitives/blockchain" }
+sp-core = { version = "3.0.0", path = "../../substrate/primitives/core" }
+sp-runtime = { version = "3.0.0", path = "../../substrate/primitives/runtime" }
+structopt = "0.3.8"
