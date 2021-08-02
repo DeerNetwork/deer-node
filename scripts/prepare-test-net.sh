@@ -45,10 +45,10 @@ for i in $(seq 1 $V_NUM); do
 	AUTHORITIES+="(\n"
 	AUTHORITIES+="$(generate_address_and_account_id $i stash)\n"
 	AUTHORITIES+="$(generate_address_and_account_id $i controller)\n"
-	AUTHORITIES+="$(generate_address_and_account_id $i grandpa '--scheme ed25519' true)\n"
-	AUTHORITIES+="$(generate_address_and_account_id $i babe '--scheme sr25519' true)\n"
-	AUTHORITIES+="$(generate_address_and_account_id $i im_online '--scheme sr25519' true)\n"
-	AUTHORITIES+="$(generate_address_and_account_id $i authority_discovery '--scheme sr25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i session '--scheme ed25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i session '--scheme sr25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i session '--scheme sr25519' true)\n"
+	AUTHORITIES+="$(generate_address_and_account_id $i session '--scheme sr25519' true)\n"
 	AUTHORITIES+="),\n"
 done
 

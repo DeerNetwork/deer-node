@@ -50,93 +50,6 @@ fn session_keys(
 	SessionKeys { grandpa, babe, im_online, authority_discovery }
 }
 
-fn staging_testnet_config_genesis() -> GenesisConfig {
-	// stash, controller, session-key
-	// generated with secret:
-	// for i in 1 2 3 4 ; do for j in stash controller; do subkey inspect "$secret"/fir/$j/$i; done; done
-	// and
-	// for i in 1 2 3 4 ; do for j in session; do subkey --ed25519 inspect "$secret"//fir//$j//$i; done; done
-
-	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![(
-		// 5Fbsd6WXDGiLTxunqeK5BATNiocfCqu9bS1yArVjCgeBLkVy
-		hex!["9c7a2ee14e565db0c69f78c7b4cd839fbf52b607d867e9e9c5a79042898a0d12"].into(),
-		// 5EnCiV7wSHeNhjW3FSUwiJNkcc2SBkPLn5Nj93FmbLtBjQUq
-		hex!["781ead1e2fa9ccb74b44c19d29cb2a7a4b5be3972927ae98cd3877523976a276"].into(),
-		// 5Fb9ayurnxnaXj56CjmyQLBiadfRCqUbL2VWNbbe1nZU6wiC
-		hex!["9becad03e6dcac03cee07edebca5475314861492cdfc96a2144a67bbe9699332"].unchecked_into(),
-		// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
-		hex!["6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106"].unchecked_into(),
-		// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
-		hex!["6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106"].unchecked_into(),
-		// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
-		hex!["6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106"].unchecked_into(),
-	),(
-		// 5ERawXCzCWkjVq3xz1W5KGNtVx2VdefvZ62Bw1FEuZW4Vny2
-		hex!["68655684472b743e456907b398d3a44c113f189e56d1bbfd55e889e295dfde78"].into(),
-		// 5Gc4vr42hH1uDZc93Nayk5G7i687bAQdHHc9unLuyeawHipF
-		hex!["c8dc79e36b29395413399edaec3e20fcca7205fb19776ed8ddb25d6f427ec40e"].into(),
-		// 5EockCXN6YkiNCDjpqqnbcqd4ad35nU4RmA1ikM4YeRN4WcE
-		hex!["7932cff431e748892fa48e10c63c17d30f80ca42e4de3921e641249cd7fa3c2f"].unchecked_into(),
-		// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
-		hex!["482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e"].unchecked_into(),
-		// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
-		hex!["482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e"].unchecked_into(),
-		// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
-		hex!["482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e"].unchecked_into(),
-	),(
-		// 5DyVtKWPidondEu8iHZgi6Ffv9yrJJ1NDNLom3X9cTDi98qp
-		hex!["547ff0ab649283a7ae01dbc2eb73932eba2fb09075e9485ff369082a2ff38d65"].into(),
-		// 5FeD54vGVNpFX3PndHPXJ2MDakc462vBCD5mgtWRnWYCpZU9
-		hex!["9e42241d7cd91d001773b0b616d523dd80e13c6c2cab860b1234ef1b9ffc1526"].into(),
-		// 5E1jLYfLdUQKrFrtqoKgFrRvxM3oQPMbf6DfcsrugZZ5Bn8d
-		hex!["5633b70b80a6c8bb16270f82cca6d56b27ed7b76c8fd5af2986a25a4788ce440"].unchecked_into(),
-		// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
-		hex!["482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a"].unchecked_into(),
-		// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
-		hex!["482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a"].unchecked_into(),
-		// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
-		hex!["482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a"].unchecked_into(),
-	),(
-		// 5HYZnKWe5FVZQ33ZRJK1rG3WaLMztxWrrNDb1JRwaHHVWyP9
-		hex!["f26cdb14b5aec7b2789fd5ca80f979cef3761897ae1f37ffb3e154cbcc1c2663"].into(),
-		// 5EPQdAQ39WQNLCRjWsCk5jErsCitHiY5ZmjfWzzbXDoAoYbn
-		hex!["66bc1e5d275da50b72b15de072a2468a5ad414919ca9054d2695767cf650012f"].into(),
-		// 5DMa31Hd5u1dwoRKgC4uvqyrdK45RHv3CpwvpUC1EzuwDit4
-		hex!["3919132b851ef0fd2dae42a7e734fe547af5a6b809006100f48944d7fae8e8ef"].unchecked_into(),
-		// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
-		hex!["00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378"].unchecked_into(),
-		// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
-		hex!["00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378"].unchecked_into(),
-		// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
-		hex!["00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378"].unchecked_into(),
-	)];
-
-	// generated with secret: subkey inspect "$secret"/fir
-	let root_key: AccountId = hex![
-		// 5Ff3iXP75ruzroPWRP2FYBHWnmGGBSb63857BgnzCoXNxfPo
-		"9ee5e5bdc0ec239eb164f865ecc345ce4c88e76ee002e0f7e318097347471809"
-	].into();
-
-	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
-
-	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
-}
-
-/// Staging testnet config.
-pub fn staging_testnet_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Staging Testnet",
-		"staging_testnet",
-		ChainType::Live,
-		staging_testnet_config_genesis,
-		vec![],
-		None,
-		None,
-		None,
-		Default::default(),
-	)
-}
-
 /// Helper function to generate a crypto pair from seed
 pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
 	TPublic::Pair::from_string(&format!("//{}", seed), None)
@@ -355,7 +268,7 @@ pub fn local_testnet_config() -> ChainSpec {
 	)
 }
 
-fn nft360_testnet_config_genesis() -> GenesisConfig {
+fn nft360_testnet_genesis() -> GenesisConfig {
 	// ./scripts/prepare-test-net.sh 4
 	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
 		(
@@ -363,62 +276,40 @@ fn nft360_testnet_config_genesis() -> GenesisConfig {
 			hex!["20bf3f380a5d4888e2f7c467bb03abf0efd8780c4ea0cdf8b1ec2e70d24e2249"].into(),
 			//5HdL6KCaMwxbAR3j7wY25DW3HcrbxQLXpLqGPCupec2Fne2L
 			hex!["f60effbef7654a6590fca2b94edc9fcd80434aa08ad3ecf8c9514851cbe5057a"].into(),
-			//5CJkZKD4rRqEhHphBWvVH8kPipjccrWk7F1a8xbZgvsnt2aG
-			hex!["0ab686ffd031340ca2fb1101d8f87af4f15046df6363d0e9ce9084ab62cce95d"].unchecked_into(),
-			//5EByXQB4WQ98sJmx4aUeTsqmT9j526SZEoj1UZJwB2c63UWE
-			hex!["5e03ed5d6cca04b81f110c9704e83d0d4b291a0e04493007d3114a45949dd935"].unchecked_into(),
-			//5H6L81P5gQZmTaJby6CRhMK1gFCWUgQAKQv7b8yEpH7bMMs5
-			hex!["de6a7d5e562776ea64b3d8d67b326597512d787bb9a5477b56cab205a1bdcb62"].unchecked_into(),
-			//5HN22KVWJHrRZRwxz8mDrydKRFYnRMm477q5voKE4J67655B
-			hex!["ea617e1fe815de26e97ab5cb74f868a1f427a08abedb9ebc1d5c50f0473afe50"].unchecked_into(),
+			//5FhWYTtETbby4YjY648GUaZmjCKwUj26HSfbNUH46yQ35Jzj
+			hex!["a0c6b1c6dcc92bd6adf97c71f0033e343ee525bb03af50b6481823aca2cc6574"].unchecked_into(),
+			//5FvWhH6E1nhm4hLBCxdETrbCUksYR2LZSypJDEiM6hMjxB94
+			hex!["aab16570e0ff1a8d71f77c70e33d04f165e54e6035a4db8aaf7dc131b4484276"].unchecked_into(),
+			//5FvWhH6E1nhm4hLBCxdETrbCUksYR2LZSypJDEiM6hMjxB94
+			hex!["aab16570e0ff1a8d71f77c70e33d04f165e54e6035a4db8aaf7dc131b4484276"].unchecked_into(),
+			//5FvWhH6E1nhm4hLBCxdETrbCUksYR2LZSypJDEiM6hMjxB94
+			hex!["aab16570e0ff1a8d71f77c70e33d04f165e54e6035a4db8aaf7dc131b4484276"].unchecked_into(),
 		),
 		(
 			//5DAmdPpeV7SPB7eKb8UbBBrTMfKGrGrVCtZCu7rsPjzksHHt
 			hex!["30dc668ff7fb462ed059f5de128f46654f71858b38e22f0cf64a53158783ca1d"].into(),
 			//5EqKaozw6DP3QrCnmjgrr1S5kWAvJqrCZyEtMq3M6bGszGKQ
 			hex!["7a7f87f82846340224af31c6b5305bdd332ce93eae157c2b1aaa9b58fc1ef374"].into(),
-			//5HRfmmXSciAfCtQCPRZ2Xz94D3F2nTuC6WEwpkD96w3dj5Ti
-			hex!["ed2a4dc256fb49b8956790a3bc3b50188e6903a7344b57882c4c32d34d29721a"].unchecked_into(),
-			//5CQ5vYWJcjXt4PiL8uh8Evyzx8imhyg8Wn5ADiRDC599YEre
-			hex!["0ec7f23a5fa3fe572ffb34473c1e28b1b2768ed1e76675d1aa292c53a7682002"].unchecked_into(),
-			//5Fmr5S6FM7rFcfYVXjXVuLABEV9wN67i9bs3RWDXdbkvaWaX
-			hex!["a4156ee5daea942eebdd55339483a59db2112eb9ca2209781170afc29942f745"].unchecked_into(),
-			//5DAkFCvxMLK6mAByFE6RotATqprCH4sGmPyfRT9hfLNL3JvA
-			hex!["30d7bf1ec2186c7922958cdc634e51aafbaaf19e98dd2f48443eb8eaf7c2ef56"].unchecked_into(),
-		),
-		(
-			//5GVtzvvzFY81WLyMajvLSVS5BebzTRBkdhJReocH75LCefgL
-			hex!["c42793e6c4dd445202c478ea8757fcb772c54c7404f366090ecf5b9461123e38"].into(),
-			//5HmAsCXEv7qf1Ct7Khwt8qvbq6poiHKro1DQiqtnAsyeapqs
-			hex!["fc09e7830fb8509d4e9a9791c18dbf0dd0d2adacd340f6d5213bf55ea4bc2d2b"].into(),
-			//5GiMEz7HFB3kL6NqFe6DZUy8KVbvfpFZY2kfy3N85YRpxWe5
-			hex!["cda6dcb47ea1d0107d49314c7703784a0353a20e9dc52d9545dceb161dc4a229"].unchecked_into(),
-			//5CXD8tyrkhxsHqkYNQWXAeSzQzhtsz2XfQoshBr9f14fxJZv
-			hex!["1436f1f205b2537f090f30a45f7f5df08001d212d68b5a1a99f078d5b7c8ca22"].unchecked_into(),
-			//5Cqfe3y575fEGdDtRYtgwxtFyuGdaHepW8nFU8a5tRaCwPyM
-			hex!["224a940cee0e91d36c38edc0e901c39f0de4c4bfe9785039db9e37c640c4832f"].unchecked_into(),
-			//5DF4VLHLBgJ4Fn8bv1F9rVQCGh16CTAvDm82Gm7Yc7Yp5HV4
-			hex!["34222438e9a2dd5417e9c0952365bf136969eac2759775d8505a1bcb41b81332"].unchecked_into(),
-		),
-		(
-			//5CCzfrdLEtFGG3F4TU93R5Qjuyki9JKCHoGAFFPcNZ4D4UQc
-			hex!["065290133d4c90bbdb535ee0c407ce2d89e63d7e2938b183801af21cf386b842"].into(),
-			//5F4LDWLGdSwGw6UUM7XAnvJfjGjCsnQFcaXvnumMvRscTqcb
-			hex!["846bd9e6a583f31c7d7a99d350fa78e9bde049517d311efba426e73f1c945f20"].into(),
-			//5Fi7xnxhzKiQLiZngV9hqwEQya9fhyc5aQt8aUrs73GWRMpp
-			hex!["a13ded4ee76fbf579a2f8a882fb96f9ddce9b8c5a52f4a8bbfc02def6e96efb2"].unchecked_into(),
-			//5F92uUnZpyjqugxfSUCVthfxyK9jwE9pTxZKJocc7n12MJx3
-			hex!["8801ce09a54c7c65db57983f5b04431043e4999a936a9cd955a755d57ba5315a"].unchecked_into(),
-			//5CyV1HXSGYfWiLB1e9mZ5pZHX5KurqrWtRwxMvBe4i6ifTxh
-			hex!["2840bea1cdcfdf1f4ef192b487e23a3bef7babae1da8e494a73f55b974649757"].unchecked_into(),
-			//5HRLdeWuTwy7uya6V46h2jgKf4WBZ1S8nsudbCngpnKP6jfx
-			hex!["ece9df6a2db6cc1d563fa84a6e7ddb5bbfd7751897d80f212dc3e12c72c0a10d"].unchecked_into(),
+			//5H6nw468ppCq1B3EcKuCXPvUR1QSJsPeBJTpo9Tw1XnBvtpF
+			hex!["dec4be7d16bb37269ea06843e79ccd5fe5800744bb907182cc1aa524bd9f9ebf"].unchecked_into(),
+			//5CorSAYRNJFqKu1kpT3Sf8wkv7GpLSsTsWRrMmHFmGqD4ZjL
+			hex!["20e86d4a7f96b9130aac1d20ba1bc294d54e98b98853ca7ea4f3447c8ad65a23"].unchecked_into(),
+			//5CorSAYRNJFqKu1kpT3Sf8wkv7GpLSsTsWRrMmHFmGqD4ZjL
+			hex!["20e86d4a7f96b9130aac1d20ba1bc294d54e98b98853ca7ea4f3447c8ad65a23"].unchecked_into(),
+			//5CorSAYRNJFqKu1kpT3Sf8wkv7GpLSsTsWRrMmHFmGqD4ZjL
+			hex!["20e86d4a7f96b9130aac1d20ba1bc294d54e98b98853ca7ea4f3447c8ad65a23"].unchecked_into(),
 		),
 	];
-	// generated with secret: subkey inspect --scheme sr25519 "$SECRET"/n360t
-	let root_key: AccountId = hex!["624db4345f31b2432be2cc2cf6305ac0a1bd119b142ba1da7dffe27092529e4b"].into();
 
-	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
+	let root_key: AccountId = initial_authorities[0].0.clone();
+
+	let endowed_accounts: Vec<AccountId> = initial_authorities
+		.iter()
+		.map(|(_, controller, ..)| controller.clone())
+		.chain(
+			initial_authorities.iter().map(|(stasher, ..)| stasher.clone())
+		)
+		.collect();
 
 	testnet_genesis(
 		initial_authorities,
@@ -428,7 +319,7 @@ fn nft360_testnet_config_genesis() -> GenesisConfig {
 	)
 }
 
-pub fn nft360_testnet_local_config() -> ChainSpec {
+pub fn nft360_testnet_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	let protocol_id: &str = "n360t1";
 	let properties = {
@@ -440,10 +331,10 @@ pub fn nft360_testnet_local_config() -> ChainSpec {
 	};
 
 	ChainSpec::from_genesis(
-		"NFT360 PoC-1",
-		"nft360_poc_1",
-		ChainType::Local,
-		nft360_testnet_config_genesis,
+		"NFT360 Testnet",
+		"nft360_testnet",
+		ChainType::Live,
+		nft360_testnet_genesis,
 		boot_nodes,
 		None,
 		Some(protocol_id),
@@ -509,7 +400,7 @@ pub(crate) mod tests {
 	}
 
 	#[test]
-	fn test_staging_test_net_chain_spec() {
-		staging_testnet_config().build_storage().unwrap();
+	fn test_nft360_test_net_chain_spec() {
+		nft360_testnet_config().build_storage().unwrap();
 	}
 }
