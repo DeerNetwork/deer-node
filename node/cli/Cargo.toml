@@ -1,14 +1,24 @@
 [package]
-name = 'nft360'
-version = '0.1.0'
-build = 'build.rs'
-edition = '2018'
+name = "nft360"
+version = "0.1.0"
+build = "build.rs"
+edition = "2018"
+
+[package.metadata.wasm-pack.profile.release]
+# `wasm-opt` has some problems on linux, see
+# https://github.com/rustwasm/wasm-pack/issues/781 etc.
+wasm-opt = false
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
 
 [[bin]]
 name = "nft360-node"
 path = "bin/main.rs"
 required-features = ["cli"]
 
+[lib]
+crate-type = ["cdylib", "rlib"]
 [dependencies]
 # third-party dependencies
 codec = { package = "parity-scale-codec", version = "2.0.0" }
@@ -39,7 +49,6 @@ sp-transaction-pool = { version = "3.0.0", path = "../../substrate/primitives/tr
 sc-client-api = { version = "3.0.0", path = "../../substrate/client/api" }
 sc-chain-spec = { version = "3.0.0", path = "../../substrate/client/chain-spec" }
 sc-consensus = { version = "0.9.0", path = "../../substrate/client/consensus/common" }
-sc-executor = { version = "0.9.0", path = "../../substrate/client/executor" }
 sc-transaction-pool = { version = "3.0.0", path = "../../substrate/client/transaction-pool" }
 sc-network = { version = "0.9.0", path = "../../substrate/client/network" }
 sc-consensus-slots = { version = "0.9.0", path = "../../substrate/client/consensus/slots" }
@@ -117,7 +126,12 @@ frame-benchmarking-cli = { version = "3.0.0", optional = true, path = "../../sub
 substrate-build-script-utils = { version = "3.0.0", optional = true, path = "../../substrate/utils/build-script-utils" }
 substrate-frame-cli = { version = "3.0.0", optional = true, path = "../../substrate/utils/frame/frame-utilities-cli" }
 try-runtime-cli = { version = "0.9.0", optional = true, path = "../../substrate/utils/frame/try-runtime/cli" }
-sc-cli = { version = "0.9.0", optional = true, path = "../../substrate/client/cli"  }
+
+[build-dependencies.sc-cli]
+version = "0.9.0"
+package = "sc-cli"
+path = "../../substrate/client/cli"
+optional = true
 
 [features]
 default = [ "cli" ]
@@ -145,7 +159,7 @@ runtime-benchmarks = [
 ]
 # Enable features that allow the runtime to be tried and debugged. Name might be subject to change
 # in the near future.
-# try-runtime = [
-# 	"node-runtime/try-runtime",
-# 	"try-runtime-cli",
-# ]
+try-runtime = [
+	"node-runtime/try-runtime",
+	"try-runtime-cli",
+]
