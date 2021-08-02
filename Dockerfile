@@ -16,8 +16,8 @@ RUN apt-get update && \
 	find /var/lib/apt/lists/ -type f -not -name lock -delete
 
 # add node to docker image
-COPY ./target/release/nft360-node /usr/local/bin/nft360
+COPY ./target/release/nft360-node /usr/local/bin/nft360-node
 
 EXPOSE 30333 9933 9944
 
-ENTRYPOINT ["/usr/local/bin/nft360"]
+ENTRYPOINT ["/usr/local/bin/nft360-node"]
