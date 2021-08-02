@@ -958,14 +958,14 @@ parameter_types! {
 	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
 	pub const SlashBalance: Balance = 100 * DOLLARS;
 	pub const RoundDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
-	pub const FileOrderRounds: u32 = 24;
+	pub const FileOrderRounds: u32 = 72;
 	pub const MaxFileReplicas: u32 = 30;
 	pub const EffectiveFileReplicas: u32 = 15;
 	pub const MaxFileSize: u64 = 1_073_741_824; // 1G
 	pub const MaxPower: u64 = 1_125_899_906_842_624; // 1P
 	pub const MaxReportFiles: u32 = 200;
 	pub const FileBaseFee: Balance = 10 * MILLICENTS;
-	pub const FileBytePrice: Balance = 3 * MILLICENTS / 10;
+	pub const FileBytePrice: Balance = 2 * MILLICENTS;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
 }
