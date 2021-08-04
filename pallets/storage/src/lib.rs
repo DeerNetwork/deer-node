@@ -768,13 +768,18 @@ impl<T: Config> Pallet<T> {
 				.saturating_sub(prev_reward.paid_mine_reward)
 				.saturating_sub(prev_reward.paid_store_reward);
 			if !store_reward.is_zero() {
-				if let Err(e) = T::Currency::withdraw(
+				match T::Currency::withdraw(
 					&Self::account_id(), 
 					store_reward, 
 					WithdrawReasons::TRANSFER, 
 					ExistenceRequirement::KeepAlive,
 				) {
-					log!(error, "Storage pot is lack of funds {:?}", e);
+					Ok(treasury) => {
+						T::Treasury::on_unbalanced(treasury);
+					},
+					Err(e) =>  {
+						log!(error, "Storage pot is lack of funds {:?}", e);
+					}
 				}
 			}
 		}
