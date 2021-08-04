@@ -662,22 +662,18 @@ pub mod pallet {
 				}
 			}
 
-			let mut summary = RoundsSummary::<T>::get(current_round);
 			for (account, (size_inc, size_dec)) in node_changes.iter() {
 				if account == &reporter {
 					node_info.used = node_info.used.saturating_add(*size_inc).saturating_sub(*size_dec);
-					summary.used = summary.used.saturating_add(node_info.used as u128);
 				} else {
 					Nodes::<T>::mutate(account, |maybe_node| {
 						if let Some(other_node) = maybe_node {
 							other_node.used = other_node.used.saturating_add(*size_inc).saturating_sub(*size_dec);
-							summary.used = summary.used.saturating_add(other_node.used as u128);
 						}
 					})
 				}
 			}
 			node_info.power = power.min(T::MaxPower::get());
-			summary.power = summary.power.saturating_add(node_info.power as u128);
 
 			for (account, inc) in node_inc_deposits.iter() {
 				Stashs::<T>::mutate(account, |maybe_stash_info| {
@@ -691,6 +687,10 @@ pub mod pallet {
 
 			node_info.rid = rid;
 			node_info.reported_at = now_at;
+
+			let mut summary = RoundsSummary::<T>::get(current_round);
+			summary.used = summary.used.saturating_add(node_info.used.saturated_into());
+			summary.power = summary.power.saturating_add(node_info.power.saturated_into());
 
 			StoragePotReserved::<T>::mutate(|v| *v = storage_pot_reserved);
 			RoundsReward::<T>::insert(current_round, current_round_reward);
