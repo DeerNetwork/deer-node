@@ -319,7 +319,7 @@ fn nft360_testnet_genesis() -> GenesisConfig {
 	)
 }
 
-pub fn nft360_testnet_config() -> ChainSpec {
+pub fn nft360_testnet_local_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	let protocol_id: &str = "n360t1";
 	let properties = {
@@ -341,6 +341,10 @@ pub fn nft360_testnet_config() -> ChainSpec {
 		Some(properties),
 		Default::default(),
 	)
+}
+
+pub fn nft360_testnet_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_json_bytes(&include_bytes!("../res/testnet.json")[..])
 }
 
 #[cfg(test)]
@@ -401,6 +405,6 @@ pub(crate) mod tests {
 
 	#[test]
 	fn test_nft360_test_net_chain_spec() {
-		nft360_testnet_config().build_storage().unwrap();
+		nft360_testnet_local_config().build_storage().unwrap();
 	}
 }
