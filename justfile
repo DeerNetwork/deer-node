@@ -3,8 +3,8 @@ name := "nft360-node"
 build:
     cargo build --release
 
-test crate:
-    cargo test --package {{crate}} --lib
+test crate +args='--lib':
+    cargo test --package {{crate}} {{args}}
 
 build-bench:
     cd node && cargo build --release --features runtime-benchmarks

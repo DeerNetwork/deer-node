@@ -989,6 +989,7 @@ impl pallet_storage::Config for Runtime {
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
+	type WeightInfo = pallet_storage::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_transaction_storage::Config for Runtime {
@@ -1324,7 +1325,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
 			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_staking, Staking);
-			// add_benchmark!(params, batches, pallet_storage, FileStorage);
+			add_benchmark!(params, batches, pallet_storage, FileStorage);
 			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_tips, Tips);

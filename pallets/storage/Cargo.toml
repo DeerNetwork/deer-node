@@ -19,6 +19,7 @@ base64 = { version = "0.13.0", default-features = false, features = ["alloc"] }
 webpki = { path = "../../vendors/webpki", default-features = false }
 p256 = { version = "0.9.0", default-features = false, features = ["ecdsa"] }
 serde_json = { version = "1.0.64", default-features = false, features = ["alloc"] }
+hex-literal = { version = "0.3.1", optional = true }
 
 [dev-dependencies]
 hex-literal = "0.3.1"
@@ -43,5 +44,6 @@ runtime-benchmarks = [
 	"frame-benchmarking",
 	"sp-runtime/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"hex-literal",
 ]
 try-runtime = ["frame-support/try-runtime"]

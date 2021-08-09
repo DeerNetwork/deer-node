@@ -3,8 +3,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 #[cfg(test)]
 pub mod mock;
 #[cfg(test)]
@@ -14,7 +14,7 @@ mod constants;
 
 pub use constants::*;
 
-// pub mod weights;
+pub mod weights;
 
 
 use sp_std::{prelude::*, collections::btree_map::BTreeMap};
@@ -33,7 +33,7 @@ pub type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as SystemConfig>
 
 type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-// pub use weights::WeightInfo;
+pub use weights::WeightInfo;
 pub use pallet::*;
 
 // syntactic sugar for logging.
@@ -224,6 +224,9 @@ pub mod pallet {
 		/// Number fo founds to stash for registering a node
 		#[pallet::constant]
 		type StashBalance: Get<BalanceOf<Self>>;
+
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	/// The Tee enclaves
@@ -422,7 +425,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Add or change expire of TEE enclave
-		#[pallet::weight((1_000_000, DispatchClass::Operational))]
+		#[pallet::weight((T::WeightInfo::set_enclave(), DispatchClass::Operational))]
 		pub fn set_enclave(
 			origin: OriginFor<T>,
 			enclave: EnclaveId,
@@ -445,35 +448,35 @@ pub mod pallet {
 			node: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
 			let stasher = ensure_signed(origin)?;
-			let controller = T::Lookup::lookup(node)?;
+			let storage_node = T::Lookup::lookup(node)?;
 			let stash_balance = T::StashBalance::get();
-			if let Some(mut stash_info) = Stashs::<T>::get(&controller) {
+			if let Some(mut stash_info) = Stashs::<T>::get(&storage_node) {
 				ensure!(&stash_info.stasher == &stasher, Error::<T>::InvalidStashPair);
 				if stash_info.deposit < stash_balance {
 					let lack = stash_balance.saturating_sub(stash_info.deposit);
 					T::Currency::transfer(&stasher, &Self::account_id(), lack, ExistenceRequirement::KeepAlive)?;
 					stash_info.deposit = stash_balance;
-					Stashs::<T>::insert(controller, stash_info);
+					Stashs::<T>::insert(storage_node, stash_info);
 				}
 			} else {
 				T::Currency::transfer(&stasher, &Self::account_id(), stash_balance, ExistenceRequirement::KeepAlive)?;
-				Stashs::<T>::insert(&controller, StashInfo {
+				Stashs::<T>::insert(&storage_node, StashInfo {
 					stasher,
 					deposit: stash_balance,
 					machine_id: None,
 				});
-				Self::deposit_event(Event::<T>::Stashed(controller));
+				Self::deposit_event(Event::<T>::Stashed(storage_node));
 			}
 			Ok(())
 		}
 
 		/// Withdraw the mine reward, node's despoist should not below T::StashBalance
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(T::WeightInfo::withdraw())]
 		pub fn withdraw(
 			origin: OriginFor<T>,
 		) -> DispatchResult {
-			let controller = ensure_signed(origin)?;
-            let mut stash_info = Stashs::<T>::get(&controller).ok_or(Error::<T>::UnstashNode)?;
+			let storage_node = ensure_signed(origin)?;
+            let mut stash_info = Stashs::<T>::get(&storage_node).ok_or(Error::<T>::UnstashNode)?;
             let stash_deposit: BalanceOf<T> = stash_info.deposit;
 			let stash_balance = T::StashBalance::get();
 			let profit = stash_deposit.saturating_sub(stash_balance);
@@ -481,13 +484,13 @@ pub mod pallet {
 			stash_info.deposit = stash_balance;
 			let stasher = stash_info.stasher.clone();
 			T::Currency::transfer(&Self::account_id(), &stasher, profit, ExistenceRequirement::KeepAlive)?;
-            Stashs::<T>::insert(controller.clone(), stash_info);
-            Self::deposit_event(Event::<T>::Withdrawn(controller, stasher, profit));
+            Stashs::<T>::insert(storage_node.clone(), stash_info);
+            Self::deposit_event(Event::<T>::Withdrawn(storage_node, stasher, profit));
             Ok(())
 		}
 
 		/// Register a node 
-		#[pallet::weight((1_000_000, DispatchClass::Operational))]
+		#[pallet::weight((T::WeightInfo::register(), DispatchClass::Operational))]
 		pub fn register(
 			origin: OriginFor<T>,
 			machine_id: MachineId,
@@ -508,7 +511,13 @@ pub mod pallet {
 			let dec_cert = base64::decode_config(&ias_cert, base64::STANDARD).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
 			let sig_cert = webpki::EndEntityCert::from(&dec_cert).map_err(|_| Error::<T>::InvalidIASSigningCert)?;
 			let chain: Vec<&[u8]> = Vec::new();
+			#[cfg(not(feature = "runtime-benchmarks"))]
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+			#[cfg(feature = "runtime-benchmarks")]
+			let now: u64 = match T::UnixTime::now().as_secs().saturated_into::<u64>() {
+				0 => 1627833600,
+				v => v,
+			};
 			let time_now = webpki::Time::from_seconds_since_unix_epoch(now);
 			sig_cert.verify_is_valid_tls_server_cert(
 				SUPPORTED_SIG_ALGS,
@@ -558,7 +567,10 @@ pub mod pallet {
 		}
 
 		/// Report storage work.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight((
+			T::WeightInfo::report(add_files.len() as u32, del_files.len() as u32),
+			DispatchClass::Operational
+		))]
 		pub fn report(
 			origin: OriginFor<T>,
 			machine_id: MachineId,
@@ -703,7 +715,7 @@ pub mod pallet {
 		}
 
 		/// Add file to storage
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(T::WeightInfo::store())]
 		pub fn store(
 			origin: OriginFor<T>,
 			cid: FileId,
