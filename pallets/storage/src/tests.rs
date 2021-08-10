@@ -529,5 +529,21 @@ fn store_works() {
 }
 
 #[test]
+fn force_delete() {
+	ExtBuilder::default()
+		.files(vec![
+			(mock_file_id('A'), 100, 1100),
+		])
+		.build()
+		.execute_with(|| {
+			run_to_block(32);
+			assert_eq!(StoragePotReserved::<Test>::get(), 0);
+			assert_ok!(FileStorage::force_delete(Origin::root(), mock_file_id('A')));
+			assert!(StoreFiles::<Test>::get(&mock_file_id('A')).is_none());
+			assert_eq!(StoragePotReserved::<Test>::get(), 1100);
+		})
+}
+
+#[test]
 fn unpaid_reward_to_treasury() {
 }

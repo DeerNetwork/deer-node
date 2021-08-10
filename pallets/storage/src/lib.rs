@@ -343,7 +343,9 @@ pub mod pallet {
 		/// A file have been removed, \[file_id\]
 		StoreFileRemoved(FileId),
 		/// A file was renewed and can accepte more replicas, \[file_id, replicas\]
-		StoreFileSettledIncomplete(FileId, u32)
+		StoreFileSettledIncomplete(FileId, u32),
+		/// A file was deleted by admin, \[file_id\]
+		FileForceDeleted(FileId),
 	}
 
 	#[pallet::error]
@@ -380,6 +382,8 @@ pub mod pallet {
 		NotEnoughFee,
 		/// File size incorrenct
 		InvalidFileSize,
+		/// Unable to delete file
+		UnableToDeleteFile,
 	}
 
 	#[pallet::hooks]
@@ -742,9 +746,28 @@ pub mod pallet {
 					reserved: fee.saturating_sub(base_fee),
 					base_fee,
 					file_size,
-					added_at: Self::now_bn(), // TODO: file is invalid if no order for a long time
+					added_at: Self::now_bn(), 
 				});
 				Self::deposit_event(Event::<T>::StoreFileSubmitted(cid, who, fee));
+			}
+			Ok(())
+		}
+
+		/// Force delete unsoloved file by root
+		#[pallet::weight(T::WeightInfo::force_delete())]
+		pub fn force_delete(origin: OriginFor<T>, cid: FileId) -> DispatchResult {
+            ensure_root(origin)?;
+			if let Some(file) = StoreFiles::<T>::get(&cid) {
+				let now = Self::now_bn();
+				let rounds = T::FileOrderRounds::get();
+				let invalid_at = file.added_at.saturating_add(T::RoundDuration::get().saturating_mul(rounds.saturated_into()));
+				sp_std::if_std! {
+					println!("base_fee={:?}, invalid_at={:?}, now={:?}", file.base_fee, invalid_at, now);
+				}
+				ensure!(!file.base_fee.is_zero() && now > invalid_at && FileOrders::<T>::get(&cid).is_none(), Error::<T>::UnableToDeleteFile);
+				StoragePotReserved::<T>::mutate(|v| *v = v.saturating_add(file.base_fee).saturating_add(file.reserved));
+				StoreFiles::<T>::remove(&cid);
+				Self::deposit_event(Event::<T>::FileForceDeleted(cid));
 			}
 			Ok(())
 		}

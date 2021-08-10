@@ -285,6 +285,17 @@ benchmarks! {
 	verify {
 		assert_last_event::<T>(Event::<T>::StoreFileSubmitted(cid, user, fee).into());
 	}
+
+	force_delete {
+		let cid = str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA");
+		let user = create_funded_user::<T>("user", 10000);
+		let fee = T::Currency::minimum_balance().saturating_mul(2000u32.saturated_into());
+		assert_ok!(FileStorage::<T>::store(SystemOrigin::Signed(user.clone()).into(), cid.clone(), 100u64, fee));
+		System::<T>::set_block_number(50000u32.into());
+	}: _(SystemOrigin::Root, cid.clone())
+	verify {
+		assert_last_event::<T>(Event::<T>::FileForceDeleted(cid).into());
+	}
 }
 
 impl_benchmark_test_suite!(
