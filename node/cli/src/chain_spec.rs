@@ -268,7 +268,7 @@ pub fn local_testnet_config() -> ChainSpec {
 	)
 }
 
-fn nft360_testnet_genesis() -> GenesisConfig {
+fn deer_testnet_genesis() -> GenesisConfig {
 	// ./scripts/prepare-test-net.sh 4
 	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
 		(
@@ -319,22 +319,22 @@ fn nft360_testnet_genesis() -> GenesisConfig {
 	)
 }
 
-pub fn nft360_testnet_local_config() -> ChainSpec {
+pub fn deer_testnet_local_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	let protocol_id: &str = "n360t1";
 	let properties = {
 		let mut p = Properties::new();
-		p.insert("tokenSymbol".into(), "N360".into());
+		p.insert("tokenSymbol".into(), "DEER".into());
 		p.insert("tokenDecimals".into(), 12.into());
 		p.insert("ss58Format".into(), 0.into()); // Will be 88
 		p
 	};
 
 	ChainSpec::from_genesis(
-		"NFT360 Testnet",
-		"nft360_testnet",
+		"Deer Testnet",
+		"deer_testnet",
 		ChainType::Live,
-		nft360_testnet_genesis,
+		deer_testnet_genesis,
 		boot_nodes,
 		None,
 		Some(protocol_id),
@@ -343,7 +343,7 @@ pub fn nft360_testnet_local_config() -> ChainSpec {
 	)
 }
 
-pub fn nft360_testnet_config() -> Result<ChainSpec, String> {
+pub fn deer_testnet_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/testnet.json")[..])
 }
 
@@ -404,7 +404,7 @@ pub(crate) mod tests {
 	}
 
 	#[test]
-	fn test_nft360_test_net_chain_spec() {
-		nft360_testnet_local_config().build_storage().unwrap();
+	fn test_deer_test_net_chain_spec() {
+		deer_testnet_local_config().build_storage().unwrap();
 	}
 }

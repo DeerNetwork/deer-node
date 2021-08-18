@@ -1,6 +1,6 @@
 {
-  "name": "NFT360 Testnet",
-  "id": "nft360_testnet",
+  "name": "Deer Testnet",
+  "id": "deer_testnet",
   "chainType": "Live",
   "bootNodes": [],
   "telemetryEndpoints": null,

@@ -40,6 +40,6 @@ mod cli {
 
 		fs::create_dir(&path).ok();
 
-		Cli::clap().gen_completions("nft360-node", *shell, &path);
+		Cli::clap().gen_completions("deer-node", *shell, &path);
 	}
 }

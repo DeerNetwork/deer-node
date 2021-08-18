@@ -1,5 +1,5 @@
 [package]
-name = "nft360-executor"
+name = "deer-executor"
 version = "0.1.0"
 edition = "2018"
 
@@ -8,8 +8,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2.0.0" }
-node-primitives = { package = "nft360-primitives", version = "0.1.0", path = "../primitives" }
-node-runtime = { package = "nft360-runtime", version = "0.1.0", path = "../runtime" }
+node-primitives = { package = "deer-primitives", version = "0.1.0", path = "../primitives" }
+node-runtime = { package = "deer-runtime", version = "0.1.0", path = "../runtime" }
 sc-executor = { version = "0.9.0", path = "../../substrate/client/executor" }
 sp-core = { version = "3.0.0", path = "../../substrate/primitives/core" }
 sp-keystore = { version = "0.9.0", path = "../../substrate/primitives/keystore" }

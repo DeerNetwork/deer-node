@@ -1,5 +1,5 @@
 [package]
-name = "nft360"
+name = "deer"
 version = "0.1.0"
 build = "build.rs"
 edition = "2018"
@@ -13,7 +13,7 @@ wasm-opt = false
 targets = ["x86_64-unknown-linux-gnu"]
 
 [[bin]]
-name = "nft360-node"
+name = "deer-node"
 path = "bin/main.rs"
 required-features = ["cli"]
 
@@ -80,15 +80,15 @@ pallet-staking = { version = "3.0.0", path = "../../substrate/frame/staking" }
 pallet-grandpa = { version = "3.1.0", path = "../../substrate/frame/grandpa" }
 
 # node-specific dependencies
-node-runtime = { package = "nft360-runtime", version = "0.1.0", path = "../runtime" }
-node-rpc = { package = "nft360-rpc", version = "0.1.0", path = "../rpc" }
-node-primitives = { package = "nft360-primitives", version = "0.1.0", path = "../primitives" }
-node-executor = { package="nft360-executor", version = "0.1.0", path = "../executor" }
+node-runtime = { package = "deer-runtime", version = "0.1.0", path = "../runtime" }
+node-rpc = { package = "deer-rpc", version = "0.1.0", path = "../rpc" }
+node-primitives = { package = "deer-primitives", version = "0.1.0", path = "../primitives" }
+node-executor = { package="deer-executor", version = "0.1.0", path = "../executor" }
 
 # CLI-specific dependencies
 sc-cli = { version = "0.9.0", optional = true, path = "../../substrate/client/cli" }
 frame-benchmarking-cli = { version = "3.0.0", optional = true, path = "../../substrate/utils/frame/benchmarking-cli" }
-node-inspect = { package = "nft360-inspect", version = "0.1.0", optional = true, path = "../inspect" }
+node-inspect = { package = "deer-inspect", version = "0.1.0", optional = true, path = "../inspect" }
 try-runtime-cli = { version = "0.9.0", optional = true, path = "../../substrate/utils/frame/try-runtime/cli" }
 
 # WASM-specific dependencies
@@ -98,7 +98,7 @@ browser-utils = { package = "substrate-browser-utils", path = "../../substrate/u
 libp2p-wasm-ext = { version = "0.28", features = ["websocket"], optional = true }
 
 [target.'cfg(target_arch="x86_64")'.dependencies]
-node-executor = { package="nft360-executor", version = "0.1.0", path = "../executor", features = [ "wasmtime" ] }
+node-executor = { package="deer-executor", version = "0.1.0", path = "../executor", features = [ "wasmtime" ] }
 sc-cli = { version = "0.9.0", optional = true, path = "../../substrate/client/cli", features = [ "wasmtime" ] }
 sc-service = { version = "0.9.0", default-features = false, path = "../../substrate/client/service", features = [ "wasmtime" ] }
 sp-trie = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/trie", features = ["memory-tracker"] }
@@ -121,7 +121,7 @@ soketto = "0.4.2"
 
 [build-dependencies]
 structopt = { version = "0.3.8", optional = true }
-node-inspect = { package = "nft360-inspect", version = "0.1.0", optional = true, path = "../inspect" }
+node-inspect = { package = "deer-inspect", version = "0.1.0", optional = true, path = "../inspect" }
 frame-benchmarking-cli = { version = "3.0.0", optional = true, path = "../../substrate/utils/frame/benchmarking-cli" }
 substrate-build-script-utils = { version = "3.0.0", optional = true, path = "../../substrate/utils/build-script-utils" }
 substrate-frame-cli = { version = "3.0.0", optional = true, path = "../../substrate/utils/frame/frame-utilities-cli" }

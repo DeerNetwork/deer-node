@@ -1,4 +1,4 @@
-name := "nft360-node"
+name := "deer-node"
 
 build:
     cargo build --release

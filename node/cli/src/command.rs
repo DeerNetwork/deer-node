@@ -7,7 +7,7 @@ use crate::service::new_partial;
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {
-		"NFT360 Node".into()
+		"Deer Node".into()
 	}
 
 	fn impl_version() -> String {
@@ -23,7 +23,7 @@ impl SubstrateCli for Cli {
 	}
 
 	fn support_url() -> String {
-		"https://github.com/nft360/nft360/issues/new".into()
+		"https://github.com/deer/deer/issues/new".into()
 	}
 
 	fn copyright_start_year() -> i32 {
@@ -36,8 +36,8 @@ impl SubstrateCli for Cli {
 				"" => return Err("Please specify which chain you want to run, e.g. --dev or --chain=local".into()),
 				"dev" => Box::new(chain_spec::development_config()),
 				"local" => Box::new(chain_spec::local_testnet_config()),
-				"testnet-local" => Box::new(chain_spec::nft360_testnet_local_config()),
-				"testnet" => Box::new(chain_spec::nft360_testnet_config()?),
+				"testnet-local" => Box::new(chain_spec::deer_testnet_local_config()),
+				"testnet" => Box::new(chain_spec::deer_testnet_config()?),
 				path => Box::new(chain_spec::ChainSpec::from_json_file(
 					std::path::PathBuf::from(path),
 				)?),
