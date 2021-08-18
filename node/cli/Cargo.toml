@@ -3,6 +3,7 @@ name = "deer"
 version = "0.1.0"
 build = "build.rs"
 edition = "2018"
+license = "Apache 2.0"
 
 [package.metadata.wasm-pack.profile.release]
 # `wasm-opt` has some problems on linux, see
