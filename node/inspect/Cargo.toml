@@ -3,18 +3,20 @@ name = "deer-inspect"
 version = "0.1.0"
 edition = "2018"
 license = "Apache 2.0"
+homepage = "https://deernetwork.org"
+repository = "https://github.com/DeerNetwork/deer-node/"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.0.0" }
+codec = { package = "parity-scale-codec", version = "2.2.0" }
 derive_more = "0.99"
 log = "0.4.8"
-sc-cli = { version = "0.9.0", path = "../../substrate/client/cli" }
-sc-client-api = { version = "3.0.0", path = "../../substrate/client/api" }
-sc-service = { version = "0.9.0", default-features = false, path = "../../substrate/client/service" }
-sp-blockchain = { version = "3.0.0", path = "../../substrate/primitives/blockchain" }
-sp-core = { version = "3.0.0", path = "../../substrate/primitives/core" }
-sp-runtime = { version = "3.0.0", path = "../../substrate/primitives/runtime" }
+sc-cli = { path = "../../substrate/client/cli" }
+sc-client-api = { path = "../../substrate/client/api" }
+sc-service = { default-features = false, path = "../../substrate/client/service" }
+sp-blockchain = { path = "../../substrate/primitives/blockchain" }
+sp-core = { path = "../../substrate/primitives/core" }
+sp-runtime = { path = "../../substrate/primitives/runtime" }
 structopt = "0.3.8"

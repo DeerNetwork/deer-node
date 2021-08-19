@@ -9,12 +9,12 @@ pub mod mock;
 mod tests;
 
 
-use codec::{Encode, Decode};
+use codec::{Encode, Decode, MaxEncodedLen};
 use sp_std::prelude::*;
 use sp_runtime::{RuntimeDebug};
 use frame_support::{
 	dispatch::DispatchResult,
-	traits::{Currency, ExistenceRequirement, ReservableCurrency, MaxEncodedLen},
+	traits::{Currency, ExistenceRequirement, ReservableCurrency},
 };
 
 pub use weights::WeightInfo;

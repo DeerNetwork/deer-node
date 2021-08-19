@@ -1,90 +1,93 @@
 [package]
 name = "deer-runtime"
-edition = "2018"
 version = "0.1.0"
+edition = "2018"
+build = "build.rs"
 license = "Apache 2.0"
+homepage = "https://deernetwork.org"
+repository = "https://github.com/DeerNetwork/deer-node/"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+
+# third-party dependencies
+codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
 static_assertions = "1.1.0"
 hex-literal = { version = "0.3.1", optional = true }
 log = { version = "0.4.14", default-features = false }
 
 # primitives
-sp-authority-discovery = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/authority-discovery" }
-sp-consensus-babe = { version = "0.9.0", default-features = false, path = "../../substrate/primitives/consensus/babe" }
-sp-block-builder = { version = "3.0.0", path = "../../substrate/primitives/block-builder", default-features = false }
-sp-inherents = { version = "3.0.0", path = "../../substrate/primitives/inherents", default-features = false }
-node-primitives = { package = "deer-primitives", version = "0.1.0", default-features = false, path = "../primitives" }
-sp-offchain = { version = "3.0.0", path = "../../substrate/primitives/offchain", default-features = false }
-sp-core = { version = "3.0.0", path = "../../substrate/primitives/core", default-features = false }
-sp-std = { version = "3.0.0", path = "../../substrate/primitives/std", default-features = false }
-sp-api = { version = "3.0.0", path = "../../substrate/primitives/api", default-features = false }
-sp-runtime = { version = "3.0.0", path = "../../substrate/primitives/runtime", default-features = false }
-sp-staking = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/staking" }
-sp-keyring = { version = "3.0.0", optional = true, path = "../../substrate/primitives/keyring" }
-sp-session = { version = "3.0.0", path = "../../substrate/primitives/session", default-features = false }
-sp-transaction-pool = { version = "3.0.0", path = "../../substrate/primitives/transaction-pool", default-features = false }
-sp-version = { version = "3.0.0", path = "../../substrate/primitives/version", default-features = false }
-sp-npos-elections = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/npos-elections" }
+sp-authority-discovery = { default-features = false, path = "../../substrate/primitives/authority-discovery" }
+sp-consensus-babe = { default-features = false, path = "../../substrate/primitives/consensus/babe" }
+sp-block-builder = { path = "../../substrate/primitives/block-builder", default-features = false }
+sp-inherents = { path = "../../substrate/primitives/inherents", default-features = false }
+node-primitives = { package = "deer-primitives", default-features = false, path = "../primitives" }
+sp-offchain = { path = "../../substrate/primitives/offchain", default-features = false }
+sp-core = { path = "../../substrate/primitives/core", default-features = false }
+sp-std = { path = "../../substrate/primitives/std", default-features = false }
+sp-api = { path = "../../substrate/primitives/api", default-features = false }
+sp-runtime = { path = "../../substrate/primitives/runtime", default-features = false }
+sp-staking = { default-features = false, path = "../../substrate/primitives/staking" }
+sp-keyring = { optional = true, path = "../../substrate/primitives/keyring" }
+sp-session = { path = "../../substrate/primitives/session", default-features = false }
+sp-transaction-pool = { path = "../../substrate/primitives/transaction-pool", default-features = false }
+sp-version = { path = "../../substrate/primitives/version", default-features = false }
+sp-npos-elections = { default-features = false, path = "../../substrate/primitives/npos-elections" }
 
 # frame dependencies
-frame-executive = { version = "3.0.0", path = "../../substrate/frame/executive", default-features = false }
-frame-benchmarking = { version = "3.1.0", path = "../../substrate/frame/benchmarking", default-features = false, optional = true }
-frame-support = { version = "3.0.0", path = "../../substrate/frame/support", default-features = false }
-frame-system = { version = "3.0.0", path = "../../substrate/frame/system", default-features = false }
-frame-system-benchmarking = { version = "3.0.0", path = "../../substrate/frame/system/benchmarking", default-features = false, optional = true }
-frame-election-provider-support = { version = "3.0.0", path = "../../substrate/frame/election-provider-support", default-features = false }
-frame-system-rpc-runtime-api = { version = "3.0.0", path = "../../substrate/frame/system/rpc/runtime-api", default-features = false }
-frame-try-runtime = { version = "0.9.0", default-features = false, path = "../../substrate/frame/try-runtime", optional = true }
-pallet-authority-discovery = { version = "3.0.0", default-features = false, path = "../../substrate/frame/authority-discovery" }
-pallet-authorship = { version = "3.0.0", default-features = false, path = "../../substrate/frame/authorship" }
-pallet-babe = { version = "3.0.0", default-features = false, path = "../../substrate/frame/babe" }
-pallet-balances = { version = "3.0.0", path = "../../substrate/frame/balances", default-features = false }
-pallet-bounties = { version = "3.0.0", path = "../../substrate/frame/bounties", default-features = false }
-pallet-collective = { version = "3.0.0", default-features = false, path = "../../substrate/frame/collective" }
-pallet-democracy = { version = "3.0.0", default-features = false, path = "../../substrate/frame/democracy" }
-pallet-election-provider-multi-phase = { version = "3.0.0", default-features = false, path = "../../substrate/frame/election-provider-multi-phase" }
-pallet-elections-phragmen = { version = "4.0.0", default-features = false, path = "../../substrate/frame/elections-phragmen" }
-pallet-grandpa = { version = "3.1.0", path = "../../substrate/frame/grandpa", default-features = false }
-pallet-identity = { version = "3.0.0", default-features = false, path = "../../substrate/frame/identity" }
-pallet-im-online = { version = "3.0.0", default-features = false, path = "../../substrate/frame/im-online" }
-pallet-indices = { version = "3.0.0", default-features = false, path = "../../substrate/frame/indices" }
-pallet-membership = { version = "3.0.0", default-features = false, path = "../../substrate/frame/membership" }
-pallet-multisig = { version = "3.0.0", path = "../../substrate/frame/multisig", default-features = false }
-pallet-offences = { version = "3.0.0", default-features = false, path = "../../substrate/frame/offences" }
-pallet-offences-benchmarking = { version = "3.0.0", path = "../../substrate/frame/offences/benchmarking", default-features = false, optional = true }
-pallet-proxy = { version = "3.0.0", path = "../../substrate/frame/proxy", default-features = false }
-pallet-randomness-collective-flip = { version = "3.0.0", path = "../../substrate/frame/randomness-collective-flip", default-features = false }
-pallet-session = { version = "3.0.0", path = "../../substrate/frame/session", default-features = false }
-pallet-session-benchmarking = { version = "3.0.0", path = "../../substrate/frame/session/benchmarking", default-features = false, optional = true }
-pallet-staking = { version = "3.0.0", path = "../../substrate/frame/staking", default-features = false }
-pallet-staking-reward-curve = { version = "3.0.0", default-features = false, path = "../../substrate/frame/staking/reward-curve" }
-pallet-scheduler = { version = "3.0.0", default-features = false, path = "../../substrate/frame/scheduler" }
-pallet-sudo = { version = "3.0.0", path = "../../substrate/frame/sudo", default-features = false }
-pallet-timestamp = { version = "3.0.0", path = "../../substrate/frame/timestamp", default-features = false }
-pallet-tips = { version = "3.0.0", path = "../../substrate/frame/tips", default-features = false }
-pallet-treasury = { version = "3.0.0", default-features = false, path = "../../substrate/frame/treasury" }
-pallet-utility = { version = "3.0.0", path = "../../substrate/frame/utility", default-features = false }
-pallet-transaction-payment = { version = "3.0.0", path = "../../substrate/frame/transaction-payment", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { version = "3.0.0", path = "../../substrate/frame/transaction-payment/rpc/runtime-api", default-features = false }
-pallet-transaction-storage = { version = "3.0.0", path = "../../substrate/frame/transaction-storage", default-features = false  }
-pallet-vesting = { version = "3.0.0", path = "../../substrate/frame/vesting", default-features = false }
-
-max-encoded-len = { version = "3.0.0", default-features = false, path = "../../substrate/max-encoded-len", features = [ "derive" ] }
+frame-executive = { path = "../../substrate/frame/executive", default-features = false }
+frame-benchmarking = { path = "../../substrate/frame/benchmarking", default-features = false, optional = true }
+frame-support = { path = "../../substrate/frame/support", default-features = false }
+frame-system = { path = "../../substrate/frame/system", default-features = false }
+frame-system-benchmarking = { path = "../../substrate/frame/system/benchmarking", default-features = false, optional = true }
+frame-election-provider-support = { path = "../../substrate/frame/election-provider-support", default-features = false }
+frame-system-rpc-runtime-api = { path = "../../substrate/frame/system/rpc/runtime-api", default-features = false }
+frame-try-runtime = { default-features = false, path = "../../substrate/frame/try-runtime", optional = true }
+pallet-authority-discovery = { default-features = false, path = "../../substrate/frame/authority-discovery" }
+pallet-authorship = { default-features = false, path = "../../substrate/frame/authorship" }
+pallet-babe = { default-features = false, path = "../../substrate/frame/babe" }
+pallet-balances = { path = "../../substrate/frame/balances", default-features = false }
+pallet-bounties = { path = "../../substrate/frame/bounties", default-features = false }
+pallet-collective = { default-features = false, path = "../../substrate/frame/collective" }
+pallet-democracy = { default-features = false, path = "../../substrate/frame/democracy" }
+pallet-election-provider-multi-phase = { default-features = false, path = "../../substrate/frame/election-provider-multi-phase" }
+pallet-elections-phragmen = { default-features = false, path = "../../substrate/frame/elections-phragmen" }
+pallet-grandpa = { path = "../../substrate/frame/grandpa", default-features = false }
+pallet-identity = { default-features = false, path = "../../substrate/frame/identity" }
+pallet-im-online = { default-features = false, path = "../../substrate/frame/im-online" }
+pallet-indices = { default-features = false, path = "../../substrate/frame/indices" }
+pallet-membership = { default-features = false, path = "../../substrate/frame/membership" }
+pallet-multisig = { path = "../../substrate/frame/multisig", default-features = false }
+pallet-offences = { default-features = false, path = "../../substrate/frame/offences" }
+pallet-offences-benchmarking = { path = "../../substrate/frame/offences/benchmarking", default-features = false, optional = true }
+pallet-proxy = { path = "../../substrate/frame/proxy", default-features = false }
+pallet-randomness-collective-flip = { path = "../../substrate/frame/randomness-collective-flip", default-features = false }
+pallet-session = { path = "../../substrate/frame/session", default-features = false }
+pallet-session-benchmarking = { path = "../../substrate/frame/session/benchmarking", default-features = false, optional = true }
+pallet-staking = { path = "../../substrate/frame/staking", default-features = false }
+pallet-staking-reward-curve = { default-features = false, path = "../../substrate/frame/staking/reward-curve" }
+pallet-scheduler = { default-features = false, path = "../../substrate/frame/scheduler" }
+pallet-sudo = { path = "../../substrate/frame/sudo", default-features = false }
+pallet-timestamp = { path = "../../substrate/frame/timestamp", default-features = false }
+pallet-tips = { path = "../../substrate/frame/tips", default-features = false }
+pallet-treasury = { default-features = false, path = "../../substrate/frame/treasury" }
+pallet-utility = { path = "../../substrate/frame/utility", default-features = false }
+pallet-transaction-payment = { path = "../../substrate/frame/transaction-payment", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { path = "../../substrate/frame/transaction-payment/rpc/runtime-api", default-features = false }
+pallet-transaction-storage = { path = "../../substrate/frame/transaction-storage", default-features = false  }
+pallet-vesting = { path = "../../substrate/frame/vesting", default-features = false }
 
 # node pallets
-pallet-nft = { version = "0.1.0", path = "../../pallets/nft", default-features = false }
-pallet-nft-order = { version = "0.1.0", path = "../../pallets/nft-order", default-features = false }
-pallet-storage = { version = "0.1.0", path = "../../pallets/storage", default-features = false }
+pallet-nft = { path = "../../pallets/nft", default-features = false }
+pallet-nft-order = { path = "../../pallets/nft-order", default-features = false }
+pallet-storage = { path = "../../pallets/storage", default-features = false }
 
 [build-dependencies]
-substrate-wasm-builder = { version = "4.0.0", path = "../../substrate/utils/wasm-builder" }
+substrate-wasm-builder = { path = "../../substrate/utils/wasm-builder" }
 [dev-dependencies]
-sp-io = { version = "3.0.0", path = "../../substrate/primitives/io" }
+sp-io = { path = "../../substrate/primitives/io" }
 
 [features]
 default = ["std"]
@@ -145,7 +148,6 @@ std = [
 	"log/std",
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
-	"max-encoded-len/std",
     "pallet-nft/std",
     "pallet-nft-order/std",
     "pallet-storage/std",
