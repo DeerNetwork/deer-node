@@ -1,27 +1,27 @@
 use super::*;
 use crate as pallet_storage;
 
-use sp_core::{H256};
-use sp_runtime::{DispatchResult, testing::Header, traits::{IdentityLookup}};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{GenesisBuild, Hooks, tokens::imbalance::Imbalance},
-	weights::constants::RocksDbWeight, PalletId,
+	traits::{tokens::imbalance::Imbalance, GenesisBuild, Hooks},
+	weights::constants::RocksDbWeight,
+	PalletId,
 };
+use sp_core::H256;
+use sp_runtime::{testing::Header, traits::IdentityLookup, DispatchResult};
 
-use sp_std::{collections::btree_map::BTreeMap};
 use hex_literal::hex;
+use sp_std::collections::btree_map::BTreeMap;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
-use std::{cell::RefCell};
+use std::cell::RefCell;
 
 pub type AccountId = u64;
 pub type AccountIndex = u64;
 pub type BlockNumber = u64;
 pub type Balance = u128;
-
 
 pub const MAX_FILE_SIZE: u64 = 4194304; // 4M
 pub const MAX_POWER: u64 = 8388608; // 4M
@@ -66,16 +66,16 @@ impl OnUnbalanced<NegativeImbalanceOf<Test>> for TreasuryMock {
 
 pub struct StashBalance;
 impl Get<Balance> for StashBalance {
-    fn get() -> Balance {
-        STASH_BALANCE.with(|v| *v.borrow())
-    }
+	fn get() -> Balance {
+		STASH_BALANCE.with(|v| *v.borrow())
+	}
 }
 
 pub struct FileBytePrice;
 impl Get<Balance> for FileBytePrice {
-    fn get() -> Balance {
-        FILE_BYTE_PRICE.with(|v| *v.borrow())
-    }
+	fn get() -> Balance {
+		FILE_BYTE_PRICE.with(|v| *v.borrow())
+	}
 }
 
 construct_runtime!(
@@ -195,8 +195,8 @@ pub struct ExtBuilder {
 }
 
 impl Default for ExtBuilder {
-    fn default() -> Self {
-        Self {
+	fn default() -> Self {
+		Self {
 			enclaves: vec![
 				(mock_register_info1().enclave, 1000),
 				(mock_register_info2().enclave, 1000),
@@ -206,8 +206,8 @@ impl Default for ExtBuilder {
 			files: vec![],
 			reports: vec![],
 			now: 1627833600000,
-        }
-    }
+		}
+	}
 }
 
 impl ExtBuilder {
@@ -235,31 +235,30 @@ impl ExtBuilder {
 		self.reports = reports;
 		self
 	}
-	
+
 	pub fn register(mut self, controller: AccountId, info: RegisterData) -> Self {
 		self.registers.push((controller, info));
 		self
 	}
 
-	pub fn build(self)  -> sp_io::TestExternalities {
-        let mut t = frame_system::GenesisConfig::default()
-            .build_storage::<Test>()
-            .unwrap();
+	pub fn build(self) -> sp_io::TestExternalities {
+		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
-		pallet_storage::GenesisConfig::<Test> {
-			enclaves: self.enclaves.clone(),
-		}.assimilate_storage(&mut t).unwrap();
-			
+		pallet_storage::GenesisConfig::<Test> { enclaves: self.enclaves.clone() }
+			.assimilate_storage(&mut t)
+			.unwrap();
+
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![
 				(1, 1_000_000_000),
 				(11, 1_000_000_000),
 				(1000, 1_000_000),
 				(1001, 1_000_000),
-
 				(9999, 1_000_000_000), // only used in this file
 			],
-		}.assimilate_storage(&mut t).unwrap();
+		}
+		.assimilate_storage(&mut t)
+		.unwrap();
 
 		let mut ext = sp_io::TestExternalities::new(t);
 		let ExtBuilder { registers, stashs, files, now, reports, .. } = self;
@@ -337,7 +336,6 @@ pub fn mock_register_info1() -> RegisterInfo {
 	}
 }
 
-
 pub fn mock_register2() -> RegisterData {
 	// priv_k: "9496aeba1604c00d5f003307e32ac888c644694eb122688bb3af186b1559f0b3"
 	RegisterData {
@@ -355,7 +353,6 @@ pub fn mock_register_info2() -> RegisterInfo {
 		key: hex!("414bc4915028373200e4adb3d6a43be521b7d699124043c06aa0fc2687baa1675bb47baea3287c84d3522347aecd9117cba995b686441f54e02296be4efcf041").into(),
 	}
 }
-
 
 pub fn mock_register3() -> RegisterData {
 	// priv_k: "819b70e0aaeff6ed0f566c5cff9d175291abf264bd444e5b6c5ab64a59c48068"
@@ -385,7 +382,6 @@ pub fn mock_register4() -> RegisterData {
 		sig: hex!("d3ad42d07e29c5f30a767e3b3d5e6e237871e657ba394502682379497c88aaa619b45c22fc10bfeac7c80c5e0d8f40f1a5a167951f2b28b3fb9a1b87de3152e4").into(),
 	}
 }
-
 
 pub fn mock_register_info4() -> RegisterInfo {
 	RegisterInfo {
@@ -532,7 +528,7 @@ pub fn call_report(node: AccountId, report: ReportData) -> DispatchResult {
 		report.add_files,
 		report.del_files,
 		report.power,
-		report.settle_files
+		report.settle_files,
 	)
 }
 
@@ -543,7 +539,7 @@ pub fn call_register(node: AccountId, register: RegisterData) -> DispatchResult 
 		register.ias_cert,
 		register.ias_sig,
 		register.ias_body,
-		register.sig
+		register.sig,
 	)
 }
 

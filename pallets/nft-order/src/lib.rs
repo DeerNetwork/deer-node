@@ -1,36 +1,32 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod weights;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 #[cfg(test)]
 pub mod mock;
 #[cfg(test)]
 mod tests;
+pub mod weights;
 
-
-use codec::{Encode, Decode, MaxEncodedLen};
-use sp_std::prelude::*;
-use sp_runtime::{RuntimeDebug};
+use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ExistenceRequirement, ReservableCurrency},
 };
+use sp_runtime::RuntimeDebug;
+use sp_std::prelude::*;
 
-pub use weights::WeightInfo;
 pub use pallet::*;
+pub use weights::WeightInfo;
 
-pub type BalanceOf<T, I = ()> =
-	<<T as pallet_nft::Config<I>>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::Balance;
 pub type ClassIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::ClassId;
 pub type InstanceIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::InstanceId;
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen)]
-pub struct OrderDetails<
-	AccountId,
-	Balance,
-	BlockNumber,
-> {
+pub struct OrderDetails<AccountId, Balance, BlockNumber> {
 	/// Who create the order.
 	pub owner: AccountId,
 	/// Price of this order.
@@ -41,12 +37,11 @@ pub struct OrderDetails<
 	pub deadline: Option<BlockNumber>,
 }
 
-
 #[frame_support::pallet]
 pub mod pallet {
+	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use super::*;
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + pallet_nft::Config<I> {
@@ -73,7 +68,7 @@ pub mod pallet {
 	#[pallet::metadata(
 		T::AccountId = "AccountId",
 		T::ClassId = "ClassId",
-		T::InstanceId = "InstanceId",
+		T::InstanceId = "InstanceId"
 	)]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
@@ -100,8 +95,8 @@ pub mod pallet {
 		TooManyOrders,
 		/// A sell order already expired
 		OrderExpired,
-        /// Assert is reserved
-        AssertReserved,
+		/// Assert is reserved
+		AssertReserved,
 	}
 
 	/// An index mapping from token to order.
@@ -124,15 +119,12 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		T::AccountId,
-		BoundedVec<
-			(ClassIdOf<T, I>, InstanceIdOf<T, I>),
-			T::MaxOrders,
-		>,
-		ValueQuery
+		BoundedVec<(ClassIdOf<T, I>, InstanceIdOf<T, I>), T::MaxOrders>,
+		ValueQuery,
 	>;
 
 	#[pallet::call]
-	impl<T:Config<I>, I: 'static> Pallet<T, I> {
+	impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		/// Create a order to sell a non-fungible asset
 		#[pallet::weight(<T as Config<I>>::WeightInfo::sell())]
 		pub fn sell(
@@ -143,11 +135,15 @@ pub mod pallet {
 			deadline: Option<T::BlockNumber>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let (owner, reserved) = pallet_nft::Pallet::<T, I>::info(&class, &instance).ok_or(Error::<T, I>::NotFound)?;
-            ensure!(who == owner, Error::<T, I>::NotOwn);
-            ensure!(!reserved, Error::<T, I>::AssertReserved);
-			if let Some(ref deadline)  = deadline {
-				ensure!(<frame_system::Pallet<T>>::block_number() < *deadline, Error::<T, I>::InvalidDeadline);
+			let (owner, reserved) = pallet_nft::Pallet::<T, I>::info(&class, &instance)
+				.ok_or(Error::<T, I>::NotFound)?;
+			ensure!(who == owner, Error::<T, I>::NotOwn);
+			ensure!(!reserved, Error::<T, I>::AssertReserved);
+			if let Some(ref deadline) = deadline {
+				ensure!(
+					<frame_system::Pallet<T>>::block_number() < *deadline,
+					Error::<T, I>::InvalidDeadline
+				);
 			}
 			T::Currency::reserve(&who, T::OrderDeposit::get())?;
 			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &owner)?;
@@ -174,12 +170,21 @@ pub mod pallet {
 			#[pallet::compact] instance: T::InstanceId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let order = Orders::<T, I>::try_get(class, instance).map_err(|_| Error::<T, I>::OrderNotFound)?;
+			let order = Orders::<T, I>::try_get(class, instance)
+				.map_err(|_| Error::<T, I>::OrderNotFound)?;
 			if let Some(ref deadline) = order.deadline {
-				ensure!(<frame_system::Pallet<T>>::block_number() <= *deadline, Error::<T, I>::OrderExpired);
+				ensure!(
+					<frame_system::Pallet<T>>::block_number() <= *deadline,
+					Error::<T, I>::OrderExpired
+				);
 			}
 			Self::delete_order(class, instance)?;
-			T::Currency::transfer(&who, &order.owner, order.price, ExistenceRequirement::KeepAlive)?;
+			T::Currency::transfer(
+				&who,
+				&order.owner,
+				order.price,
+				ExistenceRequirement::KeepAlive,
+			)?;
 			pallet_nft::Pallet::<T, I>::unreserve(&class, &instance)?;
 			pallet_nft::Pallet::<T, I>::transfer(&class, &instance, &order.owner, &who)?;
 			Self::deposit_event(Event::Dealed(class, instance, order.owner.clone(), who));
@@ -194,7 +199,8 @@ pub mod pallet {
 			#[pallet::compact] instance: T::InstanceId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let order = Orders::<T, I>::try_get(class, instance).map_err(|_| Error::<T, I>::OrderNotFound)?;
+			let order = Orders::<T, I>::try_get(class, instance)
+				.map_err(|_| Error::<T, I>::OrderNotFound)?;
 			ensure!(who == order.owner, Error::<T, I>::NotOwn);
 			pallet_nft::Pallet::<T, I>::unreserve(&class, &instance)?;
 			Self::delete_order(class, instance)?;
@@ -221,5 +227,4 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		})?;
 		Ok(())
 	}
-
 }

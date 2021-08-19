@@ -1,34 +1,28 @@
 #![cfg(feature = "runtime-benchmarks")]
 
-use sp_std::{prelude::*, convert::TryInto};
 use super::*;
-use sp_runtime::traits::Bounded;
-use frame_system::RawOrigin as SystemOrigin;
 use frame_benchmarking::{
-	benchmarks_instance_pallet, account, whitelisted_caller, whitelist_account, impl_benchmark_test_suite
+	account, benchmarks_instance_pallet, impl_benchmark_test_suite, whitelist_account,
+	whitelisted_caller,
 };
 use frame_support::{traits::Get, BoundedVec};
+use frame_system::RawOrigin as SystemOrigin;
+use sp_runtime::traits::Bounded;
+use sp_std::{convert::TryInto, prelude::*};
 
 use crate::Pallet as NFT;
 
 const SEED: u32 = 0;
 
-fn create_class<T: Config<I>, I: 'static>()
-	-> (T::ClassId, T::AccountId)
-{
+fn create_class<T: Config<I>, I: 'static>() -> (T::ClassId, T::AccountId) {
 	let caller: T::AccountId = whitelisted_caller();
 	let class = Default::default();
 	T::Currency::make_free_balance_be(&caller, DepositBalanceOf::<T, I>::max_value());
-	assert!(NFT::<T, I>::create(
-		SystemOrigin::Signed(caller.clone()).into(),
-		class,
-	).is_ok());
+	assert!(NFT::<T, I>::create(SystemOrigin::Signed(caller.clone()).into(), class,).is_ok());
 	(class, caller)
 }
 
-fn mint_instance<T: Config<I>, I: 'static>(index: u16)
-	-> (T::InstanceId, T::AccountId)
-{
+fn mint_instance<T: Config<I>, I: 'static>(index: u16) -> (T::InstanceId, T::AccountId) {
 	let caller = Class::<T, I>::get(T::ClassId::default()).unwrap().owner;
 	if caller != whitelisted_caller() {
 		whitelist_account!(caller);
@@ -38,13 +32,14 @@ fn mint_instance<T: Config<I>, I: 'static>(index: u16)
 		SystemOrigin::Signed(caller.clone()).into(),
 		Default::default(),
 		instance,
-	).is_ok());
+	)
+	.is_ok());
 	(instance, caller)
 }
 
-fn add_instance_attribute<T: Config<I>, I: 'static>(instance: T::InstanceId)
-	-> (BoundedVec<u8, T::KeyLimit>, T::AccountId)
-{
+fn add_instance_attribute<T: Config<I>, I: 'static>(
+	instance: T::InstanceId,
+) -> (BoundedVec<u8, T::KeyLimit>, T::AccountId) {
 	let caller = Class::<T, I>::get(T::ClassId::default()).unwrap().owner;
 	if caller != whitelisted_caller() {
 		whitelist_account!(caller);
@@ -56,7 +51,8 @@ fn add_instance_attribute<T: Config<I>, I: 'static>(instance: T::InstanceId)
 		Some(instance),
 		key.clone(),
 		vec![0; T::ValueLimit::get() as usize].try_into().unwrap(),
-	).is_ok());
+	)
+	.is_ok());
 	(key, caller)
 }
 
@@ -110,7 +106,7 @@ benchmarks_instance_pallet! {
 		let target: T::AccountId = account("target", 0, SEED);
 		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
 		let target_lookup = T::Lookup::unlookup(target.clone());
-        assert!(NFT::<T, I>::ready_transfer(SystemOrigin::Signed(caller.clone()).into(), class, instance, target_lookup).is_ok());
+		assert!(NFT::<T, I>::ready_transfer(SystemOrigin::Signed(caller.clone()).into(), class, instance, target_lookup).is_ok());
 	}: _(SystemOrigin::Signed(caller.clone()), class, instance)
 	verify {
 		assert_last_event::<T, I>(Event::CancelTransfer(class, instance, caller).into());
@@ -120,10 +116,10 @@ benchmarks_instance_pallet! {
 		let (class, caller) = create_class::<T, I>();
 		let (instance, ..) = mint_instance::<T, I>(Default::default());
 		let target: T::AccountId = account("target", 0, SEED);
-        whitelist_account!(target);
+		whitelist_account!(target);
 		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
 		let target_lookup = T::Lookup::unlookup(target.clone());
-        assert!(NFT::<T, I>::ready_transfer(SystemOrigin::Signed(caller.clone()).into(), class, instance, target_lookup).is_ok());
+		assert!(NFT::<T, I>::ready_transfer(SystemOrigin::Signed(caller.clone()).into(), class, instance, target_lookup).is_ok());
 	}: _(SystemOrigin::Signed(target.clone()), class, instance)
 	verify {
 		assert_last_event::<T, I>(Event::Transferred(class, instance, caller, target).into());

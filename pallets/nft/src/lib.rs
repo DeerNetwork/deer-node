@@ -10,26 +10,29 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod weights;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 #[cfg(test)]
 pub mod mock;
 #[cfg(test)]
 mod tests;
+pub mod weights;
 
-use sp_std::prelude::*;
-use sp_runtime::{RuntimeDebug, ArithmeticError, traits::{Zero, StaticLookup, Saturating, CheckedAdd, CheckedSub}};
-use codec::{Encode, Decode, HasCompact};
+use codec::{Decode, Encode, HasCompact};
 use frame_support::{
+	dispatch::DispatchResult,
 	ensure,
 	traits::{Currency, ReservableCurrency},
-	dispatch::DispatchResult,
 };
 use frame_system::Config as SystemConfig;
+use sp_runtime::{
+	traits::{CheckedAdd, CheckedSub, Saturating, StaticLookup, Zero},
+	ArithmeticError, RuntimeDebug,
+};
+use sp_std::prelude::*;
 
-pub use weights::WeightInfo;
 pub use pallet::*;
+pub use weights::WeightInfo;
 
 pub type DepositBalanceOf<T, I = ()> =
 	<<T as Config<I>>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance;
@@ -38,12 +41,8 @@ pub type ClassDetailsFor<T, I> =
 pub type InstanceDetailsFor<T, I> =
 	InstanceDetails<<T as SystemConfig>::AccountId, DepositBalanceOf<T, I>>;
 
-
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
-pub struct ClassDetails<
-	AccountId,
-	DepositBalance,
-> {
+pub struct ClassDetails<AccountId, DepositBalance> {
 	/// The owner of this class.
 	pub owner: AccountId,
 	/// The total balance deposited for this asset class.
@@ -60,16 +59,16 @@ pub struct InstanceDetails<AccountId, DepositBalance> {
 	/// The total balance deposited for this asset class.
 	pub deposit: DepositBalance,
 	/// Whether the asset can be reserved or not.
-    pub reserved: bool,
-    /// set transfer target
-    pub ready_transfer: Option<AccountId>,
+	pub reserved: bool,
+	/// set transfer target
+	pub ready_transfer: Option<AccountId>,
 }
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{BoundedVec, pallet_prelude::*};
-	use frame_system::pallet_prelude::*;
 	use super::*;
+	use frame_support::{pallet_prelude::*, BoundedVec};
+	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub trait Store)]
@@ -164,7 +163,7 @@ pub mod pallet {
 			NMapKey<Blake2_128Concat, BoundedVec<u8, T::KeyLimit>>,
 		),
 		(BoundedVec<u8, T::ValueLimit>, DepositBalanceOf<T, I>),
-		OptionQuery
+		OptionQuery,
 	>;
 
 	#[pallet::storage]
@@ -184,7 +183,7 @@ pub mod pallet {
 	#[pallet::metadata(
 		T::AccountId = "AccountId",
 		T::ClassId = "ClassId",
-		T::InstanceId = "InstanceId",
+		T::InstanceId = "InstanceId"
 	)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// An asset class was created. \[ class, creator \]
@@ -207,9 +206,9 @@ pub mod pallet {
 		/// \[ class, maybe_instance, key, maybe_value \]
 		AttributeCleared(T::ClassId, Option<T::InstanceId>, BoundedVec<u8, T::KeyLimit>),
 		/// An asset `instace` was ready to transfer. \[ class, instance, from, to \]
-        ReadyTransfer(T::ClassId, T::InstanceId, T::AccountId, T::AccountId),
+		ReadyTransfer(T::ClassId, T::InstanceId, T::AccountId, T::AccountId),
 		/// An asset `instace` was ready to transfer. \[ class, instance, owner \]
-        CancelTransfer(T::ClassId, T::InstanceId, T::AccountId),
+		CancelTransfer(T::ClassId, T::InstanceId, T::AccountId),
 	}
 
 	#[pallet::error]
@@ -224,14 +223,14 @@ pub mod pallet {
 		WrongClassOwner,
 		/// The owner turned out to be different to what was expected.
 		WrongOwner,
-        /// The asset is ready reserved
-        AlreadyReserved,
-        /// The asset is not reserved
-        NotReserved,
-        /// The asset is not ready to transer
-        NotReadyTransfer,
-        /// The transfer target is not origin
-        NotTranserTarget,
+		/// The asset is ready reserved
+		AlreadyReserved,
+		/// The asset is not reserved
+		NotReserved,
+		/// The asset is not ready to transer
+		NotReadyTransfer,
+		/// The transfer target is not origin
+		NotTranserTarget,
 	}
 
 	#[pallet::hooks]
@@ -267,16 +266,11 @@ pub mod pallet {
 
 			Class::<T, I>::insert(
 				class,
-				ClassDetails {
-					owner: owner.clone(),
-					deposit,
-					instances: 0,
-				},
+				ClassDetails { owner: owner.clone(), deposit, instances: 0 },
 			);
 			Self::deposit_event(Event::Created(class, owner));
 			Ok(())
 		}
-
 
 		/// Mint an asset instance of a particular class.
 		///
@@ -302,14 +296,20 @@ pub mod pallet {
 				let class_details = maybe_class_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
 				ensure!(class_details.owner == owner, Error::<T, I>::WrongClassOwner);
 
-				let instances = class_details.instances.checked_add(1).ok_or(ArithmeticError::Overflow)?;
+				let instances =
+					class_details.instances.checked_add(1).ok_or(ArithmeticError::Overflow)?;
 				class_details.instances = instances;
 
 				let deposit = T::InstanceDeposit::get();
 				T::Currency::reserve(&owner, deposit)?;
 
 				Account::<T, I>::insert((&owner, &class, &instance), ());
-				let details = InstanceDetails { owner: owner.clone(), deposit, reserved: false, ready_transfer: None };
+				let details = InstanceDetails {
+					owner: owner.clone(),
+					deposit,
+					reserved: false,
+					ready_transfer: None,
+				};
 				Asset::<T, I>::insert(&class, &instance, details);
 				Ok(())
 			})?;
@@ -338,13 +338,13 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			Class::<T, I>::try_mutate(&class, |maybe_class_details| -> DispatchResult {
 				let class_details = maybe_class_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-				let details = Asset::<T, I>::get(&class, &instance)
-					.ok_or(Error::<T, I>::Unknown)?;
+				let details =
+					Asset::<T, I>::get(&class, &instance).ok_or(Error::<T, I>::Unknown)?;
 				ensure!(details.owner == owner, Error::<T, I>::WrongOwner);
 				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
 				T::Currency::unreserve(&owner, details.deposit);
 				class_details.instances.saturating_dec();
-                Attribute::<T, I>::remove_prefix((class, Some(instance),), None);
+				Attribute::<T, I>::remove_prefix((class, Some(instance)), None);
 				Ok(())
 			})?;
 			Asset::<T, I>::remove(&class, &instance);
@@ -372,14 +372,14 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let dest = T::Lookup::lookup(dest)?;
-            Self::update_asset(&class, &instance, |details| {
-                ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
-                ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-                details.ready_transfer = Some(dest.clone());
-                AssetTransfer::<T, I>::insert((dest.clone(), class, instance), ());
-                Self::deposit_event(Event::ReadyTransfer(class, instance, owner, dest));
-                Ok(())
-            })
+			Self::update_asset(&class, &instance, |details| {
+				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
+				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
+				details.ready_transfer = Some(dest.clone());
+				AssetTransfer::<T, I>::insert((dest.clone(), class, instance), ());
+				Self::deposit_event(Event::ReadyTransfer(class, instance, owner, dest));
+				Ok(())
+			})
 		}
 
 		/// Cancel transfer
@@ -398,15 +398,16 @@ pub mod pallet {
 			#[pallet::compact] instance: T::InstanceId,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-            Self::update_asset(&class, &instance, |details| {
-                ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
-                ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-                let dest = details.ready_transfer.as_mut().ok_or(Error::<T, I>::NotReadyTransfer)?;
-                AssetTransfer::<T, I>::remove((dest.clone(), class, instance));
-                details.ready_transfer = None;
-                Self::deposit_event(Event::CancelTransfer(class, instance, owner));
-                Ok(())
-            })
+			Self::update_asset(&class, &instance, |details| {
+				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
+				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
+				let dest =
+					details.ready_transfer.as_mut().ok_or(Error::<T, I>::NotReadyTransfer)?;
+				AssetTransfer::<T, I>::remove((dest.clone(), class, instance));
+				details.ready_transfer = None;
+				Self::deposit_event(Event::CancelTransfer(class, instance, owner));
+				Ok(())
+			})
 		}
 
 		/// Accept transfer
@@ -425,13 +426,14 @@ pub mod pallet {
 			#[pallet::compact] instance: T::InstanceId,
 		) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
-            let details = Asset::<T, I>::try_get(&class, &instance).map_err(|_| Error::<T, I>::NotFound)?;
-            let dest = details.ready_transfer.as_ref().ok_or(Error::<T, I>::NotReadyTransfer)?;
-            ensure!(dest == &origin, Error::<T, I>::NotTranserTarget);
-            ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-            Self::transfer(&class, &instance, &details.owner, dest)?;
-            AssetTransfer::<T, I>::remove((dest.clone(), class, instance));
-            Ok(())
+			let details =
+				Asset::<T, I>::try_get(&class, &instance).map_err(|_| Error::<T, I>::NotFound)?;
+			let dest = details.ready_transfer.as_ref().ok_or(Error::<T, I>::NotReadyTransfer)?;
+			ensure!(dest == &origin, Error::<T, I>::NotTranserTarget);
+			ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
+			Self::transfer(&class, &instance, &details.owner, dest)?;
+			AssetTransfer::<T, I>::remove((dest.clone(), class, instance));
+			Ok(())
 		}
 
 		/// Set an attribute for an asset class or instance.
@@ -458,7 +460,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			if let Some(ref instance) = maybe_instance {
-				let details = Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::NotFound)?;
+				let details =
+					Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::NotFound)?;
 				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
 				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
 			} else {
@@ -486,7 +489,10 @@ pub mod pallet {
 					Self::update_deposit(&mut details.deposit, &deposit, &old_deposit)
 				})?;
 			}
-			Attribute::<T, I>::insert((class, maybe_instance, key.clone()), (value.clone(), deposit));
+			Attribute::<T, I>::insert(
+				(class, maybe_instance, key.clone()),
+				(value.clone(), deposit),
+			);
 			Self::deposit_event(Event::AttributeSet(class, maybe_instance, key, value));
 			Ok(())
 		}
@@ -512,7 +518,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			if let Some(ref instance) = maybe_instance {
-				let details = Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::NotFound)?;
+				let details =
+					Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::NotFound)?;
 				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
 				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
 			} else {
@@ -523,14 +530,20 @@ pub mod pallet {
 				if let Some(ref instance) = maybe_instance {
 					Asset::<T, I>::mutate(&class, instance, |maybe_details| -> DispatchResult {
 						let details = maybe_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-						let new_deposit = details.deposit.checked_sub(&deposit).ok_or(ArithmeticError::Overflow)?;
+						let new_deposit = details
+							.deposit
+							.checked_sub(&deposit)
+							.ok_or(ArithmeticError::Overflow)?;
 						details.deposit = new_deposit;
 						Ok(())
 					})?;
 				} else {
 					Class::<T, I>::mutate(&class, |maybe_class_details| -> DispatchResult {
 						let details = maybe_class_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-						let new_deposit = details.deposit.checked_sub(&deposit).ok_or(ArithmeticError::Overflow)?;
+						let new_deposit = details
+							.deposit
+							.checked_sub(&deposit)
+							.ok_or(ArithmeticError::Overflow)?;
 						details.deposit = new_deposit;
 						Ok(())
 					})?;
@@ -543,7 +556,6 @@ pub mod pallet {
 	}
 }
 
-
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	pub fn transfer(
 		class: &T::ClassId,
@@ -551,68 +563,75 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		owner: &T::AccountId,
 		dest: &T::AccountId,
 	) -> DispatchResult {
-        Self::update_asset(class, instance, |details| {
-            ensure!(&details.owner == owner, Error::<T, I>::WrongOwner);
-            ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
+		Self::update_asset(class, instance, |details| {
+			ensure!(&details.owner == owner, Error::<T, I>::WrongOwner);
+			ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
 
-            Account::<T, I>::insert((dest, class, instance), ());
-            T::Currency::reserve(dest, details.deposit)?;
+			Account::<T, I>::insert((dest, class, instance), ());
+			T::Currency::reserve(dest, details.deposit)?;
 
-            Account::<T, I>::remove((owner, class, instance));
-            T::Currency::unreserve(owner, details.deposit);
+			Account::<T, I>::remove((owner, class, instance));
+			T::Currency::unreserve(owner, details.deposit);
 
-            if let Some(ref ready_transfer) = details.ready_transfer {
-                AssetTransfer::<T, I>::remove((ready_transfer.clone(), class, instance));
-                details.ready_transfer = None;
-            }
-            details.owner = dest.clone();
-            Self::deposit_event(Event::Transferred(class.clone(), instance.clone(), owner.clone(), dest.clone()));
-            Ok(())
-        })
+			if let Some(ref ready_transfer) = details.ready_transfer {
+				AssetTransfer::<T, I>::remove((ready_transfer.clone(), class, instance));
+				details.ready_transfer = None;
+			}
+			details.owner = dest.clone();
+			Self::deposit_event(Event::Transferred(
+				class.clone(),
+				instance.clone(),
+				owner.clone(),
+				dest.clone(),
+			));
+			Ok(())
+		})
 	}
-    pub fn info(class: &T::ClassId, instance: &T::InstanceId) -> Option<(T::AccountId, bool)> {
+	pub fn info(class: &T::ClassId, instance: &T::InstanceId) -> Option<(T::AccountId, bool)> {
 		Asset::<T, I>::get(class, instance).map(|v| (v.owner, v.reserved))
-    }
-    pub fn reserve(class: &T::ClassId, instance: &T::InstanceId, owner: &T::AccountId) -> DispatchResult {
-        Self::update_asset(class, instance, |details| {
-            ensure!(&details.owner == owner, Error::<T, I>::WrongOwner);
-            ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-            if let Some(ref ready_transfer) = details.ready_transfer {
-                AssetTransfer::<T, I>::remove((ready_transfer.clone(), class, instance));
-                details.ready_transfer = None;
-            }
-            details.reserved = true;
-            Ok(())
-        })
-    }
-    pub fn unreserve(class: &T::ClassId, instance: &T::InstanceId) -> DispatchResult {
-        Self::update_asset(class, instance, |details| {
-            ensure!(details.reserved, Error::<T, I>::NotReserved);
-            details.reserved = false;
-            Ok(())
-        })
-    }
-    fn update_asset(
+	}
+	pub fn reserve(
 		class: &T::ClassId,
 		instance: &T::InstanceId,
-		with_details: impl FnOnce(
-			&mut InstanceDetailsFor<T, I>,
-		) -> DispatchResult,
-    ) -> DispatchResult {
-        Asset::<T, I>::try_mutate(class, instance, |maybe_details| -> DispatchResult {
-            let details = maybe_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
-            with_details(details)
-        })
-    }
+		owner: &T::AccountId,
+	) -> DispatchResult {
+		Self::update_asset(class, instance, |details| {
+			ensure!(&details.owner == owner, Error::<T, I>::WrongOwner);
+			ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
+			if let Some(ref ready_transfer) = details.ready_transfer {
+				AssetTransfer::<T, I>::remove((ready_transfer.clone(), class, instance));
+				details.ready_transfer = None;
+			}
+			details.reserved = true;
+			Ok(())
+		})
+	}
+	pub fn unreserve(class: &T::ClassId, instance: &T::InstanceId) -> DispatchResult {
+		Self::update_asset(class, instance, |details| {
+			ensure!(details.reserved, Error::<T, I>::NotReserved);
+			details.reserved = false;
+			Ok(())
+		})
+	}
+	fn update_asset(
+		class: &T::ClassId,
+		instance: &T::InstanceId,
+		with_details: impl FnOnce(&mut InstanceDetailsFor<T, I>) -> DispatchResult,
+	) -> DispatchResult {
+		Asset::<T, I>::try_mutate(class, instance, |maybe_details| -> DispatchResult {
+			let details = maybe_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
+			with_details(details)
+		})
+	}
 	fn update_deposit(
 		target: &mut DepositBalanceOf<T, I>,
 		new: &DepositBalanceOf<T, I>,
-		old: &DepositBalanceOf<T, I>
-	) ->  DispatchResult {
-		*target = target.checked_add(new)
+		old: &DepositBalanceOf<T, I>,
+	) -> DispatchResult {
+		*target = target
+			.checked_add(new)
 			.and_then(|sum| sum.checked_sub(old))
 			.ok_or(ArithmeticError::Overflow)?;
 		Ok(())
 	}
 }
-

@@ -23,8 +23,8 @@ use hex_literal::hex;
 use node_runtime::{
 	constants::currency::*, wasm_binary_unwrap, AuthorityDiscoveryConfig, BabeConfig,
 	BalancesConfig, Block, CouncilConfig, DemocracyConfig, ElectionsConfig, GrandpaConfig,
-	ImOnlineConfig, IndicesConfig, SessionConfig, SessionKeys, StakerStatus,
-	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, MAX_NOMINATIONS,
+	ImOnlineConfig, IndicesConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
+	SudoConfig, SystemConfig, TechnicalCommitteeConfig, MAX_NOMINATIONS,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::{ChainSpecExtension, Properties};
@@ -271,8 +271,10 @@ pub fn local_testnet_config() -> ChainSpec {
 		ChainType::Local,
 		local_testnet_genesis,
 		vec![],
-		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
-			.expect("Staging telemetry url is valid; qed")),
+		Some(
+			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
+				.expect("Staging telemetry url is valid; qed"),
+		),
 		None,
 		None,
 		Default::default(),
@@ -281,20 +283,31 @@ pub fn local_testnet_config() -> ChainSpec {
 
 fn deer_testnet_genesis() -> GenesisConfig {
 	// ./scripts/prepare-test-net.sh 4
-	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
+	let initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		GrandpaId,
+		BabeId,
+		ImOnlineId,
+		AuthorityDiscoveryId,
+	)> = vec![
 		(
 			//5CoeCei9ULeUXKKRY4MDq3Bpp2JH5JVdRHfU4B2UZsKaGtNm
 			hex!["20bf3f380a5d4888e2f7c467bb03abf0efd8780c4ea0cdf8b1ec2e70d24e2249"].into(),
 			//5HdL6KCaMwxbAR3j7wY25DW3HcrbxQLXpLqGPCupec2Fne2L
 			hex!["f60effbef7654a6590fca2b94edc9fcd80434aa08ad3ecf8c9514851cbe5057a"].into(),
 			//5FhWYTtETbby4YjY648GUaZmjCKwUj26HSfbNUH46yQ35Jzj
-			hex!["a0c6b1c6dcc92bd6adf97c71f0033e343ee525bb03af50b6481823aca2cc6574"].unchecked_into(),
+			hex!["a0c6b1c6dcc92bd6adf97c71f0033e343ee525bb03af50b6481823aca2cc6574"]
+				.unchecked_into(),
 			//5FvWhH6E1nhm4hLBCxdETrbCUksYR2LZSypJDEiM6hMjxB94
-			hex!["aab16570e0ff1a8d71f77c70e33d04f165e54e6035a4db8aaf7dc131b4484276"].unchecked_into(),
+			hex!["aab16570e0ff1a8d71f77c70e33d04f165e54e6035a4db8aaf7dc131b4484276"]
+				.unchecked_into(),
 			//5FvWhH6E1nhm4hLBCxdETrbCUksYR2LZSypJDEiM6hMjxB94
-			hex!["aab16570e0ff1a8d71f77c70e33d04f165e54e6035a4db8aaf7dc131b4484276"].unchecked_into(),
+			hex!["aab16570e0ff1a8d71f77c70e33d04f165e54e6035a4db8aaf7dc131b4484276"]
+				.unchecked_into(),
 			//5FvWhH6E1nhm4hLBCxdETrbCUksYR2LZSypJDEiM6hMjxB94
-			hex!["aab16570e0ff1a8d71f77c70e33d04f165e54e6035a4db8aaf7dc131b4484276"].unchecked_into(),
+			hex!["aab16570e0ff1a8d71f77c70e33d04f165e54e6035a4db8aaf7dc131b4484276"]
+				.unchecked_into(),
 		),
 		(
 			//5DAmdPpeV7SPB7eKb8UbBBrTMfKGrGrVCtZCu7rsPjzksHHt
@@ -302,13 +315,17 @@ fn deer_testnet_genesis() -> GenesisConfig {
 			//5EqKaozw6DP3QrCnmjgrr1S5kWAvJqrCZyEtMq3M6bGszGKQ
 			hex!["7a7f87f82846340224af31c6b5305bdd332ce93eae157c2b1aaa9b58fc1ef374"].into(),
 			//5H6nw468ppCq1B3EcKuCXPvUR1QSJsPeBJTpo9Tw1XnBvtpF
-			hex!["dec4be7d16bb37269ea06843e79ccd5fe5800744bb907182cc1aa524bd9f9ebf"].unchecked_into(),
+			hex!["dec4be7d16bb37269ea06843e79ccd5fe5800744bb907182cc1aa524bd9f9ebf"]
+				.unchecked_into(),
 			//5CorSAYRNJFqKu1kpT3Sf8wkv7GpLSsTsWRrMmHFmGqD4ZjL
-			hex!["20e86d4a7f96b9130aac1d20ba1bc294d54e98b98853ca7ea4f3447c8ad65a23"].unchecked_into(),
+			hex!["20e86d4a7f96b9130aac1d20ba1bc294d54e98b98853ca7ea4f3447c8ad65a23"]
+				.unchecked_into(),
 			//5CorSAYRNJFqKu1kpT3Sf8wkv7GpLSsTsWRrMmHFmGqD4ZjL
-			hex!["20e86d4a7f96b9130aac1d20ba1bc294d54e98b98853ca7ea4f3447c8ad65a23"].unchecked_into(),
+			hex!["20e86d4a7f96b9130aac1d20ba1bc294d54e98b98853ca7ea4f3447c8ad65a23"]
+				.unchecked_into(),
 			//5CorSAYRNJFqKu1kpT3Sf8wkv7GpLSsTsWRrMmHFmGqD4ZjL
-			hex!["20e86d4a7f96b9130aac1d20ba1bc294d54e98b98853ca7ea4f3447c8ad65a23"].unchecked_into(),
+			hex!["20e86d4a7f96b9130aac1d20ba1bc294d54e98b98853ca7ea4f3447c8ad65a23"]
+				.unchecked_into(),
 		),
 	];
 
@@ -317,17 +334,10 @@ fn deer_testnet_genesis() -> GenesisConfig {
 	let endowed_accounts: Vec<AccountId> = initial_authorities
 		.iter()
 		.map(|(_, controller, ..)| controller.clone())
-		.chain(
-			initial_authorities.iter().map(|(stasher, ..)| stasher.clone())
-		)
+		.chain(initial_authorities.iter().map(|(stasher, ..)| stasher.clone()))
 		.collect();
 
-	testnet_genesis(
-		initial_authorities,
-		vec![],
-		root_key,
-		Some(endowed_accounts),
-	)
+	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
 
 /// Local tesnet config
@@ -408,7 +418,6 @@ pub(crate) mod tests {
 			Default::default(),
 		)
 	}
-
 
 	#[test]
 	fn test_create_development_chain_spec() {

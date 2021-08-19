@@ -1,8 +1,9 @@
-use frame_support::traits::{OnUnbalanced, Currency};
+use crate::{
+	constants::{currency::*, time::YEARS},
+	Authorship, Balance, Balances, BlockNumber, NegativeImbalance,
+};
+use frame_support::traits::{Currency, OnUnbalanced};
 use pallet_storage::Payout;
-use crate::constants::currency::*;
-use crate::constants::time::YEARS;
-use crate::{Balances, BlockNumber, Authorship, Balance, NegativeImbalance};
 
 pub struct Author;
 impl OnUnbalanced<NegativeImbalance> for Author {
@@ -10,7 +11,6 @@ impl OnUnbalanced<NegativeImbalance> for Author {
 		Balances::resolve_creating(&Authorship::author(), amount);
 	}
 }
-
 
 pub struct FileStoragePayout;
 impl Payout<Balance, BlockNumber> for FileStoragePayout {
@@ -24,9 +24,9 @@ impl Payout<Balance, BlockNumber> for FileStoragePayout {
 			4 => 180473 * MILLICENTS,
 			5 => 135355 * MILLICENTS,
 			6 => 101516 * MILLICENTS,
-			7 =>  76137 * MILLICENTS,
-			8 =>  57102 * MILLICENTS,
-			_ =>  42827 * MILLICENTS,
+			7 => 76137 * MILLICENTS,
+			8 => 57102 * MILLICENTS,
+			_ => 42827 * MILLICENTS,
 		}
 	}
 }

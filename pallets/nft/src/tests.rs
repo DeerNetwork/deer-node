@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::mock::*;
+use frame_support::{assert_err, assert_ok, traits::Currency};
 use sp_std::convert::TryInto;
-use frame_support::{assert_ok, assert_err, traits::Currency};
 
 fn assets() -> Vec<(u64, u32, u32)> {
 	let mut r: Vec<_> = Account::<Test>::iter().map(|x| x.0).collect();
@@ -13,13 +13,15 @@ fn assets() -> Vec<(u64, u32, u32)> {
 	assert_eq!(r, s);
 	for class in Asset::<Test>::iter()
 		.map(|x| x.0)
-		.scan(None, |s, item| if s.map_or(false, |last| last == item) {
+		.scan(None, |s, item| {
+			if s.map_or(false, |last| last == item) {
 				*s = Some(item);
 				Some(None)
 			} else {
 				Some(Some(item))
 			}
-		).filter_map(|item| item)
+		})
+		.filter_map(|item| item)
 	{
 		let details = Class::<Test>::get(class).unwrap();
 		let instances = Asset::<Test>::iter_prefix(class).count() as u32;
@@ -55,12 +57,12 @@ fn create_class_should_work() {
 		Balances::make_free_balance_be(&1, 100);
 		assert_ok!(NFT::create(Origin::signed(1), 0));
 		assert_eq!(Balances::reserved_balance(&1), 2);
-        let c = Class::<Test>::get(0).unwrap();
+		let c = Class::<Test>::get(0).unwrap();
 		assert_eq!(c.instances, 0);
 		assert_eq!(c.deposit, 2);
 		assert_eq!(c.owner, 1);
 		assert_err!(NFT::create(Origin::signed(1), 0), Error::<Test>::AlreadyExists);
-    });
+	});
 }
 
 #[test]
@@ -70,11 +72,11 @@ fn mint_should_work() {
 		assert_ok!(NFT::create(Origin::signed(1), 0));
 		assert_ok!(NFT::mint(Origin::signed(1), 0, 42));
 		assert_eq!(Balances::reserved_balance(&1), 3);
-        let a = Asset::<Test>::get(0, 42).unwrap();
+		let a = Asset::<Test>::get(0, 42).unwrap();
 		assert_eq!(a.owner, 1);
 		assert_eq!(a.deposit, 1);
 		assert_eq!(a.reserved, false);
-        let c = Class::<Test>::get(0).unwrap();
+		let c = Class::<Test>::get(0).unwrap();
 		assert_eq!(c.instances, 1);
 		assert_eq!(c.deposit, 2);
 		assert_eq!(assets(), vec![(1, 0, 42)]);
@@ -108,30 +110,30 @@ fn attribute_should_work() {
 		assert_ok!(NFT::mint(Origin::signed(1), 0, 42)); // reserve 1
 		assert_ok!(NFT::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0]));
 		assert_eq!(Balances::reserved_balance(&1), 9);
-		assert_eq!(attributes(0), vec![
-			(None, bvec![0], bvec![0]),
-			(Some(42), bvec![0], bvec![0]),
-		]);
+		assert_eq!(
+			attributes(0),
+			vec![(None, bvec![0], bvec![0]), (Some(42), bvec![0], bvec![0]),]
+		);
 		assert_eq!(Class::<Test>::get(0).unwrap().deposit, 5);
 		assert_eq!(Asset::<Test>::get(0, 42).unwrap().deposit, 4);
 
-        // update attribute
+		// update attribute
 		assert_ok!(NFT::set_attribute(Origin::signed(1), 0, None, bvec![0], bvec![0; 2]));
 		assert_ok!(NFT::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0; 2]));
-		assert_eq!(attributes(0), vec![
-			(None, bvec![0], bvec![0; 2]),
-			(Some(42), bvec![0], bvec![0; 2]),
-		]);
+		assert_eq!(
+			attributes(0),
+			vec![(None, bvec![0], bvec![0; 2]), (Some(42), bvec![0], bvec![0; 2]),]
+		);
 		assert_eq!(Balances::reserved_balance(&1), 11);
 
-        // multiple attirbutes
+		// multiple attirbutes
 		assert_ok!(NFT::set_attribute(Origin::signed(1), 0, None, bvec![1], bvec![0]));
 		assert_ok!(NFT::set_attribute(Origin::signed(1), 0, Some(42), bvec![1], bvec![0]));
 		assert_eq!(Balances::reserved_balance(&1), 17);
 		assert_eq!(Class::<Test>::get(0).unwrap().deposit, 9);
 		assert_eq!(Asset::<Test>::get(0, 42).unwrap().deposit, 8);
 
-        // clear attributes
+		// clear attributes
 		assert_ok!(NFT::clear_attribute(Origin::signed(1), 0, None, bvec![0]));
 		assert_ok!(NFT::clear_attribute(Origin::signed(1), 0, Some(42), bvec![0]));
 		assert_eq!(Class::<Test>::get(0).unwrap().deposit, 5);
@@ -153,7 +155,7 @@ fn burn_works() {
 		assert_eq!(Balances::reserved_balance(&1), 2);
 		assert_eq!(Class::<Test>::get(0).unwrap().instances, 0);
 		assert_eq!(assets(), vec![]);
-        assert_eq!(Attribute::<Test>::iter_prefix((0, Some(42),)).fold(0, |acc, _| acc + 1), 0);
+		assert_eq!(Attribute::<Test>::iter_prefix((0, Some(42),)).fold(0, |acc, _| acc + 1), 0);
 	});
 }
 
@@ -166,11 +168,20 @@ fn reserve_should_work() {
 		assert_ok!(NFT::mint(Origin::signed(1), 0, 42));
 		assert_ok!(NFT::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0]));
 		assert_ok!(NFT::reserve(&0, &42, &1));
-		assert_err!(NFT::ready_transfer(Origin::signed(1), 0, 42, 2), Error::<Test>::AlreadyReserved);
-		assert_err!(NFT::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0]), Error::<Test>::AlreadyReserved);
-		assert_err!(NFT::clear_attribute(Origin::signed(1), 0, Some(42), bvec![0]), Error::<Test>::AlreadyReserved);
+		assert_err!(
+			NFT::ready_transfer(Origin::signed(1), 0, 42, 2),
+			Error::<Test>::AlreadyReserved
+		);
+		assert_err!(
+			NFT::set_attribute(Origin::signed(1), 0, Some(42), bvec![0], bvec![0]),
+			Error::<Test>::AlreadyReserved
+		);
+		assert_err!(
+			NFT::clear_attribute(Origin::signed(1), 0, Some(42), bvec![0]),
+			Error::<Test>::AlreadyReserved
+		);
 		assert_err!(NFT::burn(Origin::signed(1), 0, 42), Error::<Test>::AlreadyReserved);
 		assert_ok!(NFT::unreserve(&0, &42));
 		assert_ok!(NFT::clear_attribute(Origin::signed(1), 0, Some(42), bvec![0]));
-    });
+	});
 }

@@ -18,11 +18,13 @@
 // --output=./pallets/storage/src/weights.rs
 // --template=./.maintain/frame-weight-template.hbs
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
+use frame_support::{
+	traits::Get,
+	weights::{constants::RocksDbWeight, Weight},
+};
 use sp_std::marker::PhantomData;
 
 /// Weight functions needed for pallet_storage.
@@ -31,7 +33,7 @@ pub trait WeightInfo {
 	fn stash() -> Weight;
 	fn withdraw() -> Weight;
 	fn register() -> Weight;
-	fn report(x: u32, y: u32, ) -> Weight;
+	fn report(x: u32, y: u32) -> Weight;
 	fn store() -> Weight;
 	fn force_delete() -> Weight;
 }
@@ -59,7 +61,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn report(x: u32, y: u32, ) -> Weight {
+	fn report(x: u32, y: u32) -> Weight {
 		(3_684_167_000 as Weight)
 			// Standard Error: 18_000
 			.saturating_add((22_233_000 as Weight).saturating_mul(x as Weight))
@@ -105,7 +107,7 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(2 as Weight))
 	}
-	fn report(x: u32, y: u32, ) -> Weight {
+	fn report(x: u32, y: u32) -> Weight {
 		(3_684_167_000 as Weight)
 			// Standard Error: 18_000
 			.saturating_add((22_233_000 as Weight).saturating_mul(x as Weight))

@@ -35,7 +35,7 @@ pub struct Cli {
 pub enum Subcommand {
 	/// Key management cli utilities
 	Key(KeySubcommand),
-	
+
 	/// The custom inspect subcommmand for decoding blocks and extrinsics.
 	#[structopt(
 		name = "inspect",

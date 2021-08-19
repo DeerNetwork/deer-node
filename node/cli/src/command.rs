@@ -54,11 +54,11 @@ impl SubstrateCli for Cli {
 					"Please specify which chain you want to run, e.g. --dev or --chain=local"
 						.into(),
 				),
-				"dev" => Box::new(chain_spec::development_config()),
-				"local" => Box::new(chain_spec::local_testnet_config()),
-				"testnet-local" => Box::new(chain_spec::deer_testnet_local_config()),
-				"testnet" => Box::new(chain_spec::deer_testnet_config()?),
-				"mainnet" => Box::new(chain_spec::deer_mainnet_config()?),
+			"dev" => Box::new(chain_spec::development_config()),
+			"local" => Box::new(chain_spec::local_testnet_config()),
+			"testnet-local" => Box::new(chain_spec::deer_testnet_local_config()),
+			"testnet" => Box::new(chain_spec::deer_testnet_config()?),
+			"mainnet" => Box::new(chain_spec::deer_mainnet_config()?),
 			path =>
 				Box::new(chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))?),
 		};
