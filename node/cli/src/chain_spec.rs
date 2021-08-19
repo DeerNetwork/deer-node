@@ -321,7 +321,7 @@ fn deer_testnet_genesis() -> GenesisConfig {
 
 pub fn deer_testnet_local_config() -> ChainSpec {
 	let boot_nodes = vec![];
-	let protocol_id: &str = "n360t1";
+	let protocol_id: &str = "deert1";
 	let properties = {
 		let mut p = Properties::new();
 		p.insert("tokenSymbol".into(), "DEER".into());
@@ -345,6 +345,10 @@ pub fn deer_testnet_local_config() -> ChainSpec {
 
 pub fn deer_testnet_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/testnet.json")[..])
+}
+
+pub fn deer_mainnet_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_json_bytes(&include_bytes!("../res/mainnet.json")[..])
 }
 
 #[cfg(test)]

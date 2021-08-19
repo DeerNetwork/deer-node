@@ -66,7 +66,7 @@ pub use pallet_staking::StakerStatus;
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
 use impls::Author;
-use impls::FileStoragePayout;
+// use impls::FileStoragePayout;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -481,7 +481,8 @@ impl pallet_staking::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>
 	>;
 	type SessionInterface = Self;
-	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
+	// type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
+	type EraPayout = ();
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type ElectionProvider = ElectionProviderMultiPhase;
@@ -976,7 +977,8 @@ impl pallet_storage::Config for Runtime {
 	type Currency = Balances;
 	type Treasury = Treasury;
 	type UnixTime = Timestamp;
-	type Payout = FileStoragePayout;
+	// type Payout = FileStoragePayout;
+	type Payout = ();
 	type SlashBalance = SlashBalance;
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
