@@ -7,7 +7,7 @@ test crate +args='--lib':
     cargo test --package {{crate}} {{args}}
 
 build-bench:
-    cd node && cargo build --release --features runtime-benchmarks
+    cd node/cli && cargo build --release --features runtime-benchmarks
 
 bench crate:
     #!/bin/bash
