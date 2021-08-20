@@ -3,6 +3,7 @@ usage() {
     echo "     testnet run <idx> [chain]"
     echo "     testnet purge"
     echo "     testnet set-key <idx> <suri>"
+    echo "     testnet echo-set-key <suri>"
     echo "     testnet rotate-key <idx>"
     exit 
 }
@@ -52,6 +53,13 @@ rotate_key() {
         '{"id":1, "jsonrpc":"2.0", "method": "author_rotateKeys", "params":[]}'
 }
 
+echo_set_key() {
+    key_sr=$(generate_pubkey "$1")
+    key_ed=$(generate_pubkey "$1" "--scheme ed25519")
+    echo 'curl http://localhost:9933 -H "Content-Type:application/json;charset=utf-8" -d '"'"'{"jsonrpc":"2.0","id":1,"method":"author_insertKey","params":["babe","'"$1"'","'$key_sr'"]}'"'"
+    echo 'curl http://localhost:9933 -H "Content-Type:application/json;charset=utf-8" -d '"'"'{"jsonrpc":"2.0","id":1,"method":"author_insertKey","params":["gran","'"$1"'","'$key_ed'"]}'"'"
+}
+
 
 case $1 in
     run)
@@ -62,6 +70,9 @@ case $1 in
         ;;
     set-key)
         set_key $2 "$3"
+        ;;
+    echo-set-key)
+        echo_set_key "$2"
         ;;
     rotate-key)
         rotate_key $2
