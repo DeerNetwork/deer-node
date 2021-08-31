@@ -943,12 +943,12 @@ impl pallet_vesting::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ClassDeposit: Balance = 5 * DOLLARS;
-	pub const InstanceDeposit: Balance = 1 * DOLLARS;
+	pub const ClassDeposit: Balance = 10 * CENTS;
+	pub const InstanceDeposit: Balance = 1 * CENTS;
 	pub const KeyLimit: u32 = 256;
 	pub const ValueLimit: u32 = 4096;
-	pub const NftDepositBase: Balance = 15 * CENTS;
-	pub const NftDepositPerByte: Balance = CENTS / 10;
+	pub const NftDepositBase: Balance = 100 * MILLICENTS;
+	pub const NftDepositPerByte: Balance = 10 * MILLICENTS;
 }
 
 impl pallet_nft::Config for Runtime {
