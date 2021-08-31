@@ -597,7 +597,6 @@ pub mod pallet {
 			let reporter = ensure_signed(origin)?;
 			ensure!(
 				add_files.len() <= T::MaxReportFiles::get() as usize ||
-					del_files.len() <= T::MaxReportFiles::get() as usize ||
 					settle_files.len() <= T::MaxReportFiles::get() as usize,
 				Error::<T>::ReportExceedLimit
 			);
