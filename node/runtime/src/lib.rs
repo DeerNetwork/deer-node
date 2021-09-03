@@ -966,7 +966,7 @@ impl pallet_nft::Config for Runtime {
 }
 
 parameter_types! {
-	pub const OrderDeposit: Balance = 2 * DOLLARS;
+	pub const OrderDeposit: Balance = 10 * CENTS;
 	pub const NftOrderPalletId: PalletId = PalletId(*b"nftordr*");
 	pub const MaxOrders: u32 = 50;
 }
