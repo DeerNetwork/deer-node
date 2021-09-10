@@ -22,8 +22,6 @@ jobs:
           toolchain: nightly-2021-07-03
           override: true
           target: wasm32-unknown-unknown
-      - name: Ensure docs are buildable
-        run: cargo doc --no-deps
       - name: Run tests
         run: cargo test --all
 
