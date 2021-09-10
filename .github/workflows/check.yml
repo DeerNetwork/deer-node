@@ -19,7 +19,7 @@ jobs:
       - name: Install nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2021-07-03
           override: true
           target: wasm32-unknown-unknown
       - name: Ensure docs are buildable
@@ -36,7 +36,7 @@ jobs:
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2021-07-03
           override: true
           components: rustfmt
       - name: Ensure Standard Formatting
