@@ -15,4 +15,6 @@
 # direnv cache
 .direnv
 
+.vscode
+
 tmp
