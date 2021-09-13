@@ -945,10 +945,11 @@ impl pallet_vesting::Config for Runtime {
 parameter_types! {
 	pub const ClassDeposit: Balance = 10 * CENTS;
 	pub const InstanceDeposit: Balance = 1 * CENTS;
-	pub const KeyLimit: u32 = 256;
-	pub const ValueLimit: u32 = 4096;
+	pub const NftKeyLimit: u32 = 256;
+	pub const NftValueLimit: u32 = 4096;
 	pub const NftDepositBase: Balance = 100 * MILLICENTS;
 	pub const NftDepositPerByte: Balance = 10 * MILLICENTS;
+	pub const NftRoyaltyRateLimit: Perbill = Perbill::from_percent(20);
 }
 
 impl pallet_nft::Config for Runtime {
@@ -960,8 +961,9 @@ impl pallet_nft::Config for Runtime {
 	type InstanceDeposit = InstanceDeposit;
 	type DepositBase = NftDepositBase;
 	type DepositPerByte = NftDepositPerByte;
-	type KeyLimit = KeyLimit;
-	type ValueLimit = ValueLimit;
+	type KeyLimit = NftKeyLimit;
+	type ValueLimit = NftValueLimit;
+	type RoyaltyRateLimit = NftRoyaltyRateLimit;
 	type WeightInfo = pallet_nft::weights::SubstrateWeight<Runtime>;
 }
 
