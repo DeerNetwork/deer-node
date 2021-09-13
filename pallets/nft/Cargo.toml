@@ -15,6 +15,7 @@ sp-runtime = { default-features = false, path = "../../substrate/primitives/runt
 frame-support = { default-features = false, path = "../../substrate/frame/support" }
 frame-system = { default-features = false, path = "../../substrate/frame/system" }
 frame-benchmarking = { path = "../../substrate/frame/benchmarking", default-features = false, optional = true }
+log = { version = "0.4.14", default-features = false }
 
 [dev-dependencies]
 sp-std = { path = "../../substrate/primitives/std" }

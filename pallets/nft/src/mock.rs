@@ -95,6 +95,7 @@ parameter_types! {
 	pub const ValueLimit: u32 = 50;
 	pub const DepositBase: u64 = 1;
 	pub const DepositPerByte: u64 = 1;
+	pub const RoyaltyRateLimit: Perbill = Perbill::from_percent(20);
 }
 
 impl Config for Test {
@@ -108,7 +109,12 @@ impl Config for Test {
 	type DepositPerByte = DepositPerByte;
 	type KeyLimit = KeyLimit;
 	type ValueLimit = ValueLimit;
+	type RoyaltyRateLimit = RoyaltyRateLimit;
 	type WeightInfo = ();
+}
+
+pub(crate) fn rate(v: u32) -> Perbill {
+	Perbill::from_percent(v)
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {

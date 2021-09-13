@@ -18,21 +18,37 @@ pub mod mock;
 mod tests;
 pub mod weights;
 
+pub mod migrations;
+
 use codec::{Decode, Encode, HasCompact};
 use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
-	traits::{Currency, ReservableCurrency},
+	traits::{Currency, Get, ReservableCurrency},
+	weights::Weight,
 };
 use frame_system::Config as SystemConfig;
 use sp_runtime::{
 	traits::{CheckedAdd, CheckedSub, Saturating, StaticLookup, Zero},
-	ArithmeticError, RuntimeDebug,
+	ArithmeticError, Perbill, RuntimeDebug,
 };
 use sp_std::prelude::*;
 
 pub use pallet::*;
 pub use weights::WeightInfo;
+
+pub(crate) const LOG_TARGET: &'static str = "runtime::nft";
+
+// syntactic sugar for logging.
+#[macro_export]
+macro_rules! log {
+	($level:tt, $patter:expr $(, $values:expr)* $(,)?) => {
+		log::$level!(
+			target: crate::LOG_TARGET,
+			concat!("[{:?}] 💸 ", $patter), <frame_system::Pallet<T>>::block_number() $(, $values)*
+		)
+	};
+}
 
 pub type DepositBalanceOf<T, I = ()> =
 	<<T as Config<I>>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance;
@@ -41,6 +57,21 @@ pub type ClassDetailsFor<T, I> =
 pub type InstanceDetailsFor<T, I> =
 	InstanceDetails<<T as SystemConfig>::AccountId, DepositBalanceOf<T, I>>;
 
+// A value placed in storage that represents the current version of the Scheduler storage.
+// This value is used by the `on_runtime_upgrade` logic to determine whether we run
+// storage migration logic.
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug)]
+pub enum Releases {
+	V1,
+	V2,
+}
+
+impl Default for Releases {
+	fn default() -> Self {
+		Releases::V1
+	}
+}
+
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
 pub struct ClassDetails<AccountId, DepositBalance> {
 	/// The owner of this class.
@@ -48,7 +79,11 @@ pub struct ClassDetails<AccountId, DepositBalance> {
 	/// The total balance deposited for this asset class.
 	pub deposit: DepositBalance,
 	/// The total number of outstanding instances of this asset class.
+	#[codec(compact)]
 	pub instances: u32,
+	/// Royalty rate
+	#[codec(compact)]
+	pub royalty_rate: Perbill,
 }
 
 /// Information concerning the ownership of a single unique asset.
@@ -60,8 +95,13 @@ pub struct InstanceDetails<AccountId, DepositBalance> {
 	pub deposit: DepositBalance,
 	/// Whether the asset can be reserved or not.
 	pub reserved: bool,
-	/// set transfer target
+	/// Set transfer target
 	pub ready_transfer: Option<AccountId>,
+	/// Royalty rate
+	#[codec(compact)]
+	pub royalty_rate: Perbill,
+	/// Royalty beneficiary
+	pub royalty_beneficiary: AccountId,
 }
 
 #[frame_support::pallet]
@@ -74,8 +114,8 @@ pub mod pallet {
 	#[pallet::generate_store(pub trait Store)]
 	pub struct Pallet<T, I = ()>(_);
 
-	#[pallet::config]
 	/// The module configuration trait.
+	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self, I>> + IsType<<Self as frame_system::Config>::Event>;
@@ -114,12 +154,16 @@ pub mod pallet {
 		#[pallet::constant]
 		type ValueLimit: Get<u32>;
 
+		/// The maximum of royalty rate
+		#[pallet::constant]
+		type RoyaltyRateLimit: Get<Perbill>;
+
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 	}
 
-	#[pallet::storage]
 	/// Details of an asset class.
+	#[pallet::storage]
 	pub type Class<T: Config<I>, I: 'static = ()> = StorageMap<
 		_,
 		Blake2_128Concat,
@@ -127,9 +171,9 @@ pub mod pallet {
 		ClassDetails<T::AccountId, DepositBalanceOf<T, I>>,
 	>;
 
-	#[pallet::storage]
 	/// The assets held by any given account; set out this way so that assets owned by a single
 	/// account can be enumerated.
+	#[pallet::storage]
 	pub type Account<T: Config<I>, I: 'static = ()> = StorageNMap<
 		_,
 		(
@@ -141,8 +185,8 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
-	#[pallet::storage]
 	/// The assets in existence and their ownership details.
+	#[pallet::storage]
 	pub type Asset<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
@@ -153,8 +197,8 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
-	#[pallet::storage]
 	/// Metadata of an asset class.
+	#[pallet::storage]
 	pub type Attribute<T: Config<I>, I: 'static = ()> = StorageNMap<
 		_,
 		(
@@ -177,6 +221,12 @@ pub mod pallet {
 		(),
 		OptionQuery,
 	>;
+
+	/// Storage version of the pallet.
+	///
+	/// New networks start with last version.
+	#[pallet::storage]
+	pub type StorageVersion<T: Config<I>, I: 'static = ()> = StorageValue<_, Releases, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
@@ -231,10 +281,46 @@ pub mod pallet {
 		NotReadyTransfer,
 		/// The transfer target is not origin
 		NotTranserTarget,
+		/// Royalty rate great than RoyaltyRateLimit
+		RoyaltyRateTooHigh,
+	}
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig;
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> Self {
+			Self
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig {
+		fn build(&self) {
+			StorageVersion::<T, I>::put(Releases::V2);
+		}
 	}
 
 	#[pallet::hooks]
-	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {}
+	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
+		fn on_runtime_upgrade() -> Weight {
+			if StorageVersion::<T, I>::get() == Releases::V1 {
+				migrations::v2::migrate::<T, I>()
+			} else {
+				T::DbWeight::get().reads(1)
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<(), &'static str> {
+			if StorageVersion::<T, I>::get() == Releases::V1 {
+				migrations::v2::pre_migrate::<T, I>()
+			} else {
+				Ok(())
+			}
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
@@ -256,17 +342,19 @@ pub mod pallet {
 		pub fn create(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
+			#[pallet::compact] royalty_rate: Perbill,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 
 			ensure!(!Class::<T, I>::contains_key(class), Error::<T, I>::AlreadyExists);
+			ensure!(T::RoyaltyRateLimit::get() >= royalty_rate, Error::<T, I>::RoyaltyRateTooHigh);
 
 			let deposit = T::ClassDeposit::get();
 			T::Currency::reserve(&owner, deposit)?;
 
 			Class::<T, I>::insert(
 				class,
-				ClassDetails { owner: owner.clone(), deposit, instances: 0 },
+				ClassDetails { owner: owner.clone(), deposit, instances: 0, royalty_rate },
 			);
 			Self::deposit_event(Event::Created(class, owner));
 			Ok(())
@@ -287,10 +375,15 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
 			#[pallet::compact] instance: T::InstanceId,
+			royalty_rate: Option<Perbill>,
+			royalty_beneficiary: Option<T::AccountId>,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 
 			ensure!(!Asset::<T, I>::contains_key(class, instance), Error::<T, I>::AlreadyExists);
+			if let Some(rate) = royalty_rate {
+				ensure!(T::RoyaltyRateLimit::get() >= rate, Error::<T, I>::RoyaltyRateTooHigh);
+			}
 
 			Class::<T, I>::try_mutate(&class, |maybe_class_details| -> DispatchResult {
 				let class_details = maybe_class_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
@@ -309,6 +402,8 @@ pub mod pallet {
 					deposit,
 					reserved: false,
 					ready_transfer: None,
+					royalty_rate: royalty_rate.unwrap_or(class_details.royalty_rate),
+					royalty_beneficiary: royalty_beneficiary.unwrap_or(owner.clone()),
 				};
 				Asset::<T, I>::insert(&class, &instance, details);
 				Ok(())
