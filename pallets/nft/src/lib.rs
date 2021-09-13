@@ -62,13 +62,13 @@ pub type InstanceDetailsFor<T, I> =
 // storage migration logic.
 #[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug)]
 pub enum Releases {
+	V0,
 	V1,
-	V2,
 }
 
 impl Default for Releases {
 	fn default() -> Self {
-		Releases::V1
+		Releases::V0
 	}
 }
 
@@ -298,15 +298,15 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig {
 		fn build(&self) {
-			StorageVersion::<T, I>::put(Releases::V2);
+			StorageVersion::<T, I>::put(Releases::V1);
 		}
 	}
 
 	#[pallet::hooks]
 	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
 		fn on_runtime_upgrade() -> Weight {
-			if StorageVersion::<T, I>::get() == Releases::V1 {
-				migrations::v2::migrate::<T, I>()
+			if StorageVersion::<T, I>::get() == Releases::V0 {
+				migrations::v1::migrate::<T, I>()
 			} else {
 				T::DbWeight::get().reads(1)
 			}
@@ -314,11 +314,12 @@ pub mod pallet {
 
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<(), &'static str> {
-			if StorageVersion::<T, I>::get() == Releases::V1 {
-				migrations::v2::pre_migrate::<T, I>()
-			} else {
-				Ok(())
-			}
+			migrations::v1::pre_migrate::<T, I>()
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade() -> Result<(), &'static str> {
+			migrations::v1::post_migrate::<T, I>()
 		}
 	}
 

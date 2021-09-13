@@ -1,6 +1,6 @@
 use super::*;
 
-pub mod v2 {
+pub mod v1 {
 	use super::*;
 
 	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
@@ -26,13 +26,15 @@ pub mod v2 {
 		pub ready_transfer: Option<AccountId>,
 	}
 
+	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V1);
+		assert!(StorageVersion::<T, I>::get() == Releases::V0);
+		log!(debug, "migration: nft storage version v1 PRE migration checks succesful!");
 		Ok(())
 	}
 
 	pub fn migrate<T: Config<I>, I: 'static>() -> Weight {
-		log!(info, "Migrating nft to Releases::V2");
+		log!(info, "Migrating nft to Releases::V1");
 
 		let mut class_count = 0;
 		Class::<T, I>::translate::<OldClassDetails<T::AccountId, DepositBalanceOf<T, I>>, _>(
@@ -64,7 +66,7 @@ pub mod v2 {
 			},
 		);
 
-		StorageVersion::<T, I>::put(Releases::V2);
+		StorageVersion::<T, I>::put(Releases::V1);
 
 		log!(info, "Migrate {} classes, {} tokens", class_count, asset_count);
 
@@ -72,5 +74,18 @@ pub mod v2 {
 			(class_count + asset_count) as Weight,
 			(class_count + asset_count) as Weight + 1,
 		)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
+		assert!(StorageVersion::<T, I>::get() == Releases::V1);
+		for (_, class) in Class::<T, I>::iter() {
+			assert!(class.royalty_rate.is_zero());
+		}
+		for (_, _, token) in Asset::<T, I>::iter() {
+			assert!(token.royalty_rate.is_zero());
+		}
+		log!(debug, "migration: nft storage version v1 POST migration checks succesful!");
+		Ok(())
 	}
 }
