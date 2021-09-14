@@ -66,8 +66,10 @@ fn deal_should_work() {
 		assert_eq!(Balances::reserved_balance(&1), 13);
 		assert_eq!(Balances::free_balance(&1), 87);
 		Balances::make_free_balance_be(&2, 100);
+		let total = Balances::total_issuance();
 		assert_ok!(NFTOrder::deal(Origin::signed(2), 0, 42));
-		assert_eq!(Balances::free_balance(&1), 108);
+		assert_eq!(Balances::total_issuance(), total.saturating_sub(1));
+		assert_eq!(Balances::free_balance(&1), 107);
 		assert_eq!(Balances::free_balance(&2), 89);
 		assert_eq!(Balances::reserved_balance(&1), 2);
 		assert_eq!(Balances::reserved_balance(&2), 1);
@@ -96,7 +98,7 @@ fn deal_should_work2() {
 		assert_eq!(Balances::free_balance(&1), 87);
 		Balances::make_free_balance_be(&2, 100);
 		assert_ok!(NFTOrder::deal(Origin::signed(2), 0, 42));
-		assert_eq!(Balances::free_balance(&1), 107);
+		assert_eq!(Balances::free_balance(&1), 106);
 		assert_eq!(Balances::free_balance(&2), 89);
 		assert_eq!(Balances::free_balance(&3), 101);
 	})
@@ -112,7 +114,7 @@ fn deal_should_work3() {
 		assert_eq!(Balances::free_balance(&1), 87);
 		Balances::make_free_balance_be(&2, 100);
 		assert_ok!(NFTOrder::deal(Origin::signed(2), 0, 42));
-		assert_eq!(Balances::free_balance(&1), 108);
+		assert_eq!(Balances::free_balance(&1), 107);
 		assert_eq!(Balances::free_balance(&2), 89);
 		assert_eq!(Balances::free_balance(&3), 0);
 	})

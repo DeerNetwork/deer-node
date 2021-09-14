@@ -99,12 +99,14 @@ impl pallet_nft::Config for Test {
 parameter_types! {
 	pub const OrderDeposit: u64 = 10;
 	pub const MaxOrders: u32 = 50;
+	pub const TradeFeeTaxRatio: Perbill = Perbill::from_percent(10);
 }
 
 impl Config for Test {
 	type Event = Event;
 	type OrderDeposit = OrderDeposit;
 	type MaxOrders = MaxOrders;
+	type TradeFeeTaxRatio = TradeFeeTaxRatio;
 	type WeightInfo = ();
 }
 

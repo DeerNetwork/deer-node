@@ -15,7 +15,7 @@ use frame_support::{
 };
 use sp_runtime::{
 	traits::{Saturating, Zero},
-	RuntimeDebug,
+	Perbill, RuntimeDebug,
 };
 use sp_std::prelude::*;
 
@@ -43,7 +43,7 @@ pub struct OrderDetails<AccountId, Balance, BlockNumber> {
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::pallet_prelude::*;
+	use frame_support::{pallet_prelude::*, traits::WithdrawReasons};
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::config]
@@ -58,6 +58,10 @@ pub mod pallet {
 		/// The maximum amount of order an account owned
 		#[pallet::constant]
 		type MaxOrders: Get<u32>;
+
+		/// The amount of trade fee as tax
+		#[pallet::constant]
+		type TradeFeeTaxRatio: Get<Perbill>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -196,6 +200,16 @@ pub mod pallet {
 						ExistenceRequirement::KeepAlive,
 					)?;
 				}
+			}
+			let tax_fee = T::TradeFeeTaxRatio::get() * order.price;
+			if !tax_fee.is_zero() {
+				order_fee = order_fee.saturating_sub(tax_fee);
+				T::Currency::withdraw(
+					&who,
+					tax_fee,
+					WithdrawReasons::TRANSFER,
+					ExistenceRequirement::KeepAlive,
+				)?;
 			}
 			T::Currency::transfer(&who, &order.owner, order_fee, ExistenceRequirement::KeepAlive)?;
 			pallet_nft::Pallet::<T, I>::unreserve(&class, &instance)?;

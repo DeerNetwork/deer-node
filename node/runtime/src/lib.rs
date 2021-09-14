@@ -971,12 +971,14 @@ parameter_types! {
 	pub const OrderDeposit: Balance = 10 * CENTS;
 	pub const NftOrderPalletId: PalletId = PalletId(*b"nftordr*");
 	pub const MaxOrders: u32 = 50;
+	pub const TradeFeeTaxRatio: Perbill = Perbill::from_percent(1);
 }
 
 impl pallet_nft_order::Config for Runtime {
 	type Event = Event;
 	type OrderDeposit = OrderDeposit;
 	type MaxOrders = MaxOrders;
+	type TradeFeeTaxRatio = TradeFeeTaxRatio;
 	type WeightInfo = pallet_nft_order::weights::SubstrateWeight<Runtime>;
 }
 
