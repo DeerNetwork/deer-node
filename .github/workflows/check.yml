@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: 'true'
-      - uses: action/cache@v2
+      - uses: actions/cache@v2
         with:
           key: ${{ env.GITHUB_JOB }}-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('Cargo.lock', 'substrate/Cargo.lock') }}
           paths: |
