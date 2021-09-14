@@ -6,6 +6,7 @@ use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
+	Perbill,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -77,6 +78,7 @@ parameter_types! {
 	pub const ValueLimit: u32 = 50;
 	pub const DepositBase: u64 = 1;
 	pub const DepositPerByte: u64 = 1;
+	pub const RoyaltyRateLimit: Perbill = Perbill::from_percent(20);
 }
 
 impl pallet_nft::Config for Test {
@@ -90,6 +92,7 @@ impl pallet_nft::Config for Test {
 	type DepositPerByte = DepositPerByte;
 	type KeyLimit = KeyLimit;
 	type ValueLimit = ValueLimit;
+	type RoyaltyRateLimit = RoyaltyRateLimit;
 	type WeightInfo = ();
 }
 
@@ -103,6 +106,10 @@ impl Config for Test {
 	type OrderDeposit = OrderDeposit;
 	type MaxOrders = MaxOrders;
 	type WeightInfo = ();
+}
+
+pub(crate) fn rate(v: u32) -> Perbill {
+	Perbill::from_percent(v)
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {

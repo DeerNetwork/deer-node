@@ -13,7 +13,10 @@ use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ExistenceRequirement, ReservableCurrency},
 };
-use sp_runtime::RuntimeDebug;
+use sp_runtime::{
+	traits::{Saturating, Zero},
+	RuntimeDebug,
+};
 use sp_std::prelude::*;
 
 pub use pallet::*;
@@ -83,8 +86,8 @@ pub mod pallet {
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T, I = ()> {
-		/// Asset not found
-		NotFound,
+		/// Token not found
+		TokenNotFound,
 		/// Not own the asset
 		NotOwn,
 		/// Invalid deaeline
@@ -136,7 +139,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let (owner, reserved) = pallet_nft::Pallet::<T, I>::info(&class, &instance)
-				.ok_or(Error::<T, I>::NotFound)?;
+				.ok_or(Error::<T, I>::TokenNotFound)?;
 			ensure!(who == owner, Error::<T, I>::NotOwn);
 			ensure!(!reserved, Error::<T, I>::AssertReserved);
 			if let Some(ref deadline) = deadline {
@@ -178,15 +181,26 @@ pub mod pallet {
 					Error::<T, I>::OrderExpired
 				);
 			}
-			Self::delete_order(class, instance)?;
-			T::Currency::transfer(
-				&who,
-				&order.owner,
-				order.price,
-				ExistenceRequirement::KeepAlive,
-			)?;
+
+			let token = pallet_nft::Asset::<T, I>::get(class, instance)
+				.ok_or(Error::<T, I>::TokenNotFound)?;
+			let royalty_fee = token.royalty_rate * order.price;
+			let mut order_fee = order.price;
+			if !royalty_fee.is_zero() {
+				if !T::Currency::free_balance(&token.royalty_beneficiary).is_zero() {
+					order_fee = order_fee.saturating_sub(royalty_fee);
+					T::Currency::transfer(
+						&who,
+						&token.royalty_beneficiary,
+						royalty_fee,
+						ExistenceRequirement::KeepAlive,
+					)?;
+				}
+			}
+			T::Currency::transfer(&who, &order.owner, order_fee, ExistenceRequirement::KeepAlive)?;
 			pallet_nft::Pallet::<T, I>::unreserve(&class, &instance)?;
 			pallet_nft::Pallet::<T, I>::transfer(&class, &instance, &order.owner, &who)?;
+			Self::delete_order(class, instance)?;
 			Self::deposit_event(Event::Dealed(class, instance, order.owner.clone(), who));
 			Ok(())
 		}
