@@ -22,10 +22,10 @@ jobs:
       - uses: action/cache@v2
         with:
           key: ${{ env.GITHUB_JOB }}-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('Cargo.lock', 'substrate/Cargo.lock') }}
-          paths:
-          - ${{ env.HOME }}/.cargo
-          - ${{ github.workspace }}/target
-          - ${{ github.workspace }}/substrate/target
+          paths: |
+            ${{ env.HOME }}/.cargo
+            ${{ github.workspace }}/target
+            ${{ github.workspace }}/substrate/target
       - name: Install nightly
         uses: actions-rs/toolchain@v1
         with:
