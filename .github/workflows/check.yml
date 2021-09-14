@@ -23,20 +23,6 @@ jobs:
           toolchain: nightly-2021-07-03
           override: true
           target: wasm32-unknown-unknown
-      - name: Set env var
-        run: |
-          echo "home=${HOME}" >> $GITHUB_ENV
-      - uses: actions/cache@v2
-        with:
-          key: ${{ github.job }}-${{ steps.rustup_toolchain.outputs.rustc_hash }}-${{ hashFiles('Cargo.lock', 'substrate/Cargo.lock') }}
-          path: |
-            ${{ env.home }}/.cargo/git
-            ${{ env.home }}/.cargo/registry/index
-            ${{ env.home }}/.cargo/registry/cache
-            ${{ env.home }}/.cargo/.crates2.json
-            ${{ env.home }}/.cargo/.crates.toml
-            ${{ github.workspace }}/target
-            ${{ github.workspace }}/substrate/target
       - name: Run tests
         run: cargo test --all
 
