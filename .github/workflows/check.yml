@@ -17,7 +17,6 @@ jobs:
         with:
           submodules: 'true'
       - name: Install rust toolchain
-        id: rustup_toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly-2021-07-03

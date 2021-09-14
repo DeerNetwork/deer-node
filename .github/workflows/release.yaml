@@ -70,5 +70,5 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          # push: true
+          push: true
           tags: deernetwork/deer-node:latest,deernetwork/deer-node:${{ needs.github-releases.outputs.tag }}
