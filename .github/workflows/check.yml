@@ -38,6 +38,5 @@ jobs:
           toolchain: nightly-2021-07-03
           override: true
           components: rustfmt
-      - uses: Swatinem/rust-cache@v1
       - name: Ensure Standard Formatting
         run: cargo fmt -- --check
