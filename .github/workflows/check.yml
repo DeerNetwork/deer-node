@@ -20,7 +20,7 @@ jobs:
         id: rustup_toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly-2021-07-03
           override: true
           target: wasm32-unknown-unknown
       - name: Set env var
@@ -49,7 +49,7 @@ jobs:
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly-2021-07-03
           override: true
           components: rustfmt
       - name: Ensure Standard Formatting
