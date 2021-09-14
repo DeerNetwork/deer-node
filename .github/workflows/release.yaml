@@ -3,16 +3,30 @@ name: Publish release
 on:
   push:
     tags:
-      - v[0-9]+.[0-9]+.[0-9]
+      - v[0-9]+.[0-9]+.[0-9]+*
 
 jobs:
   github-releases:
     runs-on: ubuntu-20.04
-    steps:
+    outputs:
+      tag: ${{ steps.check_rc.outputs.tag }}
+      rc: ${{ steps.check_rc.outputs.rc }}
+    steps: 
       - uses: actions/checkout@v2
         with:
           submodules: 'true'
-      - name: Install nightly
+      - name: Check rc
+        id: check_rc
+        shell: bash
+        run: |
+          tag=${GITHUB_REF/refs\/tags\//}
+          echo "::set-output name=tag::$tag"
+          if [[ "$tag" =~ rc[0-9]+$ ]]; then
+            echo "::set-output name=rc::true"
+          else
+            echo "::set-output name=rc::false"
+          fi
+      - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly-2021-07-03
@@ -27,7 +41,7 @@ jobs:
       - uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: true
+          prerelease: ${{  steps.check_rc.outputs.rc }}
           files: |
             target/release/deer-node
             target/release/wbuild/deer-runtime/deer_runtime.compact.wasm 
@@ -35,6 +49,7 @@ jobs:
   docker-hub:
     runs-on: ubuntu-20.04
     needs: ["github-releases"]
+    if: ${{ !needs.github-releases.outputs.rc }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -42,9 +57,6 @@ jobs:
         with:
           name: deer-node
           path: target/release/
-      - name: Get the version
-        id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
@@ -59,4 +71,4 @@ jobs:
         with:
           context: .
           # push: true
-          tags: deernetwork/deer-node:latest,deernetwork/deer-node:${{ steps.get_version.outputs.VERSION }}
+          tags: deernetwork/deer-node:latest,deernetwork/deer-node:${{ needs.github-releases.outputs.tag }}
