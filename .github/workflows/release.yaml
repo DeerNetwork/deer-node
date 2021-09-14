@@ -41,6 +41,7 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
           name: deer-node
+          path: target/release/
       - name: Get the version
         id: get_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
