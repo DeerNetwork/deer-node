@@ -229,8 +229,8 @@ benchmarks! {
 	}
 
 	report {
-		let x in 0..T::MaxReportFiles::get();
-		let y in 0..T::MaxReportFiles::get();
+		let x in 0..10;
+		let y in 0..10;
 
 		System::<T>::set_block_number(50000u32.into());
 
