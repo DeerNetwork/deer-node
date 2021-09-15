@@ -62,19 +62,19 @@ pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileStorage Enclaves (r:1 w:1)
 	fn set_enclave() -> Weight {
-		(20_774_000 as Weight)
+		(20_631_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: FileStorage Stashs (r:1 w:1)
 	fn stash() -> Weight {
-		(52_293_000 as Weight)
+		(52_360_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: FileStorage Stashs (r:1 w:1)
 	fn withdraw() -> Weight {
-		(54_961_000 as Weight)
+		(53_684_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -83,7 +83,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Timestamp Now (r:1 w:0)
 	// Storage: FileStorage Enclaves (r:2 w:0)
 	fn register() -> Weight {
-		(4_078_138_000 as Weight)
+		(4_199_317_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
@@ -99,11 +99,11 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileStorage RoundsSummary (r:1 w:1)
 	// Storage: FileStorage StoreFiles (r:1 w:1)
 	fn report(x: u32, y: u32, ) -> Weight {
-		(2_753_419_000 as Weight)
+		(2_764_924_000 as Weight)
 			// Standard Error: 67_000
-			.saturating_add((15_425_000 as Weight).saturating_mul(x as Weight))
+			.saturating_add((15_524_000 as Weight).saturating_mul(x as Weight))
 			// Standard Error: 67_000
-			.saturating_add((9_013_000 as Weight).saturating_mul(y as Weight))
+			.saturating_add((9_758_000 as Weight).saturating_mul(y as Weight))
 			.saturating_add(T::DbWeight::get().reads(10 as Weight))
 			.saturating_add(T::DbWeight::get().reads((1 as Weight).saturating_mul(x as Weight)))
 			.saturating_add(T::DbWeight::get().reads((1 as Weight).saturating_mul(y as Weight)))
@@ -112,7 +112,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	}
 	// Storage: FileStorage StoreFiles (r:1 w:1)
 	fn store() -> Weight {
-		(55_227_000 as Weight)
+		(55_171_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -120,7 +120,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileStorage FileOrders (r:1 w:0)
 	// Storage: FileStorage StoragePotReserved (r:1 w:1)
 	fn force_delete() -> Weight {
-		(32_876_000 as Weight)
+		(33_135_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
@@ -130,19 +130,19 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 impl WeightInfo for () {
 	// Storage: FileStorage Enclaves (r:1 w:1)
 	fn set_enclave() -> Weight {
-		(20_774_000 as Weight)
+		(20_631_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
 	// Storage: FileStorage Stashs (r:1 w:1)
 	fn stash() -> Weight {
-		(52_293_000 as Weight)
+		(52_360_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
 	// Storage: FileStorage Stashs (r:1 w:1)
 	fn withdraw() -> Weight {
-		(54_961_000 as Weight)
+		(53_684_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
@@ -151,7 +151,7 @@ impl WeightInfo for () {
 	// Storage: Timestamp Now (r:1 w:0)
 	// Storage: FileStorage Enclaves (r:2 w:0)
 	fn register() -> Weight {
-		(4_078_138_000 as Weight)
+		(4_199_317_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(2 as Weight))
 	}
@@ -167,11 +167,11 @@ impl WeightInfo for () {
 	// Storage: FileStorage RoundsSummary (r:1 w:1)
 	// Storage: FileStorage StoreFiles (r:1 w:1)
 	fn report(x: u32, y: u32, ) -> Weight {
-		(2_753_419_000 as Weight)
+		(2_764_924_000 as Weight)
 			// Standard Error: 67_000
-			.saturating_add((15_425_000 as Weight).saturating_mul(x as Weight))
+			.saturating_add((15_524_000 as Weight).saturating_mul(x as Weight))
 			// Standard Error: 67_000
-			.saturating_add((9_013_000 as Weight).saturating_mul(y as Weight))
+			.saturating_add((9_758_000 as Weight).saturating_mul(y as Weight))
 			.saturating_add(RocksDbWeight::get().reads(10 as Weight))
 			.saturating_add(RocksDbWeight::get().reads((1 as Weight).saturating_mul(x as Weight)))
 			.saturating_add(RocksDbWeight::get().reads((1 as Weight).saturating_mul(y as Weight)))
@@ -180,7 +180,7 @@ impl WeightInfo for () {
 	}
 	// Storage: FileStorage StoreFiles (r:1 w:1)
 	fn store() -> Weight {
-		(55_227_000 as Weight)
+		(55_171_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
@@ -188,7 +188,7 @@ impl WeightInfo for () {
 	// Storage: FileStorage FileOrders (r:1 w:0)
 	// Storage: FileStorage StoragePotReserved (r:1 w:1)
 	fn force_delete() -> Weight {
-		(32_876_000 as Weight)
+		(33_135_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(2 as Weight))
 	}
