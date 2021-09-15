@@ -18,7 +18,7 @@ bench pallet:
     --execution=wasm \
     --wasm-execution=compiled \
     --heap-pages=4096 \
-    --output=./pallets/{{crate}}/src/weights.rs \
+    --output=./pallets/{{pallet}}/src/weights.rs \
     --template=./scripts/frame-weight-template.hbs
 
 
