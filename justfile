@@ -22,7 +22,7 @@ bench crate:
         --wasm-execution=compiled \
         --heap-pages=4096 \
         --output=./pallets/{{crate}}/src/weights.rs \
-        --template=./.maintain/frame-weight-template.hbs
+        --template=./scripts/frame-weight-template.hbs
 
 run +args='--dev --tmp':
     ./target/release/{{name}} \
