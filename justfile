@@ -32,3 +32,12 @@ run +args='--dev --tmp':
     --unsafe-rpc-external \
     --rpc-cors all \
     --unsafe-ws-external
+
+try-runtime block *args:
+    cargo run \
+    --features=try-runtime \
+    try-runtime \
+    --block-at {{block}} \
+    {{args}} \
+    on-runtime-upgrade \
+    live
