@@ -5,7 +5,7 @@ use frame_benchmarking::{
 	account, benchmarks_instance_pallet, impl_benchmark_test_suite, whitelist_account,
 };
 use frame_system::RawOrigin as SystemOrigin;
-use sp_runtime::traits::Bounded;
+use sp_runtime::{traits::Bounded, Perbill};
 use sp_std::prelude::*;
 
 use crate::Pallet as NFTOrder;
@@ -13,11 +13,24 @@ use pallet_nft::Pallet as NFT;
 
 const SEED: u32 = 0;
 
+fn rate(v: u32) -> Perbill {
+	Perbill::from_percent(v)
+}
+
 fn create_nft<T: Config<I>, I: 'static>(owner: &T::AccountId) -> (T::ClassId, T::InstanceId) {
 	let class = Default::default();
 	let instance = Default::default();
-	assert!(NFT::<T, I>::create(SystemOrigin::Signed(owner.clone()).into(), class,).is_ok());
-	assert!(NFT::<T, I>::mint(SystemOrigin::Signed(owner.clone()).into(), class, instance,).is_ok());
+	assert!(
+		NFT::<T, I>::create(SystemOrigin::Signed(owner.clone()).into(), class, rate(10)).is_ok()
+	);
+	assert!(NFT::<T, I>::mint(
+		SystemOrigin::Signed(owner.clone()).into(),
+		class,
+		instance,
+		None,
+		None
+	)
+	.is_ok());
 	(class, instance)
 }
 

@@ -1319,14 +1319,14 @@ impl_runtime_apis! {
 
 			let mut list = Vec::<BenchmarkList>::new();
 
-			list_benchmark!(list, extra, pallet_babe, Babe);
+			// list_benchmark!(list, extra, pallet_babe, Babe);
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
 			list_benchmark!(list, extra, pallet_collective, Council);
 			list_benchmark!(list, extra, pallet_democracy, Democracy);
 			list_benchmark!(list, extra, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
 			list_benchmark!(list, extra, pallet_elections_phragmen, Elections);
-			list_benchmark!(list, extra, pallet_grandpa, Grandpa);
+			// list_benchmark!(list, extra, pallet_grandpa, Grandpa);
 			list_benchmark!(list, extra, pallet_identity, Identity);
 			list_benchmark!(list, extra, pallet_im_online, ImOnline);
 			list_benchmark!(list, extra, pallet_indices, Indices);
@@ -1344,7 +1344,7 @@ impl_runtime_apis! {
 			list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
 			list_benchmark!(list, extra, pallet_timestamp, Timestamp);
 			list_benchmark!(list, extra, pallet_tips, Tips);
-			list_benchmark!(list, extra, pallet_transaction_storage, TransactionStorage);
+			// list_benchmark!(list, extra, pallet_transaction_storage, TransactionStorage);
 			list_benchmark!(list, extra, pallet_treasury, Treasury);
 			list_benchmark!(list, extra, pallet_utility, Utility);
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
@@ -1390,14 +1390,14 @@ impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 
-			add_benchmark!(params, batches, pallet_babe, Babe);
+			// add_benchmark!(params, batches, pallet_babe, Babe);
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
 			add_benchmark!(params, batches, pallet_collective, Council);
 			add_benchmark!(params, batches, pallet_democracy, Democracy);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
 			add_benchmark!(params, batches, pallet_elections_phragmen, Elections);
-			add_benchmark!(params, batches, pallet_grandpa, Grandpa);
+			// add_benchmark!(params, batches, pallet_grandpa, Grandpa);
 			add_benchmark!(params, batches, pallet_identity, Identity);
 			add_benchmark!(params, batches, pallet_im_online, ImOnline);
 			add_benchmark!(params, batches, pallet_indices, Indices);
@@ -1414,7 +1414,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_tips, Tips);
-			add_benchmark!(params, batches, pallet_transaction_storage, TransactionStorage);
+			// add_benchmark!(params, batches, pallet_transaction_storage, TransactionStorage);
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
