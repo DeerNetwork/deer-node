@@ -38,7 +38,6 @@ pub struct RegisterData {
 
 #[derive(Debug, Clone)]
 pub struct ReportData {
-	pub machine_id: MachineId,
 	pub rid: u64,
 	pub sig: Vec<u8>,
 	pub add_files: Vec<(FileId, u64)>,
@@ -278,7 +277,6 @@ impl ExtBuilder {
 			}
 			for (node, register, report) in reports {
 				let machine_id = register.machine_id.clone();
-				assert_eq!(&machine_id, &report.machine_id);
 				if Registers::<Test>::contains_key(&machine_id) {
 					Registers::<Test>::remove(&machine_id);
 				}
@@ -393,7 +391,6 @@ pub fn mock_register_info4() -> RegisterInfo {
 pub fn mock_report1() -> ReportData {
 	// node = mock_register1
 	ReportData {
-		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
 		rid: 3,
 		sig: hex!("c01c0d293930cbcd5ec1a0e0bdb425f85de7c48d188be1d156c5cc0098fb63955ad7c66cbc2fa6f39941f3e6de0772bd327932fefbb06d113aa9d3948b47cca2").into(),
 		add_files: vec![
@@ -408,7 +405,6 @@ pub fn mock_report1() -> ReportData {
 pub fn mock_report2() -> ReportData {
 	// node = mock_register1
 	ReportData {
-		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
 		rid: 3,
 		sig: hex!("eaeef3613f8090437798b707c1be4570aae6973a77ac48a13142d77cf53f8588496df0c109c8e4d2840a0a0267f7a4f0698792601bcaa7617441e28c253d60a1").into(),
 		add_files: vec![
@@ -423,7 +419,6 @@ pub fn mock_report2() -> ReportData {
 pub fn mock_report3() -> ReportData {
 	// node = mock_register1
 	ReportData {
-		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
 		rid: 3,
 		sig: hex!("1e1306b5afd82d7fd3a21d41cacd8bab6b1c122f710934176091a7a45a3ade16e15aa3b4f8fdcbef26f3bd3a40a52911720c60c3886fe6b3a3e365aa444986de").into(),
 		add_files: vec![
@@ -442,7 +437,6 @@ pub fn mock_report3() -> ReportData {
 pub fn mock_report4() -> ReportData {
 	// node = mock_register4
 	ReportData {
-		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 3,
 		sig: hex!("7d9ffe6ed60e2ad807c3b395f72e0de8852128779e43877f04e9d0c51993ccc22fced86e6013c35bb61e594290ed21de907fefeb20708c992b81541f12e32d01").into(),
 		add_files: vec![
@@ -457,7 +451,6 @@ pub fn mock_report4() -> ReportData {
 pub fn mock_report5() -> ReportData {
 	// node = mock_register1, prev_rid = 3, follow mock_report1
 	ReportData {
-		machine_id: hex!("2663554671a5f2c3050e1cec37f31e55").into(),
 		rid: 5,
 		sig: hex!("3be06e56801a01a06fe4fe65edfd99249e31f343ad311cb20ad8200eb42efe58813aeca32e30189b1b0734362b4e270b1dfd9bacada87acdc99c532f8d846ede").into(),
 		add_files: vec![],
@@ -470,7 +463,6 @@ pub fn mock_report5() -> ReportData {
 pub fn mock_report6() -> ReportData {
 	// node = mock_register4, prev_rid = 3, follow mock_report4
 	ReportData {
-		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 4,
 		sig: hex!("3a579cb011740255785076d52c49f7f841d934e73074ae494b23cbef6619874b963d6b95bf6e7eae1d5e625a7e6e93df07773fe614910115490ff9535cdf835c").into(),
 		add_files: vec![],
@@ -483,7 +475,6 @@ pub fn mock_report6() -> ReportData {
 pub fn mock_report7() -> ReportData {
 	// node = mock_register4, prev_rid = 4, follow mock_report6
 	ReportData {
-		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 5,
 		sig: hex!("bf5ae463f4003517266d0eebec969cbac61717c087ce829dc6d31340d1936fadd1771ee99c05176eaf43b639b0dcc34ec26045fec6758718f5946e7422408ce6").into(),
 		add_files: vec![],
@@ -496,7 +487,6 @@ pub fn mock_report7() -> ReportData {
 pub fn mock_report8() -> ReportData {
 	// node = mock_register4, prev_rid = 5, follow mock_report7
 	ReportData {
-		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 6,
 		sig: hex!("7d6c525a0ff0efe52a87e842443c878a68cea2b1ac3e0a5bb799dafe404de90bb129c4b25b6548a49a3d00a30362ce480a0c705c26906094e85d2bb7a2c863bf").into(),
 		add_files: vec![],
@@ -509,7 +499,6 @@ pub fn mock_report8() -> ReportData {
 pub fn mock_report9() -> ReportData {
 	// node = mock_register4, prev_rid = 4, follow mock_report6
 	ReportData {
-		machine_id: hex!("ae93e7bae33732a4b1276436c4519ce9").into(),
 		rid: 5,
 		sig: hex!("3acf2cc8ba80793429ad9f94b571fabf9cd2b9c1a7302e72ea75a61acac5246b54f706e9d09bdc638a2ea903898feef6dc14bd4c93fa1875b833bfd8165a72c7").into(),
 		add_files: vec![],
@@ -522,12 +511,11 @@ pub fn mock_report9() -> ReportData {
 pub fn call_report(node: AccountId, report: ReportData) -> DispatchResult {
 	FileStorage::report(
 		Origin::signed(node),
-		report.machine_id,
 		report.rid,
+		report.power,
 		report.sig,
 		report.add_files,
 		report.del_files,
-		report.power,
 		report.settle_files,
 	)
 }

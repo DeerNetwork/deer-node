@@ -387,11 +387,7 @@ fn report_failed_with_legal_input() {
 		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
 		assert_err!(call_report(2, mock_report1()), Error::<Test>::UnregisterNode);
 
-		// Failed when machine_id don't match
 		assert_ok!(call_register(2, mock_register1()));
-		let mut report = mock_report1();
-		report.machine_id[0] += 1;
-		assert_err!(call_report(2, report), Error::<Test>::MismatchMacheId);
 
 		// Failed when add_files or del_files is tampered
 		let mut report = mock_report1();

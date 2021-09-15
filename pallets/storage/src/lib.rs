@@ -586,12 +586,11 @@ pub mod pallet {
 		))]
 		pub fn report(
 			origin: OriginFor<T>,
-			machine_id: MachineId,
-			rid: u64,
+			#[pallet::compact] rid: u64,
+			#[pallet::compact] power: u64,
 			sig: Vec<u8>,
 			add_files: Vec<(FileId, u64)>,
 			del_files: Vec<FileId>,
-			power: u64,
 			settle_files: Vec<FileId>,
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
@@ -601,11 +600,8 @@ pub mod pallet {
 				Error::<T>::ReportExceedLimit
 			);
 			let mut stash_info = Stashs::<T>::get(&reporter).ok_or(Error::<T>::UnstashNode)?;
-			ensure!(stash_info.machine_id.is_some(), Error::<T>::UnregisterNode);
-			ensure!(
-				&stash_info.machine_id.clone().unwrap() == &machine_id,
-				Error::<T>::MismatchMacheId
-			);
+			let machine_id =
+				stash_info.machine_id.as_ref().ok_or(Error::<T>::UnregisterNode)?.clone();
 			let register = Registers::<T>::get(&machine_id).ok_or(Error::<T>::UnregisterNode)?;
 			let now_at = Self::now_bn();
 			let enclave_bn =
