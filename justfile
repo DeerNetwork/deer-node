@@ -9,7 +9,7 @@ test crate +args='--lib':
 bench pallet:
     #!/bin/bash
     cargo build --release --locked --features=runtime-benchmarks
-    $node benchmark \
+    ./target/release/{{name}} benchmark \
     --chain=dev \
     --steps=50 \
     --repeat=20 \
