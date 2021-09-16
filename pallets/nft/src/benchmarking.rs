@@ -28,12 +28,12 @@ fn create_class<T: Config<I>, I: 'static>() -> (T::ClassId, T::AccountId) {
 	(class, caller)
 }
 
-fn mint_instance<T: Config<I>, I: 'static>(index: u16) -> (T::InstanceId, T::AccountId) {
+fn mint_instance<T: Config<I>, I: 'static>(instance: u32) -> (T::InstanceId, T::AccountId) {
 	let caller = Class::<T, I>::get(T::ClassId::default()).unwrap().owner;
 	if caller != whitelisted_caller() {
 		whitelist_account!(caller);
 	}
-	let instance = index.into();
+	let instance = instance.into();
 	assert!(NFT::<T, I>::mint(
 		SystemOrigin::Signed(caller.clone()).into(),
 		Default::default(),
@@ -75,10 +75,11 @@ fn assert_last_event<T: Config<I>, I: 'static>(generic_event: <T as Config<I>>::
 benchmarks_instance_pallet! {
 	create {
 		let caller: T::AccountId = whitelisted_caller();
+		let class = 1u32.into();
 		T::Currency::make_free_balance_be(&caller, DepositBalanceOf::<T, I>::max_value());
-	}: _(SystemOrigin::Signed(caller.clone()), Default::default(), rate(10))
+	}: _(SystemOrigin::Signed(caller.clone()), class, rate(10))
 	verify {
-		assert_last_event::<T, I>(Event::Created(Default::default(), caller).into());
+		assert_last_event::<T, I>(Event::Created(class, caller).into());
 	}
 
 	mint {
@@ -101,7 +102,7 @@ benchmarks_instance_pallet! {
 
 	ready_transfer {
 		let (class, caller) = create_class::<T, I>();
-		let (instance, ..) = mint_instance::<T, I>(Default::default());
+		let (instance, ..) = mint_instance::<T, I>(0);
 		let target: T::AccountId = account("target", 0, SEED);
 		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
 		let target_lookup = T::Lookup::unlookup(target.clone());
@@ -112,7 +113,7 @@ benchmarks_instance_pallet! {
 
 	cancel_transfer {
 		let (class, caller) = create_class::<T, I>();
-		let (instance, ..) = mint_instance::<T, I>(Default::default());
+		let (instance, ..) = mint_instance::<T, I>(0);
 		let target: T::AccountId = account("target", 0, SEED);
 		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
 		let target_lookup = T::Lookup::unlookup(target.clone());
@@ -124,7 +125,7 @@ benchmarks_instance_pallet! {
 
 	accept_transfer {
 		let (class, caller) = create_class::<T, I>();
-		let (instance, ..) = mint_instance::<T, I>(Default::default());
+		let (instance, ..) = mint_instance::<T, I>(0);
 		let target: T::AccountId = account("target", 0, SEED);
 		whitelist_account!(target);
 		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());

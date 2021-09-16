@@ -26,10 +26,11 @@ use frame_support::{
 	ensure,
 	traits::{Currency, Get, ReservableCurrency},
 	weights::Weight,
+	BoundedVec,
 };
 use frame_system::Config as SystemConfig;
 use sp_runtime::{
-	traits::{CheckedAdd, CheckedSub, Saturating, StaticLookup, Zero},
+	traits::{AtLeast32BitUnsigned, CheckedAdd, CheckedSub, Saturating, StaticLookup, Zero},
 	ArithmeticError, Perbill, RuntimeDebug,
 };
 use sp_std::prelude::*;
@@ -107,7 +108,7 @@ pub struct InstanceDetails<AccountId, DepositBalance> {
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{pallet_prelude::*, BoundedVec};
+	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
@@ -121,10 +122,10 @@ pub mod pallet {
 		type Event: From<Event<Self, I>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// Identifier for the class of asset.
-		type ClassId: Member + Parameter + Default + Copy + HasCompact;
+		type ClassId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
 
 		/// The type used to identify a unique asset within an asset class.
-		type InstanceId: Member + Parameter + Default + Copy + HasCompact + From<u16>;
+		type InstanceId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
 
 		/// The currency mechanism, used for paying for reserves.
 		type Currency: ReservableCurrency<Self::AccountId>;
@@ -157,6 +158,10 @@ pub mod pallet {
 		/// The maximum of royalty rate
 		#[pallet::constant]
 		type RoyaltyRateLimit: Get<Perbill>;
+
+		// The new class id must in (MaxClassId, MaxClassId + T::ClassIdIncLimit]
+		#[pallet::constant]
+		type ClassIdIncLimit: Get<Self::ClassId>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -222,6 +227,10 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
+	/// Maximum class id in this pallet
+	#[pallet::storage]
+	pub type MaxClassId<T: Config<I>, I: 'static = ()> = StorageValue<_, T::ClassId, ValueQuery>;
+
 	/// Storage version of the pallet.
 	///
 	/// New networks start with last version.
@@ -283,6 +292,8 @@ pub mod pallet {
 		NotTranserTarget,
 		/// Royalty rate great than RoyaltyRateLimit
 		RoyaltyRateTooHigh,
+		/// The class id is not in (MaxClassId, MaxClassId + T::ClassIdIncLimit]
+		ClassIdTooLarge,
 	}
 
 	#[pallet::genesis_config]
@@ -350,6 +361,9 @@ pub mod pallet {
 			ensure!(!Class::<T, I>::contains_key(class), Error::<T, I>::AlreadyExists);
 			ensure!(T::RoyaltyRateLimit::get() >= royalty_rate, Error::<T, I>::RoyaltyRateTooHigh);
 
+			let max_class = MaxClassId::<T, I>::get();
+			ensure!(class <= max_class + T::ClassIdIncLimit::get(), Error::<T, I>::ClassIdTooLarge);
+
 			let deposit = T::ClassDeposit::get();
 			T::Currency::reserve(&owner, deposit)?;
 
@@ -357,6 +371,9 @@ pub mod pallet {
 				class,
 				ClassDetails { owner: owner.clone(), deposit, instances: 0, royalty_rate },
 			);
+			if class > max_class {
+				MaxClassId::<T, I>::put(class);
+			}
 			Self::deposit_event(Event::Created(class, owner));
 			Ok(())
 		}
