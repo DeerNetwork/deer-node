@@ -8,7 +8,7 @@ test crate +args='--lib':
 
 bench pallet exection="wasm":
     #!/bin/bash
-    # cargo build --release --locked --features=runtime-benchmarks
+    cargo build --release --locked --features=runtime-benchmarks
     if [[  "{{exection}}" = "wasm" ]]; then
         ./target/release/{{name}} benchmark \
             --chain=dev \
