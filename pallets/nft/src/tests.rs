@@ -67,6 +67,18 @@ fn create_class_should_work() {
 }
 
 #[test]
+fn create_class_with_limit() {
+	new_test_ext().execute_with(|| {
+		Balances::make_free_balance_be(&1, 100);
+		assert_err!(NFT::create(Origin::signed(1), ClassIdIncLimit::get() + 1, rate(5)), Error::<Test>::ClassIdTooLarge);
+		assert_ok!(NFT::create(Origin::signed(1), 3, rate(5)));
+		assert_eq!(MaxClassId::<Test>::get(), 3);
+		assert_ok!(NFT::create(Origin::signed(1), 1, rate(5)));
+		assert_eq!(MaxClassId::<Test>::get(), 3);
+	})
+}
+
+#[test]
 fn mint_should_work() {
 	new_test_ext().execute_with(|| {
 		Balances::make_free_balance_be(&1, 100);

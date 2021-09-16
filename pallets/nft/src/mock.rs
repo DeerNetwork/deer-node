@@ -96,6 +96,7 @@ parameter_types! {
 	pub const DepositBase: u64 = 1;
 	pub const DepositPerByte: u64 = 1;
 	pub const RoyaltyRateLimit: Perbill = Perbill::from_percent(20);
+	pub const ClassIdIncLimit: u32 = 10;
 }
 
 impl Config for Test {
@@ -110,6 +111,7 @@ impl Config for Test {
 	type KeyLimit = KeyLimit;
 	type ValueLimit = ValueLimit;
 	type RoyaltyRateLimit = RoyaltyRateLimit;
+	type ClassIdIncLimit = ClassIdIncLimit;
 	type WeightInfo = ();
 }
 
