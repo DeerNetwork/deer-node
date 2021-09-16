@@ -950,6 +950,7 @@ parameter_types! {
 	pub const NftDepositBase: Balance = 100 * MILLICENTS;
 	pub const NftDepositPerByte: Balance = 10 * MILLICENTS;
 	pub const NftRoyaltyRateLimit: Perbill = Perbill::from_percent(20);
+	pub const NftClassIdIncLimit: u32 = 20;
 }
 
 impl pallet_nft::Config for Runtime {
@@ -964,6 +965,7 @@ impl pallet_nft::Config for Runtime {
 	type KeyLimit = NftKeyLimit;
 	type ValueLimit = NftValueLimit;
 	type RoyaltyRateLimit = NftRoyaltyRateLimit;
+	type ClassIdIncLimit = NftClassIdIncLimit;
 	type WeightInfo = pallet_nft::weights::SubstrateWeight<Runtime>;
 }
 
