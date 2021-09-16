@@ -6,20 +6,31 @@ build +args='--release':
 test crate +args='--lib':
     cargo test --package {{crate}} {{args}}
 
-bench pallet:
+bench pallet exection="wasm":
     #!/bin/bash
-    cargo build --release --locked --features=runtime-benchmarks
-    ./target/release/{{name}} benchmark \
-    --chain=dev \
-    --steps=50 \
-    --repeat=20 \
-    --pallet=pallet-{{pallet}} \
-    --extrinsic=* \
-    --execution=wasm \
-    --wasm-execution=compiled \
-    --heap-pages=4096 \
-    --output=./pallets/{{pallet}}/src/weights.rs \
-    --template=./scripts/frame-weight-template.hbs
+    # cargo build --release --locked --features=runtime-benchmarks
+    if [[  "{{exection}}" = "wasm" ]]; then
+        ./target/release/{{name}} benchmark \
+            --chain=dev \
+            --steps=50 \
+            --repeat=20 \
+            --pallet=pallet-{{pallet}} \
+            --extrinsic=* \
+            --execution=wasm \
+            --wasm-execution=compiled \
+            --heap-pages=4096 \
+            --output=./pallets/{{pallet}}/src/weights.rs \
+            --template=./scripts/frame-weight-template.hbs
+    else
+        ./target/release/{{name}} benchmark \
+            --chain=dev \
+            --steps=50 \
+            --repeat=20 \
+            --pallet=pallet-{{pallet}} \
+            --extrinsic=* \
+            --heap-pages=4096 \
+            --execution=native
+    fi
 
 
 run +args='--dev --tmp':

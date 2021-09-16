@@ -125,7 +125,7 @@ pub mod pallet {
 		type ClassId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
 
 		/// The type used to identify a unique asset within an asset class.
-		type InstanceId: Member + Parameter + Default + Copy + HasCompact + From<u16>;
+		type InstanceId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
 
 		/// The currency mechanism, used for paying for reserves.
 		type Currency: ReservableCurrency<Self::AccountId>;
