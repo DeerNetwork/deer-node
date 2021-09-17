@@ -73,11 +73,17 @@ impl<Balance: Default, BlockNumber> Payout<Balance, BlockNumber> for () {
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
 pub struct NodeInfo<BlockNumber> {
 	/// A increment id of one report
+	#[codec(compact)]
 	pub rid: u64,
 	/// Effective storage space
+	#[codec(compact)]
 	pub used: u64,
 	/// Mine power of node, use this to distribute mining rewards
+	#[codec(compact)]
 	pub power: u64,
+	/// Storage capacity
+	#[codec(compact)]
+	pub capacity: u64,
 	/// Latest report at
 	pub reported_at: BlockNumber,
 }
@@ -115,9 +121,12 @@ pub struct StoreFile<Balance, BlockNumber> {
 	pub reserved: Balance,
 	/// Basic cost of sumit to network
 	pub base_fee: Balance,
-	// Store file size
+	/// Order fee releated to renew
+	pub order_fee: Balance,
+	/// Store file size
+	#[codec(compact)]
 	pub file_size: u64,
-	// When added file
+	/// When added file
 	pub added_at: BlockNumber,
 }
 
@@ -145,17 +154,24 @@ pub struct RegisterInfo {
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
 pub struct NodeStats {
 	/// Node's power
+	#[codec(compact)]
 	pub power: u64,
 	/// Eeffictive storage size
+	#[codec(compact)]
 	pub used: u64,
 }
 
 /// Record network's effictive storage size and power
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
 pub struct SummaryStats {
-	/// Network's power
+	/// Storage capacity
+	#[codec(compact)]
+	pub capacity: u128,
+	/// Storage power
+	#[codec(compact)]
 	pub power: u128,
 	/// Eeffictive storage size
+	#[codec(compact)]
 	pub used: u128,
 }
 
