@@ -104,6 +104,8 @@ pub mod pallet {
 		OrderExpired,
 		/// Assert is reserved
 		AssertReserved,
+		/// Insufficient account balance.
+		InsufficientFunds,
 	}
 
 	/// An index mapping from token to order.
@@ -185,25 +187,31 @@ pub mod pallet {
 					Error::<T, I>::OrderExpired
 				);
 			}
-
 			let token = pallet_nft::Asset::<T, I>::get(class, instance)
 				.ok_or(Error::<T, I>::TokenNotFound)?;
-			let royalty_fee = token.royalty_rate * order.price;
-			let mut order_fee = order.price;
-			if !royalty_fee.is_zero() {
-				if !T::Currency::free_balance(&token.royalty_beneficiary).is_zero() {
-					order_fee = order_fee.saturating_sub(royalty_fee);
-					T::Currency::transfer(
-						&who,
-						&token.royalty_beneficiary,
-						royalty_fee,
-						ExistenceRequirement::KeepAlive,
-					)?;
-				}
+
+			ensure!(
+				T::Currency::free_balance(&who) > order.price,
+				Error::<T, I>::InsufficientFunds
+			);
+
+			let mut royalty_fee = token.royalty_rate * order.price;
+			if royalty_fee < T::Currency::minimum_balance() &&
+				T::Currency::free_balance(&token.royalty_beneficiary).is_zero()
+			{
+				royalty_fee = Zero::zero();
 			}
 			let tax_fee = T::TradeFeeTaxRatio::get() * order.price;
+			let order_fee = order.price.saturating_sub(royalty_fee).saturating_sub(tax_fee);
+			if !royalty_fee.is_zero() {
+				T::Currency::transfer(
+					&who,
+					&token.royalty_beneficiary,
+					royalty_fee,
+					ExistenceRequirement::KeepAlive,
+				)?;
+			}
 			if !tax_fee.is_zero() {
-				order_fee = order_fee.saturating_sub(tax_fee);
 				T::Currency::withdraw(
 					&who,
 					tax_fee,

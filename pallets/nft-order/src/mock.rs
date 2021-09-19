@@ -55,7 +55,7 @@ impl frame_system::Config for Test {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: u64 = 1;
+	pub const ExistentialDeposit: u64 = 2;
 	pub const MaxReserves: u32 = 50;
 }
 

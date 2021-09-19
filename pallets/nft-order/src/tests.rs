@@ -88,7 +88,7 @@ fn deal_should_work() {
 }
 
 #[test]
-fn deal_should_work2() {
+fn deal_with_royalty_beneficiary() {
 	new_test_ext().execute_with(|| {
 		Balances::make_free_balance_be(&1, 100);
 		Balances::make_free_balance_be(&3, 100);
@@ -105,7 +105,7 @@ fn deal_should_work2() {
 }
 
 #[test]
-fn deal_should_work3() {
+fn deal_with_royalty_beneficiary_no_account() {
 	new_test_ext().execute_with(|| {
 		Balances::make_free_balance_be(&1, 100);
 		assert_ok!(NFT::create(Origin::signed(1), 0, rate(10)));
@@ -117,6 +117,18 @@ fn deal_should_work3() {
 		assert_eq!(Balances::free_balance(&1), 107);
 		assert_eq!(Balances::free_balance(&2), 89);
 		assert_eq!(Balances::free_balance(&3), 0);
+	})
+}
+
+#[test]
+fn deal_with_insufficient_funds() {
+	new_test_ext().execute_with(|| {
+		Balances::make_free_balance_be(&1, 100);
+		assert_ok!(NFT::create(Origin::signed(1), 0, rate(10)));
+		assert_ok!(NFT::mint(Origin::signed(1), 0, 42, None, Some(3)));
+		assert_ok!(NFTOrder::sell(Origin::signed(1), 0, 42, 10, None));
+		Balances::make_free_balance_be(&2, 9);
+		assert_err!(NFTOrder::deal(Origin::signed(2), 0, 42), Error::<Test>::InsufficientFunds);
 	})
 }
 
