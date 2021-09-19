@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 200,
+	spec_version: 210,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -950,7 +950,7 @@ parameter_types! {
 	pub const NftDepositBase: Balance = 100 * MILLICENTS;
 	pub const NftDepositPerByte: Balance = 10 * MILLICENTS;
 	pub const NftRoyaltyRateLimit: Perbill = Perbill::from_percent(20);
-	pub const NftClassIdIncLimit: u32 = 20;
+	pub const NftClassIdIncLimit: u32 = 100;
 }
 
 impl pallet_nft::Config for Runtime {
