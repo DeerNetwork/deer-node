@@ -18,6 +18,8 @@ RUN apt-get update && \
 # add node to docker image
 COPY ./target/release/deer-node /usr/local/bin/deer-node
 
+RUN /usr/local/bin/deer-node --version
+
 EXPOSE 30333 9933 9944
 
 ENTRYPOINT ["/usr/local/bin/deer-node"]

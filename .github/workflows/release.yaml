@@ -7,7 +7,7 @@ on:
 
 jobs:
   github-releases:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     outputs:
       tag: ${{ steps.check_rc.outputs.tag }}
       rc: ${{ steps.check_rc.outputs.rc }}
@@ -47,7 +47,7 @@ jobs:
             target/release/wbuild/deer-runtime/deer_runtime.compact.wasm 
 
   docker-hub:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     needs: ["github-releases"]
     if: needs.github-releases.outputs.rc == 'false'
     steps:
@@ -57,6 +57,7 @@ jobs:
         with:
           name: deer-node
           path: ${{ github.workspace }}/target/release/
+      - shell: chmod +x ${{ github.workspace }}/target/release/deer-node
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
