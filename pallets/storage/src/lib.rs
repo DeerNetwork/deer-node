@@ -375,6 +375,8 @@ pub mod pallet {
 		InvalidFileSize,
 		/// Unable to delete file
 		UnableToDeleteFile,
+		/// Insufficient stash
+		InsufficientStash,
 	}
 
 	#[pallet::hooks]
@@ -602,6 +604,9 @@ pub mod pallet {
 			let mut stash_info = Stashs::<T>::get(&reporter).ok_or(Error::<T>::UnstashNode)?;
 			let machine_id =
 				stash_info.machine_id.as_ref().ok_or(Error::<T>::UnregisterNode)?.clone();
+
+			ensure!(stash_info.deposit >= T::SlashBalance::get(), Error::<T>::InsufficientStash);
+
 			let register = Registers::<T>::get(&machine_id).ok_or(Error::<T>::UnregisterNode)?;
 			let now_at = Self::now_bn();
 			let enclave_bn =
