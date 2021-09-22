@@ -159,7 +159,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type RoyaltyRateLimit: Get<Perbill>;
 
-		// The new class id must in (MaxClassId, MaxClassId + T::ClassIdIncLimit]
+		/// The new class id must in (MaxClassId, MaxClassId + T::ClassIdIncLimit]
 		#[pallet::constant]
 		type ClassIdIncLimit: Get<Self::ClassId>;
 
