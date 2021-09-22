@@ -57,7 +57,7 @@ jobs:
         with:
           name: deer-node
           path: ${{ github.workspace }}/target/release/
-      - shell: chmod +x ${{ github.workspace }}/target/release/deer-node
+      - run: chmod +x ${{ github.workspace }}/target/release/deer-node
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
