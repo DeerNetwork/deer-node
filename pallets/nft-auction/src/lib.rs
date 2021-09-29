@@ -1,5 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(test)]
+pub mod mock;
+
 use codec::{Decode, Encode, HasCompact};
 use frame_support::{
 	dispatch::DispatchResult,
