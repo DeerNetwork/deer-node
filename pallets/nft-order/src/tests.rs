@@ -24,23 +24,17 @@ fn sell_should_work() {
 		assert_eq!(NFT::info(&0, &42), Some((1, true)));
 
 		// should not sell twice
-		assert_err!(
-			NFTOrder::sell(Origin::signed(1), 0, 42, 10, None),
-			Error::<Test>::AssertReserved
-		);
+		assert_err!(NFTOrder::sell(Origin::signed(1), 0, 42, 10, None), Error::<Test>::InvalidNFT);
 
 		// should not sell asset which is not found
-		assert_err!(
-			NFTOrder::sell(Origin::signed(1), 0, 1, 10, None),
-			Error::<Test>::TokenNotFound
-		);
+		assert_err!(NFTOrder::sell(Origin::signed(1), 0, 1, 10, None), Error::<Test>::InvalidNFT);
 
 		// should not sell asset you do not owned
 		Balances::make_free_balance_be(&2, 100);
 		assert_ok!(NFT::mint(Origin::signed(1), 0, 43, None, None));
 		assert_ok!(NFT::ready_transfer(Origin::signed(1), 0, 43, 2));
 		assert_ok!(NFT::accept_transfer(Origin::signed(2), 0, 43));
-		assert_err!(NFTOrder::sell(Origin::signed(1), 0, 43, 10, None), Error::<Test>::NotOwn);
+		assert_err!(NFTOrder::sell(Origin::signed(1), 0, 43, 10, None), Error::<Test>::InvalidNFT);
 
 		// should work with deadline
 		assert_ok!(NFT::mint(Origin::signed(1), 0, 44, None, None));
