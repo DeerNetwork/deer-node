@@ -308,10 +308,7 @@ pub mod pallet {
 						Self::do_redeem_dutch_auction(&auction_id, &auction, &bid)?;
 					} else {
 						T::Currency::reserve(&who, new_price)?;
-						DutchAuctionBids::<T, I>::insert(
-							auction_id,
-							bid ,
-						);
+						DutchAuctionBids::<T, I>::insert(auction_id, bid);
 						Self::deposit_event(Event::BidDutchAuction(who, auction_id));
 					}
 				},
@@ -322,7 +319,8 @@ pub mod pallet {
 						Error::<T, I>::AuctionClosed
 					);
 					T::Currency::unreserve(&bid.account, bid.price);
-					let new_bid = AuctionBid { account: who.clone(), price: bid_price, bid_at: now };
+					let new_bid =
+						AuctionBid { account: who.clone(), price: bid_price, bid_at: now };
 					if bid_price >= auction.max_price {
 						ensure!(
 							T::Currency::free_balance(&who) > bid_price,
@@ -332,10 +330,7 @@ pub mod pallet {
 					} else {
 						ensure!(bid_price > bid.price, Error::<T, I>::InvalidDutchBidPrice);
 						T::Currency::reserve(&who, bid_price)?;
-						DutchAuctionBids::<T, I>::insert(
-							auction_id,
-							new_bid,
-						);
+						DutchAuctionBids::<T, I>::insert(auction_id, new_bid);
 						Self::deposit_event(Event::BidDutchAuction(who, auction_id));
 					}
 				},
@@ -372,7 +367,8 @@ pub mod pallet {
 			#[pallet::compact] auction_id: T::AuctionId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let auction = DutchAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
+			let auction =
+				DutchAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
 			ensure!(auction.owner == who, Error::<T, I>::NotOwnerAccount);
 			let bid = DutchAuctionBids::<T, I>::get(auction_id);
 			ensure!(bid.is_none(), Error::<T, I>::CannotRemoveAuction);
@@ -454,7 +450,7 @@ pub mod pallet {
 					);
 					T::Currency::unreserve(&bid.account, bid.price);
 					ensure!(
-						price > bid.price.saturating_add(auction.min_raise_price),
+						price >= bid.price.saturating_add(auction.min_raise_price),
 						Error::<T, I>::InvalidDutchBidPrice
 					);
 					T::Currency::reserve(&who, price)?;
@@ -510,7 +506,8 @@ pub mod pallet {
 			#[pallet::compact] auction_id: T::AuctionId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let auction = EnglishAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
+			let auction =
+				EnglishAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
 			ensure!(auction.owner == who, Error::<T, I>::NotOwnerAccount);
 			let bid = EnglishAuctionBids::<T, I>::get(auction_id);
 			ensure!(bid.is_none(), Error::<T, I>::CannotRemoveAuction);
