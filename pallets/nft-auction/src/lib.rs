@@ -2,6 +2,8 @@
 
 #[cfg(test)]
 pub mod mock;
+#[cfg(test)]
+pub mod tests;
 
 use codec::{Decode, Encode, HasCompact};
 use frame_support::{
@@ -222,7 +224,9 @@ pub mod pallet {
 		SelfBid,
 		MissDutchBidPrice,
 		InvalidDutchBidPrice,
+		InsufficientFunds,
 		NotBidAccount,
+		NotOwnerAccount,
 		CannotRedeemNow,
 		CannotRemoveAuction,
 	}
@@ -251,7 +255,7 @@ pub mod pallet {
 			T::Currency::reserve(&who, deposit)?;
 			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &who)?;
 
-			let auction_id = Self::next_auction_id()?;
+			let auction_id = Self::gen_auction_id()?;
 			let now = frame_system::Pallet::<T>::block_number();
 
 			let auction = DutchAuction {
@@ -295,12 +299,21 @@ pub mod pallet {
 						ensure!(bid_price >= new_price, Error::<T, I>::InvalidDutchBidPrice);
 						new_price = bid_price
 					}
-					T::Currency::reserve(&who, new_price)?;
-					DutchAuctionBids::<T, I>::insert(
-						auction_id,
-						AuctionBid { account: who.clone(), price: new_price, bid_at: now },
-					);
-					Self::deposit_event(Event::BidDutchAuction(who, auction_id));
+					let bid = AuctionBid { account: who.clone(), price: new_price, bid_at: now };
+					if new_price >= auction.max_price {
+						ensure!(
+							T::Currency::free_balance(&who) > new_price,
+							Error::<T, I>::InsufficientFunds
+						);
+						Self::do_redeem_dutch_auction(&auction_id, &auction, &bid)?;
+					} else {
+						T::Currency::reserve(&who, new_price)?;
+						DutchAuctionBids::<T, I>::insert(
+							auction_id,
+							bid ,
+						);
+						Self::deposit_event(Event::BidDutchAuction(who, auction_id));
+					}
 				},
 				(Some(bid), Some(bid_price)) => {
 					let now = frame_system::Pallet::<T>::block_number();
@@ -309,14 +322,19 @@ pub mod pallet {
 						Error::<T, I>::AuctionClosed
 					);
 					T::Currency::unreserve(&bid.account, bid.price);
+					let new_bid = AuctionBid { account: who.clone(), price: bid_price, bid_at: now };
 					if bid_price >= auction.max_price {
-						Self::do_redeem_dutch_auction(&auction_id, &auction, &bid)?;
+						ensure!(
+							T::Currency::free_balance(&who) > bid_price,
+							Error::<T, I>::InsufficientFunds
+						);
+						Self::do_redeem_dutch_auction(&auction_id, &auction, &new_bid)?;
 					} else {
 						ensure!(bid_price > bid.price, Error::<T, I>::InvalidDutchBidPrice);
 						T::Currency::reserve(&who, bid_price)?;
 						DutchAuctionBids::<T, I>::insert(
 							auction_id,
-							AuctionBid { account: who.clone(), price: bid_price, bid_at: now },
+							new_bid,
 						);
 						Self::deposit_event(Event::BidDutchAuction(who, auction_id));
 					}
@@ -354,7 +372,8 @@ pub mod pallet {
 			#[pallet::compact] auction_id: T::AuctionId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			DutchAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
+			let auction = DutchAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
+			ensure!(auction.owner == who, Error::<T, I>::NotOwnerAccount);
 			let bid = DutchAuctionBids::<T, I>::get(auction_id);
 			ensure!(bid.is_none(), Error::<T, I>::CannotRemoveAuction);
 			Self::delete_dutch_auction(&auction_id)?;
@@ -383,7 +402,7 @@ pub mod pallet {
 			T::Currency::reserve(&who, deposit)?;
 			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &who)?;
 
-			let auction_id = Self::next_auction_id()?;
+			let auction_id = Self::gen_auction_id()?;
 			let now = frame_system::Pallet::<T>::block_number();
 
 			let auction = EnglishAuction {
@@ -491,7 +510,8 @@ pub mod pallet {
 			#[pallet::compact] auction_id: T::AuctionId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			EnglishAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
+			let auction = EnglishAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
+			ensure!(auction.owner == who, Error::<T, I>::NotOwnerAccount);
 			let bid = EnglishAuctionBids::<T, I>::get(auction_id);
 			ensure!(bid.is_none(), Error::<T, I>::CannotRemoveAuction);
 			Self::delete_english_auction(&auction_id)?;
@@ -502,7 +522,7 @@ pub mod pallet {
 }
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
-	pub fn next_auction_id() -> Result<T::AuctionId, DispatchError> {
+	pub fn gen_auction_id() -> Result<T::AuctionId, DispatchError> {
 		CurrentAuctionId::<T, I>::try_mutate(|id| -> Result<T::AuctionId, DispatchError> {
 			let current_id = *id;
 			*id = id.checked_add(&One::one()).ok_or(Error::<T, I>::InvalidNextAuctionId)?;

@@ -102,7 +102,7 @@ parameter_types! {
 	pub const AuctionDeposit: u64 = 10;
 	pub const AuctionFeeTaxRatio: Perbill = Perbill::from_percent(10);
 	pub const MinDeadline: u64 = 600;
-	pub const DelayOfAuction: u64 = 10;
+	pub const DelayOfAuction: u64 = 60;
 }
 
 impl Config for Test {
