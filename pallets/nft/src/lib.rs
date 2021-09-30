@@ -24,7 +24,7 @@ use codec::{Decode, Encode, HasCompact};
 use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
-	traits::{Currency, Get, ReservableCurrency},
+	traits::{Currency, ExistenceRequirement, Get, ReservableCurrency, WithdrawReasons},
 	weights::Weight,
 	BoundedVec,
 };
@@ -703,6 +703,13 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	pub fn info(class: &T::ClassId, instance: &T::InstanceId) -> Option<(T::AccountId, bool)> {
 		Asset::<T, I>::get(class, instance).map(|v| (v.owner, v.reserved))
 	}
+	pub fn validate(class: &T::ClassId, instance: &T::InstanceId, owner: &T::AccountId) -> bool {
+		if let Some((token_owner, reserved)) = Self::info(class, instance) {
+			&token_owner == owner && !reserved
+		} else {
+			false
+		}
+	}
 	pub fn reserve(
 		class: &T::ClassId,
 		instance: &T::InstanceId,
@@ -725,6 +732,43 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			details.reserved = false;
 			Ok(())
 		})
+	}
+	pub fn swap(
+		class: &T::ClassId,
+		instance: &T::InstanceId,
+		who: &T::AccountId,
+		price: DepositBalanceOf<T, I>,
+		tax_ratio: Perbill,
+	) -> DispatchResult {
+		let token = Asset::<T, I>::get(class, instance).ok_or(Error::<T, I>::NotFound)?;
+		let mut royalty_fee = token.royalty_rate * price;
+		if royalty_fee < T::Currency::minimum_balance() &&
+			T::Currency::free_balance(&token.royalty_beneficiary).is_zero()
+		{
+			royalty_fee = Zero::zero();
+		}
+		let tax_fee = tax_ratio * price;
+		let order_fee = price.saturating_sub(royalty_fee).saturating_sub(tax_fee);
+		if !royalty_fee.is_zero() {
+			T::Currency::transfer(
+				who,
+				&token.royalty_beneficiary,
+				royalty_fee,
+				ExistenceRequirement::KeepAlive,
+			)?;
+		}
+		if !tax_fee.is_zero() {
+			T::Currency::withdraw(
+				who,
+				tax_fee,
+				WithdrawReasons::TRANSFER,
+				ExistenceRequirement::KeepAlive,
+			)?;
+		}
+		T::Currency::transfer(who, &token.owner, order_fee, ExistenceRequirement::KeepAlive)?;
+		Self::unreserve(&class, &instance)?;
+		Self::transfer(&class, &instance, &token.owner, &who)?;
+		Ok(())
 	}
 	fn update_asset(
 		class: &T::ClassId,

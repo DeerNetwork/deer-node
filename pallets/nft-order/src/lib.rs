@@ -11,12 +11,9 @@ pub mod weights;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	dispatch::DispatchResult,
-	traits::{Currency, ExistenceRequirement, ReservableCurrency},
+	traits::{Currency, ReservableCurrency},
 };
-use sp_runtime::{
-	traits::{Saturating, Zero},
-	Perbill, RuntimeDebug,
-};
+use sp_runtime::{Perbill, RuntimeDebug};
 use sp_std::prelude::*;
 
 pub use pallet::*;
@@ -43,7 +40,7 @@ pub struct OrderDetails<AccountId, Balance, BlockNumber> {
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{pallet_prelude::*, traits::WithdrawReasons};
+	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::config]
@@ -51,7 +48,7 @@ pub mod pallet {
 		/// The overarching event type.
 		type Event: From<Event<Self, I>> + IsType<<Self as frame_system::Config>::Event>;
 
-		/// The basic amount of funds that must be reserved for an asset class.
+		/// The basic amount of funds that must be reserved for an order.
 		#[pallet::constant]
 		type OrderDeposit: Get<BalanceOf<Self, I>>;
 
@@ -90,10 +87,10 @@ pub mod pallet {
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T, I = ()> {
-		/// Token not found
-		TokenNotFound,
 		/// Not own the asset
 		NotOwn,
+		/// Invalid NFt
+		InvalidNFT,
 		/// Invalid deaeline
 		InvalidDeadline,
 		/// Order not found
@@ -102,8 +99,6 @@ pub mod pallet {
 		TooManyOrders,
 		/// A sell order already expired
 		OrderExpired,
-		/// Assert is reserved
-		AssertReserved,
 		/// Insufficient account balance.
 		InsufficientFunds,
 	}
@@ -144,10 +139,10 @@ pub mod pallet {
 			deadline: Option<T::BlockNumber>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let (owner, reserved) = pallet_nft::Pallet::<T, I>::info(&class, &instance)
-				.ok_or(Error::<T, I>::TokenNotFound)?;
-			ensure!(who == owner, Error::<T, I>::NotOwn);
-			ensure!(!reserved, Error::<T, I>::AssertReserved);
+			ensure!(
+				pallet_nft::Pallet::<T, I>::validate(&class, &instance, &who),
+				Error::<T, I>::InvalidNFT
+			);
 			if let Some(ref deadline) = deadline {
 				ensure!(
 					<frame_system::Pallet<T>>::block_number() < *deadline,
@@ -155,7 +150,7 @@ pub mod pallet {
 				);
 			}
 			T::Currency::reserve(&who, T::OrderDeposit::get())?;
-			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &owner)?;
+			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &who)?;
 			let order = OrderDetails {
 				owner: who.clone(),
 				deposit: T::OrderDeposit::get(),
@@ -187,41 +182,17 @@ pub mod pallet {
 					Error::<T, I>::OrderExpired
 				);
 			}
-			let token = pallet_nft::Asset::<T, I>::get(class, instance)
-				.ok_or(Error::<T, I>::TokenNotFound)?;
-
 			ensure!(
 				T::Currency::free_balance(&who) > order.price,
 				Error::<T, I>::InsufficientFunds
 			);
-
-			let mut royalty_fee = token.royalty_rate * order.price;
-			if royalty_fee < T::Currency::minimum_balance() &&
-				T::Currency::free_balance(&token.royalty_beneficiary).is_zero()
-			{
-				royalty_fee = Zero::zero();
-			}
-			let tax_fee = T::TradeFeeTaxRatio::get() * order.price;
-			let order_fee = order.price.saturating_sub(royalty_fee).saturating_sub(tax_fee);
-			if !royalty_fee.is_zero() {
-				T::Currency::transfer(
-					&who,
-					&token.royalty_beneficiary,
-					royalty_fee,
-					ExistenceRequirement::KeepAlive,
-				)?;
-			}
-			if !tax_fee.is_zero() {
-				T::Currency::withdraw(
-					&who,
-					tax_fee,
-					WithdrawReasons::TRANSFER,
-					ExistenceRequirement::KeepAlive,
-				)?;
-			}
-			T::Currency::transfer(&who, &order.owner, order_fee, ExistenceRequirement::KeepAlive)?;
-			pallet_nft::Pallet::<T, I>::unreserve(&class, &instance)?;
-			pallet_nft::Pallet::<T, I>::transfer(&class, &instance, &order.owner, &who)?;
+			pallet_nft::Pallet::<T, I>::swap(
+				&class,
+				&instance,
+				&who,
+				order.price,
+				T::TradeFeeTaxRatio::get(),
+			)?;
 			Self::delete_order(class, instance)?;
 			Self::deposit_event(Event::Dealed(class, instance, order.owner.clone(), who));
 			Ok(())
@@ -237,7 +208,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let order = Orders::<T, I>::try_get(class, instance)
 				.map_err(|_| Error::<T, I>::OrderNotFound)?;
-			ensure!(who == order.owner, Error::<T, I>::NotOwn);
+			ensure!(who == order.owner, Error::<T, I>::OrderNotFound);
 			pallet_nft::Pallet::<T, I>::unreserve(&class, &instance)?;
 			Self::delete_order(class, instance)?;
 			Self::deposit_event(Event::Removed(class, instance, who));

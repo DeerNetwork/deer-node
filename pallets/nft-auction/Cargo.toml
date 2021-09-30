@@ -1,0 +1,45 @@
+[package]
+name = "pallet-nft-auction"
+version = "0.2.0"
+edition = "2018"
+license = "Apache 2.0"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
+sp-std = { path = "../../substrate/primitives/std", default-features = false }
+sp-core = { path = "../../substrate/primitives/core", default-features = false }
+sp-runtime = { path = "../../substrate/primitives/runtime", default-features = false }
+frame-benchmarking = { path = "../../substrate/frame/benchmarking", default-features = false, optional = true }
+frame-support = { path = "../../substrate/frame/support", default-features = false }
+frame-system = { path = "../../substrate/frame/system", default-features = false }
+
+pallet-nft = { path = "../nft", default-features = false }
+
+[dev-dependencies]
+sp-std = { path = "../../substrate/primitives/std" }
+sp-io = { path = "../../substrate/primitives/io" }
+sp-runtime = { path = "../../substrate/primitives/runtime" }
+pallet-balances = { path = "../../substrate/frame/balances" }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"sp-std/std",
+	"sp-core/std",
+	"sp-runtime/std",
+	"frame-benchmarking/std",
+	"frame-support/std",
+	"frame-system/std",
+	"pallet-nft/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking",
+	"sp-runtime/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"pallet-nft/runtime-benchmarks",
+]
+try-runtime = ["frame-support/try-runtime"]
