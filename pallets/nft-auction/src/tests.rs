@@ -4,12 +4,6 @@ use super::*;
 use crate::mock::*;
 use frame_support::{assert_err, assert_ok};
 
-fn run_to_block(n: u64) {
-	while System::block_number() < n {
-		System::set_block_number(System::block_number() + 1);
-	}
-}
-
 fn create_dutch_auction() -> u32 {
 	Balances::make_free_balance_be(&1, 100);
 	assert_ok!(NFT::create(Origin::signed(1), 0, rate(10)));
@@ -138,7 +132,7 @@ fn bid_dutch_auction_should_fail() {
 		);
 		assert_err!(
 			NFTAuction::bid_dutch(Origin::signed(2), auction_id, Some(10)),
-			Error::<Test>::InvalidDutchBidPrice
+			Error::<Test>::InvalidBidPrice
 		);
 
 		Balances::make_free_balance_be(&3, 10);
@@ -171,7 +165,7 @@ fn bid_dutch_auction_again_should_fail() {
 		);
 		assert_err!(
 			NFTAuction::bid_dutch(Origin::signed(3), auction_id, Some(10)),
-			Error::<Test>::InvalidDutchBidPrice
+			Error::<Test>::InvalidBidPrice
 		);
 
 		Balances::make_free_balance_be(&4, 10);
@@ -364,7 +358,7 @@ fn bid_english_auction_again_should_fail() {
 		Balances::make_free_balance_be(&3, 100);
 		assert_err!(
 			NFTAuction::bid_english(Origin::signed(3), auction_id, 20),
-			Error::<Test>::InvalidDutchBidPrice
+			Error::<Test>::InvalidBidPrice
 		);
 
 		run_to_block(1201);

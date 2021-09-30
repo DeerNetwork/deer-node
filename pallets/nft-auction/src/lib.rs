@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 #[cfg(test)]
 pub mod mock;
 #[cfg(test)]
@@ -181,6 +183,7 @@ pub mod pallet {
 
 	/// Current auction id, automate incr
 	#[pallet::storage]
+	#[pallet::getter(fn current_auction_id)]
 	pub type CurrentAuctionId<T: Config<I>, I: 'static = ()> =
 		StorageValue<_, T::AuctionId, ValueQuery>;
 
@@ -223,7 +226,7 @@ pub mod pallet {
 		AuctionClosed,
 		SelfBid,
 		MissDutchBidPrice,
-		InvalidDutchBidPrice,
+		InvalidBidPrice,
 		InsufficientFunds,
 		NotBidAccount,
 		NotOwnerAccount,
@@ -234,7 +237,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		/// Create an dutch auction.
-		#[pallet::weight(10_000)]
+		#[pallet::weight(100_000)]
 		pub fn create_dutch(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
@@ -279,7 +282,7 @@ pub mod pallet {
 		/// Bid dutch auction
 		///
 		/// - `price`: bid price. If none, use current reduction price.
-		#[pallet::weight(10_000)]
+		#[pallet::weight(100_000)]
 		pub fn bid_dutch(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -296,7 +299,7 @@ pub mod pallet {
 					ensure!(auction.deadline >= now, Error::<T, I>::AuctionClosed);
 					let mut new_price = Self::get_dutch_price(&auction, now);
 					if let Some(bid_price) = price {
-						ensure!(bid_price >= new_price, Error::<T, I>::InvalidDutchBidPrice);
+						ensure!(bid_price >= new_price, Error::<T, I>::InvalidBidPrice);
 						new_price = bid_price
 					}
 					let bid = AuctionBid { account: who.clone(), price: new_price, bid_at: now };
@@ -328,7 +331,7 @@ pub mod pallet {
 						);
 						Self::do_redeem_dutch_auction(&auction_id, &auction, &new_bid)?;
 					} else {
-						ensure!(bid_price > bid.price, Error::<T, I>::InvalidDutchBidPrice);
+						ensure!(bid_price > bid.price, Error::<T, I>::InvalidBidPrice);
 						T::Currency::reserve(&who, bid_price)?;
 						DutchAuctionBids::<T, I>::insert(auction_id, new_bid);
 						Self::deposit_event(Event::BidDutchAuction(who, auction_id));
@@ -340,7 +343,7 @@ pub mod pallet {
 		}
 
 		/// Redeem duction
-		#[pallet::weight(10_000)]
+		#[pallet::weight(100_000)]
 		pub fn redeem_dutch(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -361,7 +364,7 @@ pub mod pallet {
 		}
 
 		/// Cancel auction, only auction without any bid can be canceled
-		#[pallet::weight(10_000)]
+		#[pallet::weight(100_000)]
 		pub fn cancel_dutch(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -378,7 +381,7 @@ pub mod pallet {
 		}
 
 		/// Create an english auction.
-		#[pallet::weight(10_000)]
+		#[pallet::weight(100_000)]
 		pub fn create_english(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
@@ -420,7 +423,7 @@ pub mod pallet {
 		}
 
 		/// Bid english auction
-		#[pallet::weight(10_000)]
+		#[pallet::weight(100_000)]
 		pub fn bid_english(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -440,7 +443,7 @@ pub mod pallet {
 						auction_id,
 						AuctionBid { account: who.clone(), price, bid_at: now },
 					);
-					Self::deposit_event(Event::BidDutchAuction(who, auction_id));
+					Self::deposit_event(Event::BidEnglishAuction(who, auction_id));
 				},
 				Some(bid) => {
 					let now = frame_system::Pallet::<T>::block_number();
@@ -451,21 +454,21 @@ pub mod pallet {
 					T::Currency::unreserve(&bid.account, bid.price);
 					ensure!(
 						price >= bid.price.saturating_add(auction.min_raise_price),
-						Error::<T, I>::InvalidDutchBidPrice
+						Error::<T, I>::InvalidBidPrice
 					);
 					T::Currency::reserve(&who, price)?;
 					EnglishAuctionBids::<T, I>::insert(
 						auction_id,
 						AuctionBid { account: who.clone(), price, bid_at: now },
 					);
-					Self::deposit_event(Event::BidDutchAuction(who, auction_id));
+					Self::deposit_event(Event::BidEnglishAuction(who, auction_id));
 				},
 			}
 			Ok(().into())
 		}
 
 		/// Redeem duction
-		#[pallet::weight(10_000)]
+		#[pallet::weight(100_000)]
 		pub fn redeem_english(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -500,7 +503,7 @@ pub mod pallet {
 		}
 
 		/// Cancel auction, only auction without any bid can be canceled
-		#[pallet::weight(10_000)]
+		#[pallet::weight(100_000)]
 		pub fn cancel_english(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
