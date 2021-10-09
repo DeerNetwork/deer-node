@@ -5,7 +5,8 @@ mod benchmarking;
 #[cfg(test)]
 pub mod mock;
 #[cfg(test)]
-pub mod tests;
+mod tests;
+pub mod weights;
 
 use codec::{Decode, Encode, HasCompact};
 use frame_support::{
@@ -13,11 +14,13 @@ use frame_support::{
 	traits::{Currency, Get, ReservableCurrency},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-pub use pallet::*;
 use sp_runtime::{
 	traits::{AtLeast32BitUnsigned, CheckedAdd, One, Saturating},
 	DispatchError, Perbill, RuntimeDebug,
 };
+
+pub use pallet::*;
+pub use weights::WeightInfo;
 
 pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
@@ -138,6 +141,8 @@ pub mod pallet {
 		/// Delay of auction after bidding
 		#[pallet::constant]
 		type DelayOfAuction: Get<BlockNumberFor<Self>>;
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::pallet]
@@ -237,7 +242,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		/// Create an dutch auction.
-		#[pallet::weight(100_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::create_dutch())]
 		pub fn create_dutch(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
@@ -282,7 +287,7 @@ pub mod pallet {
 		/// Bid dutch auction
 		///
 		/// - `price`: bid price. If none, use current reduction price.
-		#[pallet::weight(100_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::bid_dutch())]
 		pub fn bid_dutch(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -343,7 +348,7 @@ pub mod pallet {
 		}
 
 		/// Redeem duction
-		#[pallet::weight(100_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::redeem_dutch())]
 		pub fn redeem_dutch(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -364,7 +369,7 @@ pub mod pallet {
 		}
 
 		/// Cancel auction, only auction without any bid can be canceled
-		#[pallet::weight(100_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::cancel_dutch())]
 		pub fn cancel_dutch(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -381,7 +386,7 @@ pub mod pallet {
 		}
 
 		/// Create an english auction.
-		#[pallet::weight(100_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::create_english())]
 		pub fn create_english(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
@@ -423,7 +428,7 @@ pub mod pallet {
 		}
 
 		/// Bid english auction
-		#[pallet::weight(100_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::bid_english())]
 		pub fn bid_english(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -468,7 +473,7 @@ pub mod pallet {
 		}
 
 		/// Redeem duction
-		#[pallet::weight(100_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::redeem_english())]
 		pub fn redeem_english(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,
@@ -503,7 +508,7 @@ pub mod pallet {
 		}
 
 		/// Cancel auction, only auction without any bid can be canceled
-		#[pallet::weight(100_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::cancel_english())]
 		pub fn cancel_english(
 			origin: OriginFor<T>,
 			#[pallet::compact] auction_id: T::AuctionId,

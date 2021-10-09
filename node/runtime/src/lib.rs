@@ -984,22 +984,6 @@ impl pallet_nft_order::Config for Runtime {
 }
 
 parameter_types! {
-	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
-	pub const SlashBalance: Balance = 100 * DOLLARS;
-	pub const RoundDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
-	pub const FileOrderRounds: u32 = 72;
-	pub const MaxFileReplicas: u32 = 30;
-	pub const EffectiveFileReplicas: u32 = 15;
-	pub const MaxFileSize: u64 = 1_073_741_824; // 1G
-	pub const MaxPower: u64 = 1_125_899_906_842_624; // 1P
-	pub const MaxReportFiles: u32 = 200;
-	pub const FileBaseFee: Balance = 10 * MILLICENTS;
-	pub const FileBytePrice: Balance = 2 * MILLICENTS;
-	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
-	pub const StashBalance: Balance = 1000 * DOLLARS;
-}
-
-parameter_types! {
 	pub const AuctionDeposit: Balance = 1 * DOLLARS;
 	pub const AuctionFeeTaxRatio: Perbill = Perbill::from_percent(3);
 	pub const MinDeadline: BlockNumber = 1 * DAYS;
@@ -1013,6 +997,24 @@ impl pallet_nft_auction::Config for Runtime {
 	type AuctionFeeTaxRatio = AuctionFeeTaxRatio;
 	type MinDeadline = MinDeadline;
 	type DelayOfAuction = DelayOfAuction;
+	type WeightInfo = pallet_nft_auction::weights::SubstrateWeight<Runtime>;
+}
+
+
+parameter_types! {
+	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
+	pub const SlashBalance: Balance = 100 * DOLLARS;
+	pub const RoundDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
+	pub const FileOrderRounds: u32 = 72;
+	pub const MaxFileReplicas: u32 = 30;
+	pub const EffectiveFileReplicas: u32 = 15;
+	pub const MaxFileSize: u64 = 1_073_741_824; // 1G
+	pub const MaxPower: u64 = 1_125_899_906_842_624; // 1P
+	pub const MaxReportFiles: u32 = 200;
+	pub const FileBaseFee: Balance = 10 * MILLICENTS;
+	pub const FileBytePrice: Balance = 2 * MILLICENTS;
+	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
+	pub const StashBalance: Balance = 1000 * DOLLARS;
 }
 
 impl pallet_storage::Config for Runtime {

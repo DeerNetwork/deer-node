@@ -112,6 +112,7 @@ impl Config for Test {
 	type AuctionFeeTaxRatio = AuctionFeeTaxRatio;
 	type MinDeadline = MinDeadline;
 	type DelayOfAuction = DelayOfAuction;
+	type WeightInfo = ();
 }
 
 pub(crate) fn rate(v: u32) -> Perbill {
