@@ -1351,7 +1351,7 @@ dependencies = [
 
 [[package]]
 name = "deer-cli"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "assert_cmd",
  "async-std",
@@ -1529,7 +1529,7 @@ dependencies = [
 
 [[package]]
 name = "deer-runtime"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "deer-primitives",
  "frame-benchmarking",
