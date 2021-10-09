@@ -82,6 +82,7 @@ pallet-vesting = { path = "../../substrate/frame/vesting", default-features = fa
 # node pallets
 pallet-nft = { path = "../../pallets/nft", default-features = false }
 pallet-nft-order = { path = "../../pallets/nft-order", default-features = false }
+pallet-nft-auction = { path = "../../pallets/nft-auction", default-features = false }
 pallet-storage = { path = "../../pallets/storage", default-features = false }
 
 [build-dependencies]
@@ -150,6 +151,7 @@ std = [
 	"sp-npos-elections/std",
     "pallet-nft/std",
     "pallet-nft-order/std",
+    "pallet-nft-auction/std",
     "pallet-storage/std",
 ]
 
@@ -187,6 +189,7 @@ runtime-benchmarks = [
 	"hex-literal",
     "pallet-nft/runtime-benchmarks",
     "pallet-nft-order/runtime-benchmarks",
+    "pallet-nft-auction/runtime-benchmarks",
     "pallet-storage/runtime-benchmarks",
 ]
 try-runtime = [
@@ -224,5 +227,6 @@ try-runtime = [
 
 	"pallet-nft/try-runtime",
 	"pallet-nft-order/try-runtime",
+	"pallet-nft-auction/try-runtime",
 	"pallet-storage/try-runtime",
 ]

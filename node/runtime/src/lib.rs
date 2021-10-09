@@ -999,6 +999,22 @@ parameter_types! {
 	pub const StashBalance: Balance = 1000 * DOLLARS;
 }
 
+parameter_types! {
+	pub const AuctionDeposit: Balance = 1 * DOLLARS;
+	pub const AuctionFeeTaxRatio: Perbill = Perbill::from_percent(3);
+	pub const MinDeadline: BlockNumber = 1 * DAYS;
+	pub const DelayOfAuction: BlockNumber = 10 * MINUTES;
+}
+
+impl pallet_nft_auction::Config for Runtime {
+	type Event = Event;
+	type AuctionId = u64;
+	type AuctionDeposit = AuctionDeposit;
+	type AuctionFeeTaxRatio = AuctionFeeTaxRatio;
+	type MinDeadline = MinDeadline;
+	type DelayOfAuction = DelayOfAuction;
+}
+
 impl pallet_storage::Config for Runtime {
 	type Event = Event;
 	type PalletId = StoragePalletId;
@@ -1069,6 +1085,7 @@ construct_runtime!(
 		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 30,
 		NFT: pallet_nft::{Pallet, Call, Storage, Event<T>} = 31,
 		NFTOrder: pallet_nft_order::{Pallet, Call, Storage, Event<T>} = 32,
+		NFTAuction: pallet_nft_auction::{Pallet, Call, Storage, Event<T>} = 35,
 		FileStorage: pallet_storage::{Pallet, Call, Storage, Event<T>, Config<T>} = 33,
 		TransactionStorage: pallet_transaction_storage::{Pallet, Call, Storage, Inherent, Config<T>, Event<T>} = 34,
 	}
@@ -1336,6 +1353,7 @@ impl_runtime_apis! {
 
 			list_benchmark!(list, extra, pallet_nft, NFT);
 			list_benchmark!(list, extra, pallet_nft_order, NFTOrder);
+			list_benchmark!(list, extra, pallet_nft_auction, NFTAuction);
 			list_benchmark!(list, extra, pallet_offences, OffencesBench::<Runtime>);
 			list_benchmark!(list, extra, pallet_proxy, Proxy);
 			list_benchmark!(list, extra, pallet_scheduler, Scheduler);
@@ -1406,6 +1424,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_multisig, Multisig);
 			add_benchmark!(params, batches, pallet_nft, NFT);
 			add_benchmark!(params, batches, pallet_nft_order, NFTOrder);
+			add_benchmark!(params, batches, pallet_nft_auction, NFTAuction);
 			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_proxy, Proxy);
 			add_benchmark!(params, batches, pallet_scheduler, Scheduler);

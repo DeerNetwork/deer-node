@@ -1558,6 +1558,7 @@ dependencies = [
  "pallet-membership",
  "pallet-multisig",
  "pallet-nft",
+ "pallet-nft-auction",
  "pallet-nft-order",
  "pallet-offences",
  "pallet-offences-benchmarking",
