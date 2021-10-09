@@ -4818,7 +4818,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-nft"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4834,7 +4834,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-nft-auction"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4850,7 +4850,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-nft-order"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5009,7 +5009,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-storage"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "base64 0.13.0",
  "frame-benchmarking",

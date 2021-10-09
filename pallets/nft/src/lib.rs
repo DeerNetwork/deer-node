@@ -325,12 +325,16 @@ pub mod pallet {
 
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<(), &'static str> {
-			migrations::v1::pre_migrate::<T, I>()
+			if StorageVersion::<T, I>::get() == Releases::V0 {
+				migrations::v1::pre_migrate::<T, I>()
+			} else {
+				Ok(())
+			}
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade() -> Result<(), &'static str> {
-			migrations::v1::post_migrate::<T, I>()
+			Ok(())
 		}
 	}
 
