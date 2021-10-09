@@ -101,7 +101,7 @@ try-runtime-cli = { optional = true, path = "../../substrate/utils/frame/try-run
 wasm-bindgen = { version = "0.2.73", optional = true }
 wasm-bindgen-futures = { version = "0.4.18", optional = true }
 browser-utils = { package = "substrate-browser-utils", path = "../../substrate/utils/browser", optional = true }
-libp2p-wasm-ext = { version = "0.28", features = ["websocket"], optional = true }
+libp2p-wasm-ext = { version = "0.29", features = ["websocket"], optional = true }
 
 [target.'cfg(target_arch="x86_64")'.dependencies]
 node-executor = { package="deer-executor", path = "../executor", features = [ "wasmtime" ] }
