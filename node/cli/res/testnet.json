@@ -6,7 +6,12 @@
     "/dns/1.testnet.deernetwork.org/tcp/30666/p2p/12D3KooWHDnmmW95eJihAX7jrhKmwaur5UroQFnwzK84aZktem6V",
     "/dns/2.testnet.deernetwork.org/tcp/30666/p2p/12D3KooWLQtKf7GE351zWvMZpCbawApR5hserjWxTxeXF8CW5NMw"
   ],
-  "telemetryEndpoints": null,
+  "telemetryEndpoints": [
+    [
+      "/dns/telemetry.polkadot.io/tcp/443/x-parity-wss/%2Fsubmit%2F",
+      0
+    ]
+  ],
   "protocolId": "deert1",
   "properties": {
     "ss58Format": 0,

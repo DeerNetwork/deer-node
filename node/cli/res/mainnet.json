@@ -6,7 +6,12 @@
     "/dns/1.mainnet.deernetwork.org/tcp/30666/p2p/12D3KooWQan3Cx72pvfgios2RumPHbN8repTuRDbGnCZNeHrdYgw",
     "/dns/2.mainnet.deernetwork.org/tcp/30666/p2p/12D3KooWRjx2yeihKciAzNQGN3VJhn4s3cx55XrMMQJqL3FVjR9D"
   ],
-  "telemetryEndpoints": null,
+  "telemetryEndpoints": [
+    [
+      "/dns/telemetry.polkadot.io/tcp/443/x-parity-wss/%2Fsubmit%2F",
+      0
+    ]
+  ],
   "protocolId": "deer",
   "properties": {
     "ss58Format": 0,
