@@ -182,21 +182,20 @@ fn bid_dutch_auction_again_should_fail() {
 	});
 }
 
-
 #[test]
 fn bid_dutch_auction_with_open_at_should_work() {
 	new_test_ext().execute_with(|| {
-        Balances::make_free_balance_be(&1, 100);
-        assert_ok!(NFT::create(Origin::signed(1), 0, rate(10)));
-        assert_ok!(NFT::mint(Origin::signed(1), 0, 42, None, None));
-        let auction_id: u32 = CurrentAuctionId::<Test>::get();
-        assert_ok!(NFTAuction::create_dutch(Origin::signed(1), 0, 42, 20, 80, 1200, Some(600)));
+		Balances::make_free_balance_be(&1, 100);
+		assert_ok!(NFT::create(Origin::signed(1), 0, rate(10)));
+		assert_ok!(NFT::mint(Origin::signed(1), 0, 42, None, None));
+		let auction_id: u32 = CurrentAuctionId::<Test>::get();
+		assert_ok!(NFTAuction::create_dutch(Origin::signed(1), 0, 42, 20, 80, 1200, Some(600)));
 
 		Balances::make_free_balance_be(&2, 100);
 		assert_err!(
-            NFTAuction::bid_dutch(Origin::signed(2), auction_id, None),
-            Error::<Test>::AuctionNotOpen
-        );
+			NFTAuction::bid_dutch(Origin::signed(2), auction_id, None),
+			Error::<Test>::AuctionNotOpen
+		);
 		run_to_block(601);
 
 		Balances::make_free_balance_be(&2, 100);
@@ -394,17 +393,17 @@ fn bid_english_auction_again_should_fail() {
 #[test]
 fn bid_english_auction_with_open_at_should_work() {
 	new_test_ext().execute_with(|| {
-        Balances::make_free_balance_be(&1, 100);
-        assert_ok!(NFT::create(Origin::signed(1), 0, rate(10)));
-        assert_ok!(NFT::mint(Origin::signed(1), 0, 42, None, None));
-        let auction_id: u32 = CurrentAuctionId::<Test>::get();
-        assert_ok!(NFTAuction::create_english(Origin::signed(1), 0, 42, 20, 1, 1200, Some(600)));
+		Balances::make_free_balance_be(&1, 100);
+		assert_ok!(NFT::create(Origin::signed(1), 0, rate(10)));
+		assert_ok!(NFT::mint(Origin::signed(1), 0, 42, None, None));
+		let auction_id: u32 = CurrentAuctionId::<Test>::get();
+		assert_ok!(NFTAuction::create_english(Origin::signed(1), 0, 42, 20, 1, 1200, Some(600)));
 
 		Balances::make_free_balance_be(&2, 100);
 		assert_err!(
-            NFTAuction::bid_english(Origin::signed(2), auction_id, 20),
-            Error::<Test>::AuctionNotOpen
-        );
+			NFTAuction::bid_english(Origin::signed(2), auction_id, 20),
+			Error::<Test>::AuctionNotOpen
+		);
 		run_to_block(601);
 
 		Balances::make_free_balance_be(&2, 100);

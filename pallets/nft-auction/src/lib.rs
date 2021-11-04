@@ -13,8 +13,8 @@ pub mod migrations;
 use codec::{Decode, Encode, HasCompact};
 use frame_support::{
 	dispatch::DispatchResult,
-    weights::Weight,
 	traits::{Currency, Get, ReservableCurrency},
+	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use sp_runtime::{
@@ -153,7 +153,6 @@ impl Default for Releases {
 		Releases::V0
 	}
 }
-
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -301,7 +300,6 @@ pub mod pallet {
 		}
 	}
 
-
 	#[pallet::hooks]
 	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
 		fn on_runtime_upgrade() -> Weight {
@@ -352,7 +350,7 @@ pub mod pallet {
 			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
 			ensure!(max_price > min_price, Error::<T, I>::InvalidPrice);
 			let now = frame_system::Pallet::<T>::block_number();
-            let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
+			let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
 
 			let deposit = T::AuctionDeposit::get();
 			T::Currency::reserve(&who, deposit)?;
@@ -367,7 +365,7 @@ pub mod pallet {
 				min_price,
 				max_price,
 				created_at: now,
-                open_at,
+				open_at,
 				deadline,
 				deposit,
 			};
@@ -392,8 +390,8 @@ pub mod pallet {
 			let auction =
 				DutchAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
 			ensure!(auction.owner != who, Error::<T, I>::SelfBid);
-            let now = frame_system::Pallet::<T>::block_number();
-            ensure!(auction.open_at <= now, Error::<T, I>::AuctionNotOpen);
+			let now = frame_system::Pallet::<T>::block_number();
+			ensure!(auction.open_at <= now, Error::<T, I>::AuctionNotOpen);
 			let maybe_bid = DutchAuctionBids::<T, I>::get(auction_id);
 			match (maybe_bid, price) {
 				(None, price) => {
@@ -498,7 +496,7 @@ pub mod pallet {
 			);
 			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
 			let now = frame_system::Pallet::<T>::block_number();
-            let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
+			let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
 
 			let deposit = T::AuctionDeposit::get();
 			T::Currency::reserve(&who, deposit)?;
@@ -513,7 +511,7 @@ pub mod pallet {
 				init_price,
 				min_raise_price,
 				created_at: now,
-                open_at,
+				open_at,
 				deadline,
 				deposit,
 			};
@@ -536,8 +534,8 @@ pub mod pallet {
 			let auction =
 				EnglishAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
 			ensure!(auction.owner != who, Error::<T, I>::SelfBid);
-            let now = frame_system::Pallet::<T>::block_number();
-            ensure!(auction.open_at <= now, Error::<T, I>::AuctionNotOpen);
+			let now = frame_system::Pallet::<T>::block_number();
+			ensure!(auction.open_at <= now, Error::<T, I>::AuctionNotOpen);
 			let maybe_bid = EnglishAuctionBids::<T, I>::get(auction_id);
 			match maybe_bid {
 				None => {
