@@ -8,10 +8,13 @@ pub mod mock;
 mod tests;
 pub mod weights;
 
+pub mod migrations;
+
 use codec::{Decode, Encode, HasCompact};
 use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, Get, ReservableCurrency},
+	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use sp_runtime::{
@@ -21,6 +24,19 @@ use sp_runtime::{
 
 pub use pallet::*;
 pub use weights::WeightInfo;
+
+pub(crate) const LOG_TARGET: &'static str = "runtime::nft_auction";
+
+// syntactic sugar for logging.
+#[macro_export]
+macro_rules! log {
+	($level:tt, $patter:expr $(, $values:expr)* $(,)?) => {
+		log::$level!(
+			target: crate::LOG_TARGET,
+			concat!("[{:?}] 💸 ", $patter), <frame_system::Pallet<T>>::block_number() $(, $values)*
+		)
+	};
+}
 
 pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
@@ -71,6 +87,9 @@ pub struct DutchAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
 	/// When creating auction
 	#[codec(compact)]
 	pub created_at: BlockNumber,
+	/// When opening auction
+	#[codec(compact)]
+	pub open_at: BlockNumber,
 	/// The auction should be forced to be ended if current block number higher than this value.
 	#[codec(compact)]
 	pub deadline: BlockNumber,
@@ -100,6 +119,9 @@ pub struct EnglishAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> 
 	/// When creating auction
 	#[codec(compact)]
 	pub created_at: BlockNumber,
+	/// When opening auction
+	#[codec(compact)]
+	pub open_at: BlockNumber,
 	/// The auction should be forced to be ended if current block number higher than this value.
 	#[codec(compact)]
 	pub deadline: BlockNumber,
@@ -115,6 +137,21 @@ pub struct AuctionBid<AccountId, Balance, BlockNumber> {
 	/// When bid auction
 	#[codec(compact)]
 	pub bid_at: BlockNumber,
+}
+
+// A value placed in storage that represents the current version of the Scheduler storage.
+// This value is used by the `on_runtime_upgrade` logic to determine whether we run
+// storage migration logic.
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug)]
+pub enum Releases {
+	V0,
+	V1,
+}
+
+impl Default for Releases {
+	fn default() -> Self {
+		Releases::V0
+	}
 }
 
 #[frame_support::pallet]
@@ -192,6 +229,12 @@ pub mod pallet {
 	pub type CurrentAuctionId<T: Config<I>, I: 'static = ()> =
 		StorageValue<_, T::AuctionId, ValueQuery>;
 
+	/// Storage version of the pallet.
+	///
+	/// New networks start with last version.
+	#[pallet::storage]
+	pub type StorageVersion<T: Config<I>, I: 'static = ()> = StorageValue<_, Releases, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::metadata(
 		T::AccountId = "AccountId",
@@ -226,6 +269,7 @@ pub mod pallet {
 		InvalidDeadline,
 		InvalidPrice,
 		InvalidNextAuctionId,
+		AuctionNotOpen,
 		AuctionNotFound,
 		AuctionBidNotFound,
 		AuctionClosed,
@@ -239,6 +283,52 @@ pub mod pallet {
 		CannotRemoveAuction,
 	}
 
+	#[pallet::genesis_config]
+	pub struct GenesisConfig;
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> Self {
+			Self
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig {
+		fn build(&self) {
+			StorageVersion::<T, I>::put(Releases::V1);
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
+		fn on_runtime_upgrade() -> Weight {
+			if StorageVersion::<T, I>::get() == Releases::V0 {
+				migrations::v1::migrate::<T, I>()
+			} else {
+				T::DbWeight::get().reads(1)
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<(), &'static str> {
+			if StorageVersion::<T, I>::get() == Releases::V0 {
+				migrations::v1::pre_migrate::<T, I>()
+			} else {
+				Ok(())
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade() -> Result<(), &'static str> {
+			if StorageVersion::<T, I>::get() == Releases::V1 {
+				migrations::v1::post_migrate::<T, I>()
+			} else {
+				Ok(())
+			}
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		/// Create an dutch auction.
@@ -250,6 +340,7 @@ pub mod pallet {
 			#[pallet::compact] min_price: BalanceOf<T, I>,
 			#[pallet::compact] max_price: BalanceOf<T, I>,
 			#[pallet::compact] deadline: BlockNumberFor<T>,
+			open_at: Option<BlockNumberFor<T>>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(
@@ -258,13 +349,14 @@ pub mod pallet {
 			);
 			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
 			ensure!(max_price > min_price, Error::<T, I>::InvalidPrice);
+			let now = frame_system::Pallet::<T>::block_number();
+			let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
 
 			let deposit = T::AuctionDeposit::get();
 			T::Currency::reserve(&who, deposit)?;
 			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &who)?;
 
 			let auction_id = Self::gen_auction_id()?;
-			let now = frame_system::Pallet::<T>::block_number();
 
 			let auction = DutchAuction {
 				owner: who.clone(),
@@ -273,6 +365,7 @@ pub mod pallet {
 				min_price,
 				max_price,
 				created_at: now,
+				open_at,
 				deadline,
 				deposit,
 			};
@@ -297,10 +390,11 @@ pub mod pallet {
 			let auction =
 				DutchAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
 			ensure!(auction.owner != who, Error::<T, I>::SelfBid);
+			let now = frame_system::Pallet::<T>::block_number();
+			ensure!(auction.open_at <= now, Error::<T, I>::AuctionNotOpen);
 			let maybe_bid = DutchAuctionBids::<T, I>::get(auction_id);
 			match (maybe_bid, price) {
 				(None, price) => {
-					let now = frame_system::Pallet::<T>::block_number();
 					ensure!(auction.deadline >= now, Error::<T, I>::AuctionClosed);
 					let mut new_price = Self::get_dutch_price(&auction, now);
 					if let Some(bid_price) = price {
@@ -321,7 +415,6 @@ pub mod pallet {
 					}
 				},
 				(Some(bid), Some(bid_price)) => {
-					let now = frame_system::Pallet::<T>::block_number();
 					ensure!(
 						bid.bid_at.saturating_add(T::DelayOfAuction::get()) >= now,
 						Error::<T, I>::AuctionClosed
@@ -394,6 +487,7 @@ pub mod pallet {
 			#[pallet::compact] init_price: BalanceOf<T, I>,
 			#[pallet::compact] min_raise_price: BalanceOf<T, I>,
 			#[pallet::compact] deadline: BlockNumberFor<T>,
+			open_at: Option<BlockNumberFor<T>>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(
@@ -401,13 +495,14 @@ pub mod pallet {
 				Error::<T, I>::InvalidNFT
 			);
 			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
+			let now = frame_system::Pallet::<T>::block_number();
+			let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
 
 			let deposit = T::AuctionDeposit::get();
 			T::Currency::reserve(&who, deposit)?;
 			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &who)?;
 
 			let auction_id = Self::gen_auction_id()?;
-			let now = frame_system::Pallet::<T>::block_number();
 
 			let auction = EnglishAuction {
 				owner: who.clone(),
@@ -416,6 +511,7 @@ pub mod pallet {
 				init_price,
 				min_raise_price,
 				created_at: now,
+				open_at,
 				deadline,
 				deposit,
 			};
@@ -438,10 +534,11 @@ pub mod pallet {
 			let auction =
 				EnglishAuctions::<T, I>::get(auction_id).ok_or(Error::<T, I>::AuctionNotFound)?;
 			ensure!(auction.owner != who, Error::<T, I>::SelfBid);
+			let now = frame_system::Pallet::<T>::block_number();
+			ensure!(auction.open_at <= now, Error::<T, I>::AuctionNotOpen);
 			let maybe_bid = EnglishAuctionBids::<T, I>::get(auction_id);
 			match maybe_bid {
 				None => {
-					let now = frame_system::Pallet::<T>::block_number();
 					ensure!(auction.deadline >= now, Error::<T, I>::AuctionClosed);
 					T::Currency::reserve(&who, price)?;
 					EnglishAuctionBids::<T, I>::insert(
@@ -451,7 +548,6 @@ pub mod pallet {
 					Self::deposit_event(Event::BidEnglishAuction(who, auction_id));
 				},
 				Some(bid) => {
-					let now = frame_system::Pallet::<T>::block_number();
 					ensure!(
 						bid.bid_at.saturating_add(T::DelayOfAuction::get()) >= now,
 						Error::<T, I>::AuctionClosed

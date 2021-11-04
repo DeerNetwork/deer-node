@@ -54,7 +54,7 @@ benchmarks_instance_pallet! {
 		let auction_id = NFTAuction::<T, I>::current_auction_id();
 		let caller = owner.clone();
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
-	}: _(SystemOrigin::Signed(caller.clone()), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire)
+	}: _(SystemOrigin::Signed(caller.clone()), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire, None)
 	verify {
 		assert_last_event::<T, I>(Event::<T, I>::CreatedDutchAuction(caller, auction_id).into());
 	}
@@ -67,7 +67,7 @@ benchmarks_instance_pallet! {
 		let (class, instance) = create_nft::<T, I>(&owner);
 		let auction_id = NFTAuction::<T, I>::current_auction_id();
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
-		assert_ok!(NFTAuction::<T, I>::create_dutch(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire));
+		assert_ok!(NFTAuction::<T, I>::create_dutch(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire, None));
 
 		System::<T>::set_block_number(T::MinDeadline::get().saturating_add(1u32.into()));
 
@@ -87,7 +87,7 @@ benchmarks_instance_pallet! {
 		let (class, instance) = create_nft::<T, I>(&owner);
 		let auction_id = NFTAuction::<T, I>::current_auction_id();
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
-		assert_ok!(NFTAuction::<T, I>::create_dutch(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire));
+		assert_ok!(NFTAuction::<T, I>::create_dutch(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire, None));
 
 		System::<T>::set_block_number(T::MinDeadline::get().saturating_add(1u32.into()));
 
@@ -111,7 +111,7 @@ benchmarks_instance_pallet! {
 		let (class, instance) = create_nft::<T, I>(&owner);
 		let auction_id = NFTAuction::<T, I>::current_auction_id();
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
-		assert_ok!(NFTAuction::<T, I>::create_dutch(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire));
+		assert_ok!(NFTAuction::<T, I>::create_dutch(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire, None));
 
 		System::<T>::set_block_number(T::MinDeadline::get().saturating_add(1u32.into()));
 
@@ -131,7 +131,7 @@ benchmarks_instance_pallet! {
 		let auction_id = NFTAuction::<T, I>::current_auction_id();
 		let caller = owner.clone();
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
-	}: _(SystemOrigin::Signed(caller.clone()), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire)
+	}: _(SystemOrigin::Signed(caller.clone()), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire, None)
 	verify {
 		assert_last_event::<T, I>(Event::<T, I>::CreatedEnglishAuction(caller, auction_id).into());
 	}
@@ -144,7 +144,7 @@ benchmarks_instance_pallet! {
 		let (class, instance) = create_nft::<T, I>(&owner);
 		let auction_id = NFTAuction::<T, I>::current_auction_id();
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
-		assert_ok!(NFTAuction::<T, I>::create_english(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire));
+		assert_ok!(NFTAuction::<T, I>::create_english(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire, None));
 
 		System::<T>::set_block_number(T::MinDeadline::get().saturating_add(1u32.into()));
 
@@ -164,7 +164,7 @@ benchmarks_instance_pallet! {
 		let (class, instance) = create_nft::<T, I>(&owner);
 		let auction_id = NFTAuction::<T, I>::current_auction_id();
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
-		assert_ok!(NFTAuction::<T, I>::create_english(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire));
+		assert_ok!(NFTAuction::<T, I>::create_english(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire, None));
 
 		System::<T>::set_block_number(T::MinDeadline::get().saturating_add(1u32.into()));
 
@@ -188,7 +188,7 @@ benchmarks_instance_pallet! {
 		let (class, instance) = create_nft::<T, I>(&owner);
 		let auction_id = NFTAuction::<T, I>::current_auction_id();
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
-		assert_ok!(NFTAuction::<T, I>::create_english(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire));
+		assert_ok!(NFTAuction::<T, I>::create_english(SystemOrigin::Signed(owner.clone()).into(), class, instance, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire, None));
 
 		System::<T>::set_block_number(T::MinDeadline::get().saturating_add(1u32.into()));
 
