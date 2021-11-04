@@ -1,6 +1,6 @@
 [package]
 name = "deer-cli"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Deer Network"]
 description = "Official Rust implementation of the Deer protocol"
 build = "build.rs"
