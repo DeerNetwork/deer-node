@@ -216,6 +216,8 @@ fn redeem_dutch_auction_should_work() {
 		assert_eq!(Balances::reserved_balance(&2), 1);
 		assert_eq!(NFT::info(&0, &42), Some((2, false)));
 		assert_eq!(Balances::free_balance(&2), 49);
+
+		assert_ok!(NFT::ready_transfer(Origin::signed(2), 0, 42, 1));
 	});
 }
 
@@ -257,6 +259,7 @@ fn cancel_dutch_auction_should_work() {
 	new_test_ext().execute_with(|| {
 		let auction_id = create_dutch_auction();
 		assert_ok!(NFTAuction::cancel_dutch(Origin::signed(1), auction_id));
+		assert_ok!(NFT::ready_transfer(Origin::signed(1), 0, 42, 1));
 	});
 }
 
@@ -425,6 +428,8 @@ fn redeem_english_auction_should_work() {
 		assert_eq!(Balances::reserved_balance(&2), 1);
 		assert_eq!(NFT::info(&0, &42), Some((2, false)));
 		assert_eq!(Balances::free_balance(&2), 79);
+
+		assert_ok!(NFT::ready_transfer(Origin::signed(2), 0, 42, 1));
 	});
 }
 
@@ -466,6 +471,7 @@ fn cancel_english_auction_should_work() {
 	new_test_ext().execute_with(|| {
 		let auction_id = create_english_auction();
 		assert_ok!(NFTAuction::cancel_english(Origin::signed(1), auction_id));
+		assert_ok!(NFT::ready_transfer(Origin::signed(1), 0, 42, 1));
 	});
 }
 
