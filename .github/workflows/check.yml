@@ -22,6 +22,7 @@ jobs:
           toolchain: nightly-2021-07-03
           override: true
           target: wasm32-unknown-unknown
+          components: rustfmt
       - name: Check Formatting
         run: cargo fmt -- --check
       - name: Run tests
