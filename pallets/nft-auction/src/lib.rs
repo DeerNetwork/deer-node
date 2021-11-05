@@ -473,6 +473,7 @@ pub mod pallet {
 			ensure!(auction.owner == who, Error::<T, I>::NotOwnerAccount);
 			let bid = DutchAuctionBids::<T, I>::get(auction_id);
 			ensure!(bid.is_none(), Error::<T, I>::CannotRemoveAuction);
+			pallet_nft::Pallet::<T, I>::unreserve(&auction.class, &auction.instance)?;
 			Self::delete_dutch_auction(&auction_id)?;
 			Self::deposit_event(Event::CanceledDutchAuction(who, auction_id));
 			Ok(().into())
@@ -615,6 +616,7 @@ pub mod pallet {
 			ensure!(auction.owner == who, Error::<T, I>::NotOwnerAccount);
 			let bid = EnglishAuctionBids::<T, I>::get(auction_id);
 			ensure!(bid.is_none(), Error::<T, I>::CannotRemoveAuction);
+			pallet_nft::Pallet::<T, I>::unreserve(&auction.class, &auction.instance)?;
 			Self::delete_english_auction(&auction_id)?;
 			Self::deposit_event(Event::CanceledEnglishAuction(who, auction_id));
 			Ok(().into())
