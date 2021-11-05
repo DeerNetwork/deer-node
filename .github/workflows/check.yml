@@ -1,4 +1,4 @@
-name: Build and Test
+name: Check
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  unit-tests:
+  check:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
@@ -22,20 +22,7 @@ jobs:
           toolchain: nightly-2021-07-03
           override: true
           target: wasm32-unknown-unknown
+      - name: Check Formatting
+        run: cargo fmt -- --check
       - name: Run tests
         run: cargo test --all
-
-  formatting:
-    runs-on: ubuntu-18.04
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: 'true'
-      - name: Install rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2021-07-03
-          override: true
-          components: rustfmt
-      - name: Ensure Standard Formatting
-        run: cargo fmt -- --check
