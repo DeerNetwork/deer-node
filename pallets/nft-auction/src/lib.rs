@@ -638,10 +638,9 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		now: BlockNumberFor<T>,
 	) -> BalanceOf<T, I> {
 		let diff_price = auction.max_price.saturating_sub(auction.min_price);
-		let rate = Perbill::from_rational(
-			now.saturating_sub(auction.created_at).min(auction.deadline),
-			auction.deadline,
-		);
+		let lifetime = auction.deadline.saturating_sub(auction.created_at);
+		let pasttime = now.saturating_sub(auction.created_at).min(lifetime);
+		let rate = Perbill::from_rational(pasttime, lifetime);
 		let dec_price = rate * diff_price;
 		auction.max_price.saturating_sub(dec_price)
 	}
