@@ -550,7 +550,8 @@ pub mod pallet {
 				},
 				Some(bid) => {
 					ensure!(
-						auction.deadline >= now || bid.bid_at.saturating_add(T::DelayOfAuction::get()) >= now,
+						auction.deadline >= now ||
+							bid.bid_at.saturating_add(T::DelayOfAuction::get()) >= now,
 						Error::<T, I>::AuctionClosed
 					);
 					T::Currency::unreserve(&bid.account, bid.price);
