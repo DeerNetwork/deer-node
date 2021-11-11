@@ -554,12 +554,12 @@ pub mod pallet {
 							bid.bid_at.saturating_add(T::DelayOfAuction::get()) >= now,
 						Error::<T, I>::AuctionClosed
 					);
-					T::Currency::unreserve(&bid.account, bid.price);
 					ensure!(
 						price >= bid.price.saturating_add(auction.min_raise_price),
 						Error::<T, I>::InvalidBidPrice
 					);
 					T::Currency::reserve(&who, price)?;
+					T::Currency::unreserve(&bid.account, bid.price);
 					EnglishAuctionBids::<T, I>::insert(
 						auction_id,
 						AuctionBid { account: who.clone(), price, bid_at: now },
