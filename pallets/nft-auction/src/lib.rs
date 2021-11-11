@@ -592,7 +592,7 @@ pub mod pallet {
 			ensure!(bid.account == who, Error::<T, I>::NotBidAccount);
 			let now = frame_system::Pallet::<T>::block_number();
 			ensure!(
-				bid.bid_at.saturating_add(T::DelayOfAuction::get()) < now,
+				bid.bid_at.saturating_add(T::DelayOfAuction::get()) < now && auction.deadline < now,
 				Error::<T, I>::CannotRedeemNow
 			);
 			T::Currency::unreserve(&bid.account, bid.price);

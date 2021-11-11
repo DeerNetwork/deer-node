@@ -457,6 +457,12 @@ fn redeem_english_auction_should_fail() {
 			Error::<Test>::CannotRedeemNow
 		);
 
+		run_to_block(662);
+		assert_err!(
+			NFTAuction::redeem_english(Origin::signed(2), auction_id),
+			Error::<Test>::CannotRedeemNow
+		);
+
 		run_to_block(1201);
 		Balances::make_free_balance_be(&3, 100);
 		assert_err!(
