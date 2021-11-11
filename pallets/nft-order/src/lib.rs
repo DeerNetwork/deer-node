@@ -12,6 +12,7 @@ use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency},
+	transactional,
 };
 use sp_runtime::{Perbill, RuntimeDebug};
 use sp_std::prelude::*;
@@ -131,6 +132,7 @@ pub mod pallet {
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		/// Create a order to sell a non-fungible asset
 		#[pallet::weight(<T as Config<I>>::WeightInfo::sell())]
+		#[transactional]
 		pub fn sell(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
@@ -168,6 +170,7 @@ pub mod pallet {
 
 		/// Create a order to buy a non-fungible asset
 		#[pallet::weight(<T as Config<I>>::WeightInfo::deal())]
+		#[transactional]
 		pub fn deal(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
@@ -200,6 +203,7 @@ pub mod pallet {
 
 		/// Remove an order
 		#[pallet::weight(<T as Config<I>>::WeightInfo::remove())]
+		#[transactional]
 		pub fn remove(
 			origin: OriginFor<T>,
 			#[pallet::compact] class: T::ClassId,
