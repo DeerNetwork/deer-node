@@ -173,7 +173,7 @@ benchmarks_instance_pallet! {
 		T::Currency::make_free_balance_be(&caller, value);
 		assert_ok!(NFTAuction::<T, I>::bid_english(SystemOrigin::Signed(caller.clone()).into(), auction_id, get_dollars::<T, I>(20)));
 
-		System::<T>::set_block_number(T::MinDeadline::get().saturating_add(T::DelayOfAuction::get()).saturating_add(2u32.into()));
+		System::<T>::set_block_number(expire.saturating_add(T::DelayOfAuction::get()).saturating_add(2u32.into()));
 
 	}: _(SystemOrigin::Signed(caller.clone()), auction_id)
 	verify {
