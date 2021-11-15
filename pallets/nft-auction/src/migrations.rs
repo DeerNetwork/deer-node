@@ -136,4 +136,9 @@ pub mod v1 {
 			(dutch_auction_count + english_auction_count) as Weight + 1,
 		)
 	}
+
+	#[cfg(feature = "try-runtime")]
+	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
+		Ok(())
+	}
 }
