@@ -44,11 +44,12 @@ run +args='--dev --tmp':
     --rpc-cors all \
     --unsafe-ws-external
 
-try-runtime block *args:
+try-runtime block uri *args:
     cargo run \
     --features=try-runtime \
     try-runtime \
-    --block-at {{block}} \
     {{args}} \
     on-runtime-upgrade \
-    live
+    live \
+    -a {{block}} \
+    -u {{uri}}
