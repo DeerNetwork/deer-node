@@ -18,6 +18,7 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{AtLeast32BitUnsigned, CheckedAdd, One, Saturating},
 	DispatchError, Perbill, RuntimeDebug,
@@ -64,7 +65,7 @@ pub type AuctionBidOf<T, I = ()> = AuctionBid<
 	<T as frame_system::Config>::BlockNumber,
 >;
 
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct DutchAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
 	/// auction creator
 	pub owner: AccountId,
@@ -96,7 +97,7 @@ pub struct DutchAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
 	pub deadline: BlockNumber,
 }
 
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct EnglishAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
 	/// auction creator
 	pub owner: AccountId,
@@ -128,7 +129,7 @@ pub struct EnglishAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> 
 	pub deadline: BlockNumber,
 }
 
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct AuctionBid<AccountId, Balance, BlockNumber> {
 	/// Who bid the auction
 	pub account: AccountId,
@@ -143,7 +144,7 @@ pub struct AuctionBid<AccountId, Balance, BlockNumber> {
 // A value placed in storage that represents the current version of the Scheduler storage.
 // This value is used by the `on_runtime_upgrade` logic to determine whether we run
 // storage migration logic.
-#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum Releases {
 	V0,
 	V1,
@@ -237,12 +238,6 @@ pub mod pallet {
 	pub type StorageVersion<T: Config<I>, I: 'static = ()> = StorageValue<_, Releases, ValueQuery>;
 
 	#[pallet::event]
-	#[pallet::metadata(
-		T::AccountId = "AccountId",
-		T::ClassId = "ClassId",
-		T::InstanceId = "InstanceId",
-		T::AuctionId = "AuctionId"
-	)]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Created ductch auction \[who, auction_id\]

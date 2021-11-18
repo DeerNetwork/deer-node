@@ -14,6 +14,7 @@ use frame_support::{
 	traits::{Currency, ReservableCurrency},
 	transactional,
 };
+use scale_info::TypeInfo;
 use sp_runtime::{Perbill, RuntimeDebug};
 use sp_std::prelude::*;
 
@@ -26,7 +27,7 @@ pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Curre
 pub type ClassIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::ClassId;
 pub type InstanceIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::InstanceId;
 
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct OrderDetails<AccountId, Balance, BlockNumber> {
 	/// Who create the order.
 	pub owner: AccountId,
@@ -70,11 +71,6 @@ pub mod pallet {
 	pub struct Pallet<T, I = ()>(_);
 
 	#[pallet::event]
-	#[pallet::metadata(
-		T::AccountId = "AccountId",
-		T::ClassId = "ClassId",
-		T::InstanceId = "InstanceId"
-	)]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Selling a nft asset, \[ class, instance, account \]

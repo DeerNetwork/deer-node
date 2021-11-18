@@ -13,7 +13,11 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 
 # third-party dependencies
-codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
+codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = [
+	"derive",
+	"max-encoded-len",
+] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 static_assertions = "1.1.0"
 hex-literal = { version = "0.3.1", optional = true }
 log = { version = "0.4.14", default-features = false }
@@ -35,6 +39,7 @@ sp-session = { path = "../../substrate/primitives/session", default-features = f
 sp-transaction-pool = { path = "../../substrate/primitives/transaction-pool", default-features = false }
 sp-version = { path = "../../substrate/primitives/version", default-features = false }
 sp-npos-elections = { default-features = false, path = "../../substrate/primitives/npos-elections" }
+sp-io = { default-features = false, path = "../../substrate/primitives/io" }
 
 # frame dependencies
 frame-executive = { path = "../../substrate/frame/executive", default-features = false }
@@ -48,6 +53,7 @@ frame-try-runtime = { default-features = false, path = "../../substrate/frame/tr
 pallet-authority-discovery = { default-features = false, path = "../../substrate/frame/authority-discovery" }
 pallet-authorship = { default-features = false, path = "../../substrate/frame/authorship" }
 pallet-babe = { default-features = false, path = "../../substrate/frame/babe" }
+pallet-bags-list = { path = "../../substrate/frame/bags-list", default-features = false }
 pallet-balances = { path = "../../substrate/frame/balances", default-features = false }
 pallet-bounties = { path = "../../substrate/frame/bounties", default-features = false }
 pallet-collective = { default-features = false, path = "../../substrate/frame/collective" }
@@ -87,12 +93,10 @@ pallet-storage = { path = "../../pallets/storage", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { path = "../../substrate/utils/wasm-builder" }
-[dev-dependencies]
-sp-io = { path = "../../substrate/primitives/io" }
 
 [features]
 default = ["std"]
-with-tracing = [ "frame-executive/with-tracing" ]
+with-tracing = ["frame-executive/with-tracing"]
 std = [
 	"sp-authority-discovery/std",
 
@@ -104,6 +108,7 @@ std = [
     "pallet-bounties/std",
     "sp-block-builder/std",
     "codec/std",
+	"scale-info/std",
 	"pallet-collective/std",
 	"pallet-democracy/std",
 	"pallet-elections-phragmen/std",
@@ -149,6 +154,7 @@ std = [
 	"log/std",
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
+	"sp-io/std",
     "pallet-nft/std",
     "pallet-nft-order/std",
     "pallet-nft-auction/std",

@@ -8,5 +8,5 @@ sudo apt install -y git clang curl libssl-dev llvm libudev-dev
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source ~/.bashrc
 
-rustup toolchain add nightly-2021-07-03
-rustup target add wasm32-unknown-unknown --toolchain nightly-2021-07-03
+rustup toolchain add nightly-2021-11-11
+rustup target add wasm32-unknown-unknown --toolchain nightly-2021-11-11

@@ -10,10 +10,8 @@ repository = "https://github.com/DeerNetwork/deer-node/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-jsonrpc-core = "15.1.0"
+jsonrpc-core = "18.0.0"
 node-primitives = { package = "deer-primitives", path = "../primitives" }
-
-
 pallet-transaction-payment-rpc = { path = "../../substrate/frame/transaction-payment/rpc/" }
 sc-client-api = { path = "../../substrate/client/api" }
 sc-consensus-babe = { path = "../../substrate/client/consensus/babe" }
@@ -22,7 +20,6 @@ sc-consensus-epochs = { path = "../../substrate/client/consensus/epochs" }
 sc-chain-spec = { path = "../../substrate/client/chain-spec" }
 sc-finality-grandpa = { path = "../../substrate/client/finality-grandpa" }
 sc-finality-grandpa-rpc = { path = "../../substrate/client/finality-grandpa/rpc" }
-sc-keystore = { path = "../../substrate/client/keystore" }
 sc-rpc-api = { path = "../../substrate/client/rpc-api" }
 sc-rpc = { path = "../../substrate/client/rpc" }
 sc-sync-state-rpc = { path = "../../substrate/client/sync-state-rpc" }

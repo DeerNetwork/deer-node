@@ -29,6 +29,7 @@ use frame_support::{
 	BoundedVec,
 };
 use frame_system::Config as SystemConfig;
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{AtLeast32BitUnsigned, CheckedAdd, CheckedSub, Saturating, StaticLookup, Zero},
 	ArithmeticError, Perbill, RuntimeDebug,
@@ -61,7 +62,7 @@ pub type InstanceDetailsFor<T, I> =
 // A value placed in storage that represents the current version of the Scheduler storage.
 // This value is used by the `on_runtime_upgrade` logic to determine whether we run
 // storage migration logic.
-#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum Releases {
 	V0,
 	V1,
@@ -73,7 +74,7 @@ impl Default for Releases {
 	}
 }
 
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct ClassDetails<AccountId, DepositBalance> {
 	/// The owner of this class.
 	pub owner: AccountId,
@@ -88,7 +89,7 @@ pub struct ClassDetails<AccountId, DepositBalance> {
 }
 
 /// Information concerning the ownership of a single unique asset.
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct InstanceDetails<AccountId, DepositBalance> {
 	/// The owner of this asset.
 	pub owner: AccountId,
@@ -239,11 +240,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
-	#[pallet::metadata(
-		T::AccountId = "AccountId",
-		T::ClassId = "ClassId",
-		T::InstanceId = "InstanceId"
-	)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// An asset class was created. \[ class, creator \]
 		Created(T::ClassId, T::AccountId),

@@ -28,6 +28,7 @@ use p256::ecdsa::{
 	signature::{Signature, Verifier},
 	VerifyingKey,
 };
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{AccountIdConversion, One, Saturating, StaticLookup, Zero},
 	Perbill, RuntimeDebug, SaturatedConversion,
@@ -70,7 +71,7 @@ impl<Balance: Default, BlockNumber> Payout<Balance, BlockNumber> for () {
 	}
 }
 /// Node information
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct NodeInfo<BlockNumber> {
 	/// A increment id of one report
 	pub rid: u64,
@@ -83,7 +84,7 @@ pub struct NodeInfo<BlockNumber> {
 }
 
 /// Information round rewards
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct RewardInfo<Balance> {
 	/// Reward for node power
 	pub mine_reward: Balance,
@@ -96,7 +97,7 @@ pub struct RewardInfo<Balance> {
 }
 
 /// Derive from StoreFile, Record the replicas and expire time
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct FileOrder<AccountId, Balance, BlockNumber> {
 	/// The cost of storing for a period of time
 	pub fee: Balance,
@@ -109,7 +110,7 @@ pub struct FileOrder<AccountId, Balance, BlockNumber> {
 }
 
 /// File that users submit to the network for storage
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct StoreFile<Balance, BlockNumber> {
 	/// Funds gathered in this file
 	pub reserved: Balance,
@@ -122,7 +123,7 @@ pub struct StoreFile<Balance, BlockNumber> {
 }
 
 /// Information stashing a node
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct StashInfo<AccountId, Balance> {
 	/// Stasher account
 	pub stasher: AccountId,
@@ -133,7 +134,7 @@ pub struct StashInfo<AccountId, Balance> {
 }
 
 /// Information for TEE node
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct RegisterInfo {
 	/// PUb key to verify signed message
 	pub key: PubKey,
@@ -142,7 +143,7 @@ pub struct RegisterInfo {
 }
 
 /// Record node's effictive storage size and power
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct NodeStats {
 	/// Node's power
 	pub power: u64,
@@ -151,7 +152,7 @@ pub struct NodeStats {
 }
 
 /// Record network's effictive storage size and power
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct SummaryStats {
 	/// Network's power
 	pub power: u128,
@@ -310,12 +311,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(
-		T::AccountId = "AccountId",
-		BalanceOf<T> = "Balance",
-		MachineId = "MachineId",
-		BlockNumberFor<T> = "BlockNumber",
-	)]
 	pub enum Event<T: Config> {
 		/// Add or change enclave, \[enclave_id, expire_at\]
 		SetEnclave(EnclaveId, BlockNumberFor<T>),
@@ -436,7 +431,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Stash a account so it can be used for a storage node, the amount of funds to stash is T::StashBalance
+		/// Stash a account so it can be used for a storage node, the amount of funds to stash is
+		/// T::StashBalance
 		#[pallet::weight(1_000_000)]
 		pub fn stash(
 			origin: OriginFor<T>,
