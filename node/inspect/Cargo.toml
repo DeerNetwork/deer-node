@@ -12,9 +12,9 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2.2.0" }
 derive_more = "0.99"
-log = "0.4.8"
 sc-cli = { path = "../../substrate/client/cli" }
 sc-client-api = { path = "../../substrate/client/api" }
+sc-executor = { path = "../../substrate/client/executor" }
 sc-service = { default-features = false, path = "../../substrate/client/service" }
 sp-blockchain = { path = "../../substrate/primitives/blockchain" }
 sp-core = { path = "../../substrate/primitives/core" }

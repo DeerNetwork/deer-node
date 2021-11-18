@@ -43,7 +43,8 @@ pub mod v1 {
 		/// When creating auction
 		#[codec(compact)]
 		pub created_at: BlockNumber,
-		/// The auction should be forced to be ended if current block number higher than this value.
+		/// The auction should be forced to be ended if current block number higher than this
+		/// value.
 		#[codec(compact)]
 		pub deadline: BlockNumber,
 	}
@@ -72,7 +73,8 @@ pub mod v1 {
 		/// When creating auction
 		#[codec(compact)]
 		pub created_at: BlockNumber,
-		/// The auction should be forced to be ended if current block number higher than this value.
+		/// The auction should be forced to be ended if current block number higher than this
+		/// value.
 		#[codec(compact)]
 		pub deadline: BlockNumber,
 	}

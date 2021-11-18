@@ -10,20 +10,20 @@ repository = "https://github.com/DeerNetwork/deer-node/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = [
+	"derive",
+] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 frame-system = { default-features = false, path = "../../substrate/frame/system" }
 sp-application-crypto = { default-features = false, path = "../../substrate/primitives/application-crypto" }
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }
 sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
 
-[dev-dependencies]
-sp-serializer = { path = "../../substrate/primitives/serializer" }
-pretty_assertions = "0.6.1"
-
 [features]
 default = ["std"]
 std = [
 	"codec/std",
+	"scale-info/std",
 	"frame-system/std",
 	"sp-application-crypto/std",
 	"sp-core/std",
