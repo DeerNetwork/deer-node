@@ -246,7 +246,7 @@ impl ExtBuilder {
 	}
 
 	pub fn mine_factor(mut self, factor: Perbill) -> Self {
-		self.mine_factor = factor; 
+		self.mine_factor = factor;
 		self
 	}
 

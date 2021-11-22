@@ -1119,7 +1119,6 @@ impl<T: Config> Pallet<T> {
 		mine_reward.min(T::MaxMine::get())
 	}
 
-
 	fn clear_store_file(cid: &FileId) {
 		StoreFiles::<T>::remove(cid);
 		FileOrders::<T>::remove(cid);
