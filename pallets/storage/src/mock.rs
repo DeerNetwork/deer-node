@@ -160,6 +160,8 @@ parameter_types! {
 	pub const MaxReportFiles: u32 = 10;
 	pub const FileBaseFee: Balance = FILE_BASE_PRICE;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
+	pub const MineFactor: Perbill = Perbill::from_percent(0);
+	pub const MaxMine: Balance = 3000;
 }
 
 impl Config for Test {
@@ -168,7 +170,6 @@ impl Config for Test {
 	type PalletId = StoragePalletId;
 	type Treasury = TreasuryMock;
 	type UnixTime = Timestamp;
-	type Payout = ();
 	type SlashBalance = SlashBalance;
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
@@ -181,6 +182,8 @@ impl Config for Test {
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
+	type MineFactor = MineFactor;
+	type MaxMine = MaxMine;
 	type WeightInfo = ();
 }
 

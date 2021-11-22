@@ -61,16 +61,6 @@ macro_rules! log {
 	};
 }
 
-pub trait Payout<Balance, BlockNumber> {
-	fn payout(now: BlockNumber) -> Balance;
-}
-
-impl<Balance: Default, BlockNumber> Payout<Balance, BlockNumber> for () {
-	fn payout(_node: BlockNumber) -> Balance {
-		Default::default()
-	}
-}
-/// Node information
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct NodeInfo<BlockNumber> {
 	/// A increment id of one report
@@ -188,9 +178,6 @@ pub mod pallet {
 		/// Time used for validating register cert
 		type UnixTime: UnixTime;
 
-		/// The payout for mining in the current round.
-		type Payout: Payout<BalanceOf<Self>, BlockNumberFor<Self>>;
-
 		/// The basic amount of funds that slashed when node is offline or misbehavier
 		#[pallet::constant]
 		type SlashBalance: Get<BalanceOf<Self>>;
@@ -238,6 +225,14 @@ pub mod pallet {
 		/// Number fo founds to stash for registering a node
 		#[pallet::constant]
 		type StashBalance: Get<BalanceOf<Self>>;
+
+		/// Mine factor
+		#[pallet::constant]
+		type MineFactor: Get<Perbill>;
+
+		/// The maximum number of deer the storage mine in each report round
+		#[pallet::constant]
+		type MaxMine: Get<BalanceOf<Self>>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -379,7 +374,7 @@ pub mod pallet {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
 			let next_round_at = NextRoundAt::<T>::get();
 			if now >= next_round_at {
-				Self::on_round_end(now);
+				Self::on_round_end();
 			}
 			// TODO: weights
 			0
@@ -672,7 +667,7 @@ pub mod pallet {
 			}
 
 			if let Some(stats) = RoundsReport::<T>::get(prev_round, &reporter) {
-				Self::round_reward(prev_round, stats, &mut stash_info);
+				Self::reward_round(prev_round, stats, &mut stash_info);
 			} else {
 				if !node_info.reported_at.is_zero() {
 					Self::slash_offline(&mut storage_pot_reserved, &mut stash_info.deposit);
@@ -820,11 +815,9 @@ impl<T: Config> Pallet<T> {
 		T::PalletId::get().into_account()
 	}
 
-	fn on_round_end(now: BlockNumberFor<T>) {
+	fn on_round_end() {
 		let current_round = CurrentRound::<T>::get();
-		let prev_round = current_round.saturating_sub(1);
-		let multiper: u64 = T::RoundDuration::get().saturated_into();
-		let mine_reward = T::Payout::payout(now).saturating_mul(multiper.saturated_into());
+		let mine_reward = Self::calculate_mine_reward(current_round);
 		if !mine_reward.is_zero() {
 			T::Currency::deposit_creating(&Self::account_id(), mine_reward);
 			RoundsReward::<T>::mutate(current_round, |reward| {
@@ -832,6 +825,7 @@ impl<T: Config> Pallet<T> {
 			});
 		}
 
+		let prev_round = current_round.saturating_sub(1);
 		if !prev_round.is_zero() {
 			let prev_reward = RoundsReward::<T>::get(prev_round);
 			let store_reward = prev_reward
@@ -1069,7 +1063,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn round_reward(
+	fn reward_round(
 		prev_round: RoundIndex,
 		node_stats: NodeStats,
 		stash_info: &mut StashInfo<T::AccountId, BalanceOf<T>>,
@@ -1077,17 +1071,18 @@ impl<T: Config> Pallet<T> {
 		if prev_round.is_zero() {
 			return
 		}
-		let mut reward_info = RoundsReward::<T>::get(prev_round);
-		let summary = RoundsSummary::<T>::get(prev_round);
-		let used_ratio = Perbill::from_rational(node_stats.used as u128, summary.used);
-		let power_ratio = Perbill::from_rational(node_stats.power as u128, summary.power);
-		let store_reward = used_ratio * reward_info.store_reward;
-		let mine_reward = power_ratio * reward_info.mine_reward;
-		reward_info.paid_store_reward = reward_info.paid_store_reward.saturating_add(store_reward);
-		reward_info.paid_mine_reward = reward_info.paid_mine_reward.saturating_add(mine_reward);
-		stash_info.deposit =
-			stash_info.deposit.saturating_add(mine_reward).saturating_add(store_reward);
-		RoundsReward::<T>::insert(prev_round, reward_info);
+		RoundsReward::<T>::mutate(prev_round, |mut reward_info| {
+			let summary = RoundsSummary::<T>::get(prev_round);
+			let used_ratio = Perbill::from_rational(node_stats.used as u128, summary.used);
+			let power_ratio = Perbill::from_rational(node_stats.power as u128, summary.power);
+			let store_reward = used_ratio * reward_info.store_reward;
+			let mine_reward = power_ratio * reward_info.mine_reward;
+			reward_info.paid_store_reward =
+				reward_info.paid_store_reward.saturating_add(store_reward);
+			reward_info.paid_mine_reward = reward_info.paid_mine_reward.saturating_add(mine_reward);
+			stash_info.deposit =
+				stash_info.deposit.saturating_add(mine_reward).saturating_add(store_reward);
+		});
 	}
 
 	fn slash_offline(storage_pot_reserved: &mut BalanceOf<T>, reporter_deposit: &mut BalanceOf<T>) {
@@ -1113,6 +1108,17 @@ impl<T: Config> Pallet<T> {
 		}
 		Nodes::<T>::get(&node).map(|v| v.reported_at.is_zero()).unwrap_or_default()
 	}
+
+	fn calculate_mine_reward(round: RoundIndex) -> BalanceOf<T> {
+		let summary = RoundsSummary::<T>::get(round);
+		if summary.power.is_zero() {
+			return Zero::zero()
+		}
+
+		let mine_reward: BalanceOf<T> = (T::MineFactor::get() * summary.power).saturated_into();
+		mine_reward.min(T::MaxMine::get())
+	}
+
 
 	fn clear_store_file(cid: &FileId) {
 		StoreFiles::<T>::remove(cid);
