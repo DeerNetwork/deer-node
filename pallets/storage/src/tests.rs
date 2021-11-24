@@ -335,7 +335,7 @@ fn report_settle_files_do_not_reward_unhealth_node() {
 }
 
 #[test]
-fn round_reward() {
+fn reward_round() {
 	ExtBuilder::default()
 		.files(vec![(mock_file_id('A'), 100, 1100)])
 		.reports(vec![(9, mock_register4(), mock_report4())])
@@ -355,6 +355,23 @@ fn round_reward() {
 			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(212));
 			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 88);
 			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')).is_none(), true);
+		})
+}
+
+#[test]
+fn calculate_mine_reward() {
+	ExtBuilder::default()
+		.files(vec![(mock_file_id('A'), 100, 1100)])
+		.reports(vec![(9, mock_register4(), mock_report4())])
+		.mine_factor(Perbill::from_percent(1))
+		.build()
+		.execute_with(|| {
+			run_to_block(11);
+			assert_ok!(call_report(9, mock_report6()));
+			let current_round = CurrentRound::<Test>::get();
+			run_to_block(21);
+			assert_eq!(RoundsSummary::<Test>::get(current_round).power, 200);
+			assert_eq!(RoundsReward::<Test>::get(current_round).mine_reward, 2);
 		})
 }
 

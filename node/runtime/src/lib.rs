@@ -65,7 +65,6 @@ pub use sp_runtime::BuildStorage;
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
 use impls::Author;
-// use impls::FileStoragePayout;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -503,8 +502,7 @@ impl pallet_staking::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>,
 	>;
 	type SessionInterface = Self;
-	// type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
-	type EraPayout = ();
+	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type ElectionProvider = ElectionProviderMultiPhase;
@@ -1090,6 +1088,8 @@ parameter_types! {
 	pub const FileBytePrice: Balance = 2 * MILLICENTS;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
+	pub const MineFactor: Perbill = Perbill::from_parts(10132083);
+	pub const MaxMine: Balance = 342231348 * MILLICENTS;
 }
 
 impl pallet_storage::Config for Runtime {
@@ -1098,8 +1098,6 @@ impl pallet_storage::Config for Runtime {
 	type Currency = Balances;
 	type Treasury = Treasury;
 	type UnixTime = Timestamp;
-	// type Payout = FileStoragePayout;
-	type Payout = ();
 	type SlashBalance = SlashBalance;
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
@@ -1112,6 +1110,8 @@ impl pallet_storage::Config for Runtime {
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
+	type MineFactor = MineFactor;
+	type MaxMine = MaxMine;
 	type WeightInfo = pallet_storage::weights::SubstrateWeight<Runtime>;
 }
 

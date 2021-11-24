@@ -160,6 +160,8 @@ parameter_types! {
 	pub const MaxReportFiles: u32 = 10;
 	pub const FileBaseFee: Balance = FILE_BASE_PRICE;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
+	pub static MineFactor: Perbill = Perbill::from_percent(0);
+	pub const MaxMine: Balance = 3000;
 }
 
 impl Config for Test {
@@ -168,7 +170,6 @@ impl Config for Test {
 	type PalletId = StoragePalletId;
 	type Treasury = TreasuryMock;
 	type UnixTime = Timestamp;
-	type Payout = ();
 	type SlashBalance = SlashBalance;
 	type RoundDuration = RoundDuration;
 	type FileOrderRounds = FileOrderRounds;
@@ -181,6 +182,8 @@ impl Config for Test {
 	type FileBytePrice = FileBytePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
+	type MineFactor = MineFactor;
+	type MaxMine = MaxMine;
 	type WeightInfo = ();
 }
 
@@ -191,6 +194,7 @@ pub struct ExtBuilder {
 	files: Vec<(FileId, u64, Balance)>,
 	reports: Vec<(AccountId, RegisterData, ReportData)>,
 	now: u64,
+	mine_factor: Perbill,
 }
 
 impl Default for ExtBuilder {
@@ -204,6 +208,7 @@ impl Default for ExtBuilder {
 			registers: vec![],
 			files: vec![],
 			reports: vec![],
+			mine_factor: Perbill::from_percent(0),
 			now: 1627833600000,
 		}
 	}
@@ -240,6 +245,11 @@ impl ExtBuilder {
 		self
 	}
 
+	pub fn mine_factor(mut self, factor: Perbill) -> Self {
+		self.mine_factor = factor;
+		self
+	}
+
 	pub fn build(self) -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
@@ -258,6 +268,8 @@ impl ExtBuilder {
 		}
 		.assimilate_storage(&mut t)
 		.unwrap();
+
+		MINE_FACTOR.with(|v| *v.borrow_mut() = self.mine_factor);
 
 		let mut ext = sp_io::TestExternalities::new(t);
 		let ExtBuilder { registers, stashs, files, now, reports, .. } = self;
