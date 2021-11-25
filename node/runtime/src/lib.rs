@@ -1088,7 +1088,7 @@ parameter_types! {
 	pub const FileBytePrice: Balance = 2 * MILLICENTS;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
-	pub const MineFactor: Perbill = Perbill::from_parts(10132083);
+	pub const MineFactor: Perbill = Perbill::from_parts(16629317);
 	pub const MaxMine: Balance = 342231348 * MILLICENTS;
 }
 
