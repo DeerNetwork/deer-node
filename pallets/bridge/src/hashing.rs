@@ -11,3 +11,11 @@ pub fn blake2_128(data: &[u8]) -> [u8; 16] {
 	blake2_128_into(data, &mut r);
 	r
 }
+
+#[test]
+fn test_block2_128_deer() {
+	assert_eq!(
+		blake2_128(b"DEER"),
+		[155, 53, 194, 176, 90, 48, 11, 101, 16, 122, 27, 71, 163, 32, 246, 95]
+	);
+}

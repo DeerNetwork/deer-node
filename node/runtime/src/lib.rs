@@ -1115,6 +1115,32 @@ impl pallet_storage::Config for Runtime {
 	type WeightInfo = pallet_storage::weights::SubstrateWeight<Runtime>;
 }
 
+parameter_types! {
+	pub const BridgeChainId: u8 = 1;
+	pub const ProposalLifetime: BlockNumber = 50;
+}
+
+impl pallet_bridge::Config for Runtime {
+	type Event = Event;
+	type BridgeCommitteeOrigin = EnsureRootOrHalfCouncil;
+	type Proposal = Call;
+	type BridgeChainId = BridgeChainId;
+	type ProposalLifetime = ProposalLifetime;
+}
+
+parameter_types! {
+	// bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"DEER"));
+	pub const NativeTokenResourceId: [u8; 32] = hex_literal::hex!("0000000000000000000000000000009b35c2b05a300b65107a1b47a320f65f01");
+}
+
+impl pallet_bridge_transfer::Config for Runtime {
+	type Event = Event;
+	type BridgeOrigin = pallet_bridge::EnsureBridge<Runtime>;
+	type Currency = Balances;
+	type NativeTokenResourceId = NativeTokenResourceId;
+	type OnFeePay = Treasury;
+}
+
 impl pallet_transaction_storage::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
@@ -1166,6 +1192,8 @@ construct_runtime!(
 		FileStorage: pallet_storage::{Pallet, Call, Storage, Event<T>, Config<T>} = 33,
 		TransactionStorage: pallet_transaction_storage::{Pallet, Call, Storage, Inherent, Config<T>, Event<T>} = 34,
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 36,
+		Bridge: pallet_bridge::{Pallet, Call, Storage, Event<T>} = 37,
+		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Storage, Event<T>} = 38,
 	}
 );
 
@@ -1446,6 +1474,8 @@ impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_session, SessionBench::<Runtime>);
 			list_benchmark!(list, extra, pallet_staking, Staking);
 			list_benchmark!(list, extra, pallet_storage, FileStorage);
+			// list_benchmark!(list, extra, pallet_bridge, Bridge);
+			// list_benchmark!(list, extra, pallet_bridge_transfer, BridgeTransfer);
 			list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
 			list_benchmark!(list, extra, pallet_timestamp, Timestamp);
 			list_benchmark!(list, extra, pallet_tips, Tips);
@@ -1520,6 +1550,8 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_staking, Staking);
 			add_benchmark!(params, batches, pallet_storage, FileStorage);
+			add_benchmark!(params, batches, pallet_bridge, Bridge);
+			add_benchmark!(params, batches, pallet_bridge_transfer, BridgeTransfer);
 			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_tips, Tips);

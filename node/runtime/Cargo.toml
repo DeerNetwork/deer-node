@@ -19,7 +19,7 @@ codec = { package = "parity-scale-codec", version = "2.2.0", default-features = 
 ] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 static_assertions = "1.1.0"
-hex-literal = { version = "0.3.1", optional = true }
+hex-literal = { version = "0.3.1" }
 log = { version = "0.4.14", default-features = false }
 
 # primitives
@@ -90,6 +90,8 @@ pallet-nft = { path = "../../pallets/nft", default-features = false }
 pallet-nft-order = { path = "../../pallets/nft-order", default-features = false }
 pallet-nft-auction = { path = "../../pallets/nft-auction", default-features = false }
 pallet-storage = { path = "../../pallets/storage", default-features = false }
+pallet-bridge = { path = "../../pallets/bridge", default-features = false }
+pallet-bridge-transfer = { path = "../../pallets/bridge-transfer", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { path = "../../substrate/utils/wasm-builder" }
@@ -160,10 +162,11 @@ std = [
     "pallet-nft-order/std",
     "pallet-nft-auction/std",
     "pallet-storage/std",
+    "pallet-bridge/std",
+    "pallet-bridge-transfer/std",
 ]
 
 runtime-benchmarks = [
-    "hex-literal",
     "frame-benchmarking",
     "frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
@@ -194,11 +197,12 @@ runtime-benchmarks = [
 	"pallet-offences-benchmarking",
 	"pallet-session-benchmarking",
 	"frame-system-benchmarking",
-	"hex-literal",
     "pallet-nft/runtime-benchmarks",
     "pallet-nft-order/runtime-benchmarks",
     "pallet-nft-auction/runtime-benchmarks",
     "pallet-storage/runtime-benchmarks",
+    # "pallet-bridge/runtime-benchmarks",
+    # "pallet-bridge-transfer/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
@@ -237,4 +241,6 @@ try-runtime = [
 	"pallet-nft-order/try-runtime",
 	"pallet-nft-auction/try-runtime",
 	"pallet-storage/try-runtime",
+    # "pallet-bridge/try-runtime",
+    # "pallet-bridge-transfer/try-runtime",
 ]
