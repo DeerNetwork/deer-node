@@ -22,9 +22,9 @@ fn make_transfer_proposal(to: u64, amount: u64) -> Call {
 
 #[test]
 fn constant_equality() {
-	let r_id = bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"PHA"));
+	let r_id = bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"DEER"));
 	let encoded: [u8; 32] =
-		hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
+		hex!("0000000000000000000000000000009b35c2b05a300b65107a1b47a320f65f01");
 	assert_eq!(r_id, encoded);
 }
 
