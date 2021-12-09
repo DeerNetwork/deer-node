@@ -1,4 +1,4 @@
-FROM debian:stretch-slim
+FROM debian:buster-slim
 
 # show backtraces
 ENV RUST_BACKTRACE 1

@@ -34,7 +34,8 @@ bench pallet exection="wasm":
 
 
 run +args='--dev --tmp':
-    ./target/release/{{name}} \
+    cargo run --release \
+    -- \
     {{args}} \
     --port 30333 \
     --ws-port 9944 \

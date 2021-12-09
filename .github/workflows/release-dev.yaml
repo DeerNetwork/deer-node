@@ -13,7 +13,7 @@ jobs:
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2021-11-11
+          toolchain: nightly-2021-11-30
           override: true
           target: wasm32-unknown-unknown
       - name: Build release
