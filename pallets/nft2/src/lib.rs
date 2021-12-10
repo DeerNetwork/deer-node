@@ -5,8 +5,8 @@
 // mod benchmarking;
 #[cfg(test)]
 pub mod mock;
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 // pub mod weights;
 
 // pub mod migrations;
@@ -327,8 +327,149 @@ pub mod pallet {
 				MaxClassId::<T, I>::put(class_id);
 			}
 			Self::deposit_event(Event::CreatedClass(class_id, owner));
+			Ok(().into())
+		}
 
-			todo!()
+		/// Mint NFT token
+		#[pallet::weight(100_000)]
+		#[transactional]
+		pub fn mint(
+			origin: OriginFor<T>,
+			to: <T::Lookup as StaticLookup>::Source,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			metadata: Vec<u8>,
+			#[pallet::compact] quantity: T::TokenId,
+			royalty_rate: Option<Perbill>,
+			royalty_beneficiary: Option<T::AccountId>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
+			ensure!(
+				!Tokens::<T, I>::contains_key(class_id, token_id),
+				Error::<T, I>::ConflictTokenId
+			);
+
+			let to = T::Lookup::lookup(to)?;
+
+			Classes::<T, I>::try_mutate(&class_id, |maybe_class_details| -> DispatchResult {
+				let class_details =
+					maybe_class_details.as_mut().ok_or(Error::<T, I>::ClassNotFound)?;
+				ensure!(&who == &class_details.owner, Error::<T, I>::NoPermission);
+
+				let royalty_rate = royalty_rate.unwrap_or(class_details.royalty_rate);
+				ensure!(
+					T::RoyaltyRateLimit::get() >= royalty_rate,
+					Error::<T, I>::RoyaltyRateTooHigh
+				);
+
+				let total_tokens = class_details
+					.total_tokens
+					.checked_add(&One::one())
+					.ok_or(Error::<T, I>::NumOverflow)?;
+
+				let total_issuance = class_details
+					.total_issuance
+					.checked_add(&quantity)
+					.ok_or(Error::<T, I>::NumOverflow)?;
+
+				class_details.total_tokens = total_tokens;
+				class_details.total_issuance = total_issuance;
+
+				let deposit =
+					Self::caculate_deposit(T::TokenDeposit::get(), metadata.len().saturated_into());
+				T::Currency::reserve(&class_details.owner, deposit)?;
+
+				let token_details = TokenDetails {
+					metadata,
+					deposit,
+					quantity,
+					royalty_rate,
+					royalty_beneficiary: royalty_beneficiary.unwrap_or(to.clone()),
+				};
+				Tokens::<T, I>::insert(&class_id, &token_id, token_details);
+				TokensByOwner::<T, I>::insert(
+					&to,
+					(class_id, token_id),
+					TokenAmount { free: quantity, reserved: Zero::zero() },
+				);
+				OwnersByToken::<T, I>::insert((class_id, token_id), &to, ());
+
+				Self::deposit_event(Event::MintedToken(class_id, token_id, quantity, to, who));
+
+				Ok(().into())
+			})
+		}
+
+		/// Burn NFT token
+		#[pallet::weight(100_000)]
+		#[transactional]
+		pub fn burn(
+			origin: OriginFor<T>,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			#[pallet::compact] quantity: T::TokenId,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
+
+			Classes::<T, I>::try_mutate(&class_id, |maybe_class_details| -> DispatchResult {
+				let class_details =
+					maybe_class_details.as_mut().ok_or(Error::<T, I>::ClassNotFound)?;
+
+				let token_details = Tokens::<T, I>::try_mutate_exists(
+					&class_id,
+					&token_id,
+					|maybe_token_details| -> Result<TokenDetailsOf<T, I>, DispatchError> {
+						let token_details =
+							maybe_token_details.as_mut().ok_or(Error::<T, I>::TokenNotFound)?;
+						token_details.quantity = token_details
+							.quantity
+							.checked_sub(&quantity)
+							.ok_or(Error::<T, I>::NumOverflow)?;
+						let copyed_token_details = token_details.clone();
+						if token_details.quantity.is_zero() {
+							*maybe_token_details = None;
+						}
+						Ok(copyed_token_details)
+					},
+				)?;
+
+				if token_details.quantity.is_zero() {
+					T::Currency::unreserve(&class_details.owner, token_details.deposit);
+					class_details.total_tokens = class_details
+						.total_tokens
+						.checked_sub(&One::one())
+						.ok_or(Error::<T, I>::NumOverflow)?;
+				}
+
+				class_details.total_issuance = class_details
+					.total_issuance
+					.checked_sub(&quantity)
+					.ok_or(Error::<T, I>::NumOverflow)?;
+
+				TokensByOwner::<T, I>::try_mutate_exists(
+					owner.clone(),
+					(class_id, token_id),
+					|maybe_token_amount| -> DispatchResult {
+						let mut token_amount = maybe_token_amount.unwrap_or_default();
+						token_amount.free = token_amount
+							.free
+							.checked_sub(&quantity)
+							.ok_or(Error::<T, I>::NumOverflow)?;
+						if token_amount.free.is_zero() && token_amount.reserved.is_zero() {
+							*maybe_token_amount = None;
+							OwnersByToken::<T, I>::remove((class_id, token_id), owner.clone());
+						} else {
+							*maybe_token_amount = Some(token_amount);
+						}
+						Ok(())
+					},
+				)?;
+
+				Self::deposit_event(Event::BurnedToken(class_id, token_id, quantity, owner));
+				Ok(().into())
+			})
 		}
 
 		/// Update token royalty.
@@ -385,143 +526,6 @@ pub mod pallet {
 			)
 		}
 
-		/// Mint NFT token
-		///
-		/// - `to`: the token owner's account
-		/// - `class_id`: token belong to the class id
-		/// - `metadata`: external metadata
-		/// - `quantity`: token quantity
-		#[pallet::weight(100_000)]
-		#[transactional]
-		pub fn mint(
-			origin: OriginFor<T>,
-			to: <T::Lookup as StaticLookup>::Source,
-			#[pallet::compact] class_id: T::ClassId,
-			#[pallet::compact] token_id: T::TokenId,
-			metadata: Vec<u8>,
-			#[pallet::compact] quantity: T::TokenId,
-			royalty_rate: Option<Perbill>,
-		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
-			ensure!(
-				!Tokens::<T, I>::contains_key(class_id, token_id),
-				Error::<T, I>::ConflictTokenId
-			);
-
-			let to = T::Lookup::lookup(to)?;
-
-			Classes::<T, I>::try_mutate(&class_id, |maybe_class_details| -> DispatchResult {
-				let class_details =
-					maybe_class_details.as_mut().ok_or(Error::<T, I>::ClassNotFound)?;
-				ensure!(&who == &class_details.owner, Error::<T, I>::NoPermission);
-
-				let royalty_rate = royalty_rate.unwrap_or(class_details.royalty_rate);
-				ensure!(
-					T::RoyaltyRateLimit::get() >= royalty_rate,
-					Error::<T, I>::RoyaltyRateTooHigh
-				);
-
-				let total_tokens = class_details
-					.total_tokens
-					.checked_add(&One::one())
-					.ok_or(Error::<T, I>::NumOverflow)?;
-
-				let total_issuance = class_details
-					.total_issuance
-					.checked_add(&quantity)
-					.ok_or(Error::<T, I>::NumOverflow)?;
-
-				class_details.total_tokens = total_tokens;
-				class_details.total_issuance = total_issuance;
-
-				let deposit =
-					Self::caculate_deposit(T::TokenDeposit::get(), metadata.len().saturated_into());
-				T::Currency::reserve(&class_details.owner, deposit)?;
-
-				let token_details = TokenDetails {
-					metadata,
-					deposit,
-					quantity,
-					royalty_rate,
-					royalty_beneficiary: to.clone(),
-				};
-				Tokens::<T, I>::insert(&class_id, &token_id, token_details);
-				TokensByOwner::<T, I>::insert(
-					&to,
-					(class_id, token_id),
-					TokenAmount { free: quantity, reserved: Zero::zero() },
-				);
-				OwnersByToken::<T, I>::insert((class_id, token_id), &to, ());
-
-				Self::deposit_event(Event::MintedToken(class_id, token_id, quantity, to, who));
-
-				Ok(().into())
-			})
-		}
-
-		/// Burn NFT token
-		#[pallet::weight(100_000)]
-		#[transactional]
-		pub fn burn(
-			origin: OriginFor<T>,
-			#[pallet::compact] class_id: T::ClassId,
-			#[pallet::compact] token_id: T::TokenId,
-			#[pallet::compact] quantity: T::TokenId,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
-
-			Classes::<T, I>::try_mutate(&class_id, |maybe_class_details| -> DispatchResult {
-				let class_details =
-					maybe_class_details.as_mut().ok_or(Error::<T, I>::ClassNotFound)?;
-
-				let token_details = Tokens::<T, I>::try_mutate_exists(
-					&class_id,
-					&token_id,
-					|maybe_token_details| -> Result<TokenDetailsOf<T, I>, DispatchError> {
-						let token_details =
-							maybe_token_details.as_mut().ok_or(Error::<T, I>::TokenNotFound)?;
-						token_details.quantity = token_details
-							.quantity
-							.checked_sub(&quantity)
-							.ok_or(Error::<T, I>::NumOverflow)?;
-						let copyed_token_details = token_details.clone();
-						if token_details.quantity.is_zero() {
-							*maybe_token_details = None;
-						}
-						Ok(copyed_token_details)
-					},
-				)?;
-
-				if token_details.quantity.is_zero() {
-					T::Currency::reserve(&class_details.owner, token_details.deposit)?;
-				}
-
-				TokensByOwner::<T, I>::try_mutate_exists(
-					owner.clone(),
-					(class_id, token_id),
-					|maybe_token_amount| -> DispatchResult {
-						let mut token_amount = maybe_token_amount.unwrap_or_default();
-						token_amount.free = token_amount
-							.free
-							.checked_sub(&quantity)
-							.ok_or(Error::<T, I>::NumOverflow)?;
-						if token_amount.free.is_zero() && token_amount.reserved.is_zero() {
-							*maybe_token_amount = None;
-							OwnersByToken::<T, I>::remove((class_id, token_id), owner.clone());
-						} else {
-							*maybe_token_amount = Some(token_amount);
-						}
-						Ok(())
-					},
-				)?;
-
-				Self::deposit_event(Event::BurnedToken(class_id, token_id, quantity, owner));
-				Ok(().into())
-			})
-		}
-
 		/// Transfer NFT tokens to another account
 		///
 		/// - `to`: the token owner's account
@@ -532,13 +536,14 @@ pub mod pallet {
 		#[transactional]
 		pub fn transfer(
 			origin: OriginFor<T>,
-			to: <T::Lookup as StaticLookup>::Source,
 			#[pallet::compact] class_id: T::ClassId,
 			#[pallet::compact] token_id: T::TokenId,
 			#[pallet::compact] quantity: T::TokenId,
+			to: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let to = T::Lookup::lookup(to)?;
+			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
 
 			Self::transfer_token(class_id, token_id, quantity, &who, &to)?;
 			Ok(())
@@ -563,7 +568,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			from,
 			token,
 			|maybe_from_amount| -> Result<bool, DispatchError> {
-				let mut from_amount = maybe_from_amount.unwrap_or_default();
+				let mut from_amount = maybe_from_amount.ok_or(Error::<T, I>::TokenNotFound)?;
 				from_amount.free =
 					from_amount.free.checked_sub(&quantity).ok_or(Error::<T, I>::NumOverflow)?;
 
@@ -615,7 +620,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		owner: &T::AccountId,
 	) -> bool {
 		let token_amount = Self::tokens_by_owner(owner, (class_id, token_id)).unwrap_or_default();
-		return token_amount.free > quantity
+		return token_amount.free >= quantity
 	}
 
 	pub fn reserve(

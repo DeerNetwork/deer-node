@@ -113,6 +113,10 @@ pub(crate) fn rate(v: u32) -> Perbill {
 	Perbill::from_percent(v)
 }
 
+pub fn last_event() -> Event {
+	frame_system::Pallet::<Test>::events().pop().expect("Event expected").event
+}
+
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
 	let t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
