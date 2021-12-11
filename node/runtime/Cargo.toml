@@ -201,7 +201,7 @@ runtime-benchmarks = [
     "pallet-nft-order/runtime-benchmarks",
     "pallet-nft-auction/runtime-benchmarks",
     "pallet-storage/runtime-benchmarks",
-    # "pallet-bridge/runtime-benchmarks",
+    "pallet-bridge/runtime-benchmarks",
     # "pallet-bridge-transfer/runtime-benchmarks",
 ]
 try-runtime = [

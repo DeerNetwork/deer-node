@@ -73,11 +73,8 @@ impl pallet_balances::Config for Test {
 
 parameter_types! {
 	pub const ClassDeposit: u64 = 2;
-	pub const InstanceDeposit: u64 = 1;
-	pub const KeyLimit: u32 = 50;
-	pub const ValueLimit: u32 = 50;
-	pub const DepositBase: u64 = 1;
-	pub const DepositPerByte: u64 = 1;
+	pub const TokenDeposit: u64 = 1;
+	pub const MetaDataByteDeposit: u64 = 1;
 	pub const RoyaltyRateLimit: Perbill = Perbill::from_percent(20);
 	pub const ClassIdIncLimit: u32 = 10;
 }
@@ -85,14 +82,11 @@ parameter_types! {
 impl pallet_nft::Config for Test {
 	type Event = Event;
 	type ClassId = u32;
-	type InstanceId = u32;
+	type TokenId = u32;
 	type Currency = Balances;
 	type ClassDeposit = ClassDeposit;
-	type InstanceDeposit = InstanceDeposit;
-	type DepositBase = DepositBase;
-	type DepositPerByte = DepositPerByte;
-	type KeyLimit = KeyLimit;
-	type ValueLimit = ValueLimit;
+	type TokenDeposit = TokenDeposit;
+	type MetaDataByteDeposit = MetaDataByteDeposit;
 	type RoyaltyRateLimit = RoyaltyRateLimit;
 	type ClassIdIncLimit = ClassIdIncLimit;
 	type WeightInfo = ();

@@ -1,25 +1,25 @@
 use super::*;
 
-pub mod v1 {
+pub mod v2 {
 	use super::*;
 
 	pub type OldDutchAuctionOf<T, I = ()> = OldDutchAuction<
 		<T as frame_system::Config>::AccountId,
 		ClassIdOf<T, I>,
-		InstanceIdOf<T, I>,
+		TokenIdOf<T, I>,
 		BalanceOf<T, I>,
 		<T as frame_system::Config>::BlockNumber,
 	>;
 
-	pub type OldEnglishAuctionOf<T, I = ()> = EnglishAuction<
+	pub type OldEnglishAuctionOf<T, I = ()> = OldEnglishAuction<
 		<T as frame_system::Config>::AccountId,
 		ClassIdOf<T, I>,
-		InstanceIdOf<T, I>,
+		TokenIdOf<T, I>,
 		BalanceOf<T, I>,
 		<T as frame_system::Config>::BlockNumber,
 	>;
 
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 	pub struct OldDutchAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
 		/// auction creator
 		pub owner: AccountId,
@@ -43,13 +43,16 @@ pub mod v1 {
 		/// When creating auction
 		#[codec(compact)]
 		pub created_at: BlockNumber,
+		/// When opening auction
+		#[codec(compact)]
+		pub open_at: BlockNumber,
 		/// The auction should be forced to be ended if current block number higher than this
 		/// value.
 		#[codec(compact)]
 		pub deadline: BlockNumber,
 	}
 
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
+	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 	pub struct OldEnglishAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
 		/// auction creator
 		pub owner: AccountId,
@@ -73,6 +76,9 @@ pub mod v1 {
 		/// When creating auction
 		#[codec(compact)]
 		pub created_at: BlockNumber,
+		/// When opening auction
+		#[codec(compact)]
+		pub open_at: BlockNumber,
 		/// The auction should be forced to be ended if current block number higher than this
 		/// value.
 		#[codec(compact)]
@@ -81,20 +87,21 @@ pub mod v1 {
 
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V0);
-		log!(debug, "migration: nft auction storage version v1 PRE migration checks succesful!");
+		assert!(StorageVersion::<T, I>::get() == Releases::V1);
+		log!(debug, "migration: nft auction storage version v2 PRE migration checks succesful!");
 		Ok(())
 	}
 
 	pub fn migrate<T: Config<I>, I: 'static>() -> Weight {
-		log!(info, "Migrating nft auction to Releases::V1");
+		log!(info, "Migrating nft auction to Releases::V2");
 
 		let mut dutch_auction_count = 0;
 		DutchAuctions::<T, I>::translate::<OldDutchAuctionOf<T, I>, _>(|_, p| {
 			let new_class = DutchAuction {
 				owner: p.owner,
-				class: p.class,
-				instance: p.instance,
+				class_id: p.class,
+				token_id: p.instance,
+				quantity: One::one(),
 				min_price: p.min_price,
 				max_price: p.max_price,
 				created_at: p.created_at,
@@ -110,8 +117,9 @@ pub mod v1 {
 		EnglishAuctions::<T, I>::translate::<OldEnglishAuctionOf<T, I>, _>(|_, p| {
 			let new_class = EnglishAuction {
 				owner: p.owner,
-				class: p.class,
-				instance: p.instance,
+				class_id: p.class,
+				token_id: p.instance,
+				quantity: One::one(),
 				init_price: p.init_price,
 				min_raise_price: p.min_raise_price,
 				created_at: p.created_at,
@@ -124,7 +132,7 @@ pub mod v1 {
 			Some(new_class)
 		});
 
-		StorageVersion::<T, I>::put(Releases::V1);
+		StorageVersion::<T, I>::put(Releases::V2);
 
 		log!(
 			info,
@@ -138,7 +146,6 @@ pub mod v1 {
 			(dutch_auction_count + english_auction_count) as Weight + 1,
 		)
 	}
-
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
 		Ok(())

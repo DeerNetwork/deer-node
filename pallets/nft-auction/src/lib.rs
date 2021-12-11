@@ -44,18 +44,18 @@ pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Curre
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
 pub type ClassIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::ClassId;
-pub type InstanceIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::InstanceId;
+pub type TokenIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::TokenId;
 pub type DutchAuctionOf<T, I = ()> = DutchAuction<
 	<T as frame_system::Config>::AccountId,
 	ClassIdOf<T, I>,
-	InstanceIdOf<T, I>,
+	TokenIdOf<T, I>,
 	BalanceOf<T, I>,
 	<T as frame_system::Config>::BlockNumber,
 >;
 pub type EnglishAuctionOf<T, I = ()> = EnglishAuction<
 	<T as frame_system::Config>::AccountId,
 	ClassIdOf<T, I>,
-	InstanceIdOf<T, I>,
+	TokenIdOf<T, I>,
 	BalanceOf<T, I>,
 	<T as frame_system::Config>::BlockNumber,
 >;
@@ -66,15 +66,18 @@ pub type AuctionBidOf<T, I = ()> = AuctionBid<
 >;
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct DutchAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
+pub struct DutchAuction<AccountId, ClassId, TokenId, Balance, BlockNumber> {
 	/// auction creator
 	pub owner: AccountId,
 	/// Nft class id
 	#[codec(compact)]
-	pub class: ClassId,
-	/// Nft instance id
+	pub class_id: ClassId,
+	/// Nft token id
 	#[codec(compact)]
-	pub instance: InstanceId,
+	pub token_id: TokenId,
+	/// Amount of token
+	#[codec(compact)]
+	pub quantity: TokenId,
 	/// The initial price of auction
 	#[codec(compact)]
 	pub min_price: Balance,
@@ -98,15 +101,18 @@ pub struct DutchAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct EnglishAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
+pub struct EnglishAuction<AccountId, ClassId, TokenId, Balance, BlockNumber> {
 	/// auction creator
 	pub owner: AccountId,
 	/// Nft class id
 	#[codec(compact)]
-	pub class: ClassId,
-	/// Nft instance id
+	pub class_id: ClassId,
+	/// Nft token id
 	#[codec(compact)]
-	pub instance: InstanceId,
+	pub token_id: TokenId,
+	/// Amount of token
+	#[codec(compact)]
+	pub quantity: TokenId,
 	/// The initial price of auction
 	#[codec(compact)]
 	pub init_price: Balance,
@@ -148,6 +154,7 @@ pub struct AuctionBid<AccountId, Balance, BlockNumber> {
 pub enum Releases {
 	V0,
 	V1,
+	V2,
 }
 
 impl Default for Releases {
@@ -196,7 +203,7 @@ pub mod pallet {
 		Blake2_128Concat,
 		T::ClassId,
 		Blake2_128Concat,
-		T::InstanceId,
+		T::TokenId,
 		T::AuctionId,
 		OptionQuery,
 	>;
@@ -240,16 +247,16 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
-		/// Created ductch auction \[who, auction_id\]
-		CreatedDutchAuction(T::AccountId, T::AuctionId),
+		/// Created ductch auction \[class_id, token_id, quantity, who, auction_id\]
+		CreatedDutchAuction(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AuctionId),
 		/// Bid dutch auction \[who auction_id\]
 		BidDutchAuction(T::AccountId, T::AuctionId),
 		/// Canceled dutch auction \[who, auction_id\]
 		CanceledDutchAuction(T::AccountId, T::AuctionId),
 		/// Redeemed dutch auction \[who, auction_id\]
 		RedeemedDutchAuction(T::AccountId, T::AuctionId),
-		/// Created ductch auction \[who, auction_id\]
-		CreatedEnglishAuction(T::AccountId, T::AuctionId),
+		/// Created ductch auction \[class_id, token_id, quantity, who, auction_id\]
+		CreatedEnglishAuction(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AuctionId),
 		/// Bid english auction \[who auction_id\]
 		BidEnglishAuction(T::AccountId, T::AuctionId),
 		/// Canceled english auction \[who, auction_id\]
@@ -300,7 +307,7 @@ pub mod pallet {
 	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
 		fn on_runtime_upgrade() -> Weight {
 			if StorageVersion::<T, I>::get() == Releases::V0 {
-				migrations::v1::migrate::<T, I>()
+				migrations::v2::migrate::<T, I>()
 			} else {
 				T::DbWeight::get().reads(1)
 			}
@@ -308,7 +315,7 @@ pub mod pallet {
 
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<(), &'static str> {
-			if StorageVersion::<T, I>::get() == Releases::V0 {
+			if StorageVersion::<T, I>::get() == Releases::V1 {
 				migrations::v1::pre_migrate::<T, I>()
 			} else {
 				Ok(())
@@ -317,8 +324,8 @@ pub mod pallet {
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade() -> Result<(), &'static str> {
-			if StorageVersion::<T, I>::get() == Releases::V1 {
-				migrations::v1::post_migrate::<T, I>()
+			if StorageVersion::<T, I>::get() == Releases::V2 {
+				migrations::v2::post_migrate::<T, I>()
 			} else {
 				Ok(())
 			}
@@ -332,8 +339,9 @@ pub mod pallet {
 		#[transactional]
 		pub fn create_dutch(
 			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			#[pallet::compact] quantity: T::TokenId,
 			#[pallet::compact] min_price: BalanceOf<T, I>,
 			#[pallet::compact] max_price: BalanceOf<T, I>,
 			#[pallet::compact] deadline: BlockNumberFor<T>,
@@ -341,7 +349,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(
-				pallet_nft::Pallet::<T, I>::validate(&class, &instance, &who),
+				pallet_nft::Pallet::<T, I>::can_trade(class_id, token_id, quantity, &who),
 				Error::<T, I>::InvalidNFT
 			);
 			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
@@ -351,14 +359,15 @@ pub mod pallet {
 
 			let deposit = T::AuctionDeposit::get();
 			T::Currency::reserve(&who, deposit)?;
-			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &who)?;
+			pallet_nft::Pallet::<T, I>::reserve(class_id, token_id, quantity, &who)?;
 
 			let auction_id = Self::gen_auction_id()?;
 
 			let auction = DutchAuction {
 				owner: who.clone(),
-				class,
-				instance,
+				class_id,
+				token_id,
+				quantity,
 				min_price,
 				max_price,
 				created_at: now,
@@ -367,10 +376,12 @@ pub mod pallet {
 				deposit,
 			};
 
-			Auctions::<T, I>::insert(class, instance, auction_id);
+			Auctions::<T, I>::insert(class_id, token_id, auction_id);
 			DutchAuctions::<T, I>::insert(auction_id, auction);
 
-			Self::deposit_event(Event::CreatedDutchAuction(who, auction_id));
+			Self::deposit_event(Event::CreatedDutchAuction(
+				class_id, token_id, quantity, who, auction_id,
+			));
 			Ok(().into())
 		}
 
@@ -473,7 +484,12 @@ pub mod pallet {
 			ensure!(auction.owner == who, Error::<T, I>::NotOwnerAccount);
 			let bid = DutchAuctionBids::<T, I>::get(auction_id);
 			ensure!(bid.is_none(), Error::<T, I>::CannotRemoveAuction);
-			pallet_nft::Pallet::<T, I>::unreserve(&auction.class, &auction.instance)?;
+			pallet_nft::Pallet::<T, I>::unreserve(
+				auction.class_id,
+				auction.token_id,
+				auction.quantity,
+				&auction.owner,
+			)?;
 			Self::delete_dutch_auction(&auction_id)?;
 			Self::deposit_event(Event::CanceledDutchAuction(who, auction_id));
 			Ok(().into())
@@ -484,8 +500,9 @@ pub mod pallet {
 		#[transactional]
 		pub fn create_english(
 			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			#[pallet::compact] quantity: T::TokenId,
 			#[pallet::compact] init_price: BalanceOf<T, I>,
 			#[pallet::compact] min_raise_price: BalanceOf<T, I>,
 			#[pallet::compact] deadline: BlockNumberFor<T>,
@@ -493,7 +510,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(
-				pallet_nft::Pallet::<T, I>::validate(&class, &instance, &who),
+				pallet_nft::Pallet::<T, I>::can_trade(class_id, token_id, quantity, &who),
 				Error::<T, I>::InvalidNFT
 			);
 			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
@@ -502,14 +519,15 @@ pub mod pallet {
 
 			let deposit = T::AuctionDeposit::get();
 			T::Currency::reserve(&who, deposit)?;
-			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &who)?;
+			pallet_nft::Pallet::<T, I>::reserve(class_id, token_id, quantity, &who)?;
 
 			let auction_id = Self::gen_auction_id()?;
 
 			let auction = EnglishAuction {
 				owner: who.clone(),
-				class,
-				instance,
+				class_id,
+				token_id,
+				quantity,
 				init_price,
 				min_raise_price,
 				created_at: now,
@@ -518,10 +536,12 @@ pub mod pallet {
 				deposit,
 			};
 
-			Auctions::<T, I>::insert(class, instance, auction_id);
+			Auctions::<T, I>::insert(class_id, token_id, auction_id);
 			EnglishAuctions::<T, I>::insert(auction_id, auction);
 
-			Self::deposit_event(Event::CreatedEnglishAuction(who, auction_id));
+			Self::deposit_event(Event::CreatedEnglishAuction(
+				class_id, token_id, quantity, who, auction_id,
+			));
 			Ok(().into())
 		}
 
@@ -593,8 +613,10 @@ pub mod pallet {
 			T::Currency::unreserve(&bid.account, bid.price);
 
 			pallet_nft::Pallet::<T, I>::swap(
-				&auction.class,
-				&auction.instance,
+				auction.class_id,
+				auction.token_id,
+				auction.quantity,
+				&auction.owner,
 				&bid.account,
 				bid.price,
 				T::AuctionFeeTaxRatio::get(),
@@ -621,7 +643,12 @@ pub mod pallet {
 			ensure!(auction.owner == who, Error::<T, I>::NotOwnerAccount);
 			let bid = EnglishAuctionBids::<T, I>::get(auction_id);
 			ensure!(bid.is_none(), Error::<T, I>::CannotRemoveAuction);
-			pallet_nft::Pallet::<T, I>::unreserve(&auction.class, &auction.instance)?;
+			pallet_nft::Pallet::<T, I>::unreserve(
+				auction.class_id,
+				auction.token_id,
+				auction.quantity,
+				&auction.owner,
+			)?;
 			Self::delete_english_auction(&auction_id)?;
 			Self::deposit_event(Event::CanceledEnglishAuction(who, auction_id));
 			Ok(().into())
@@ -656,8 +683,10 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		bid: &AuctionBidOf<T, I>,
 	) -> DispatchResult {
 		pallet_nft::Pallet::<T, I>::swap(
-			&auction.class,
-			&auction.instance,
+			auction.class_id,
+			auction.token_id,
+			auction.quantity,
+			&auction.owner,
 			&bid.account,
 			bid.price,
 			T::AuctionFeeTaxRatio::get(),
@@ -672,7 +701,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			let auction = maybe_auction.as_mut().ok_or(Error::<T, I>::AuctionNotFound)?;
 			T::Currency::unreserve(&auction.owner, auction.deposit);
 			DutchAuctionBids::<T, I>::remove(auction_id);
-			Auctions::<T, I>::remove(auction.class, auction.instance);
+			Auctions::<T, I>::remove(auction.class_id, auction.token_id);
 			*maybe_auction = None;
 			Ok(())
 		})?;
@@ -686,7 +715,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 				let auction = maybe_auction.as_mut().ok_or(Error::<T, I>::AuctionNotFound)?;
 				T::Currency::unreserve(&auction.owner, auction.deposit);
 				EnglishAuctionBids::<T, I>::remove(auction_id);
-				Auctions::<T, I>::remove(auction.class, auction.instance);
+				Auctions::<T, I>::remove(auction.class_id, auction.token_id);
 				*maybe_auction = None;
 				Ok(())
 			},

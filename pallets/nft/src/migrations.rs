@@ -1,91 +1,102 @@
 use super::*;
 
-pub mod v1 {
+pub mod v2 {
 	use super::*;
-
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug)]
-	pub struct OldClassDetails<AccountId, DepositBalance> {
-		/// The owner of this class.
-		pub owner: AccountId,
-		/// The total balance deposited for this asset class.
-		pub deposit: DepositBalance,
-		/// The total number of outstanding instances of this asset class.
-		pub instances: u32,
-	}
-
-	/// Information concerning the ownership of a single unique asset.
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default)]
-	pub struct OldInstanceDetails<AccountId, DepositBalance> {
-		/// The owner of this asset.
-		pub owner: AccountId,
-		/// The total balance deposited for this asset class.
-		pub deposit: DepositBalance,
-		/// Whether the asset can be reserved or not.
-		pub reserved: bool,
-		/// Set transfer target
-		pub ready_transfer: Option<AccountId>,
-	}
+	use frame_support::{storage::migration, traits::PalletInfoAccess, weights::Weight};
 
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V0);
-		log!(debug, "migration: nft storage version v1 PRE migration checks succesful!");
+		assert!(StorageVersion::<T, I>::get() == Releases::V1);
+		log!(debug, "migration: nft storage version v2 PRE migration checks succesful!");
 		Ok(())
 	}
 
 	pub fn migrate<T: Config<I>, I: 'static>() -> Weight {
-		log!(info, "Migrating nft to Releases::V1");
+		log!(info, "Migrating nft to Releases::V2");
 
-		let mut class_count = 0;
-		Class::<T, I>::translate::<OldClassDetails<T::AccountId, DepositBalanceOf<T, I>>, _>(
-			|_, p| {
-				let new_class = ClassDetails {
-					owner: p.owner,
-					deposit: p.deposit,
-					instances: p.instances,
-					royalty_rate: Default::default(),
-				};
-				class_count += 1;
-				Some(new_class)
-			},
-		);
+		let mut class_count: u32 = 0;
+		let mut token_count: u32 = 0;
+		let mut attribute_count: u32 = 0;
 
-		let mut asset_count = 0;
-		Asset::<T, I>::translate::<OldInstanceDetails<T::AccountId, DepositBalanceOf<T, I>>, _>(
-			|_, _, p| {
-				let new_asset = InstanceDetails {
-					owner: p.owner,
-					deposit: p.deposit,
-					reserved: p.reserved,
-					ready_transfer: p.ready_transfer,
-					royalty_rate: Default::default(),
-					royalty_beneficiary: Default::default(),
-				};
-				asset_count += 1;
-				Some(new_asset)
-			},
-		);
+		for (class_id, p) in Class::<T, I>::drain() {
+			let (metadata, count) = attributes_to_metadata::<T, I>(class_id, None);
+			attribute_count += count;
+			let new_class_details = ClassDetails {
+				owner: p.owner,
+				deposit: p.deposit,
+				metadata,
+				total_tokens: p.instances.saturated_into(),
+				total_issuance: p.instances.saturated_into(),
+				royalty_rate: p.royalty_rate,
+			};
+			Classes::<T, I>::insert(class_id, new_class_details);
+			class_count += 1;
+		}
 
-		StorageVersion::<T, I>::put(Releases::V1);
+		for (class_id, token_id, p) in Asset::<T, I>::drain() {
+			let (metadata, count) = attributes_to_metadata::<T, I>(class_id, Some(token_id));
+			attribute_count += count;
+			let new_token_details = TokenDetails {
+				metadata,
+				deposit: p.deposit,
+				quantity: One::one(),
+				royalty_rate: p.royalty_rate,
+				royalty_beneficiary: p.royalty_beneficiary,
+			};
+			let mut token_amount: TokenAmount<T::TokenId> = Default::default();
+			if p.reserved {
+				token_amount.reserved = One::one();
+			} else {
+				token_amount.free = One::one();
+			}
+			Tokens::<T, I>::insert(class_id, token_id, new_token_details);
+			TokensByOwner::<T, I>::insert(p.owner.clone(), (class_id, token_id), token_amount);
+			OwnersByToken::<T, I>::insert((class_id, token_id), p.owner, ());
+			token_count += 1;
+		}
 
-		log!(info, "Migrate {} classes, {} tokens", class_count, asset_count);
+		migration::remove_storage_prefix(<Pallet<T, I>>::name().as_bytes(), b"AssetTransfer", b"");
+		migration::remove_storage_prefix(<Pallet<T, I>>::name().as_bytes(), b"Account", b"");
+		migration::remove_storage_prefix(<Pallet<T, I>>::name().as_bytes(), b"Attribute", b"");
+
+		StorageVersion::<T, I>::put(Releases::V2);
 
 		T::DbWeight::get().reads_writes(
-			(class_count + asset_count) as Weight,
-			(class_count + asset_count) as Weight + 1,
+			(class_count + token_count + attribute_count) as Weight,
+			(class_count + token_count * 3 + 4) as Weight,
 		)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V1);
-		for (_, class) in Class::<T, I>::iter() {
-			assert!(class.royalty_rate.is_zero());
+		assert!(StorageVersion::<T, I>::get() == Releases::V2);
+
+		log!(info, "Attribute.exits()? {:?}", Attribute::exists());
+		log!(info, "Class.exits()? {:?}", Class::exists());
+		log!(info, "Asset.exits()? {:?}", Asset::exists());
+
+		for (class_id, p) in Classes::<T, I>::iter() {
+			log!(info, "Class {:?} {:?}", class_Id, p);
 		}
-		for (_, _, token) in Asset::<T, I>::iter() {
-			assert!(token.royalty_rate.is_zero());
+
+		for (class_id, token_id, p) in Tokens::<T, I>::iter() {
+			log!(info, "Token {:?} {:?} {:?}", class_Id, token_id, p);
 		}
-		log!(debug, "migration: nft storage version v1 POST migration checks succesful!");
-		Ok(())
+	}
+
+	fn attributes_to_metadata<T: Config<I>, I: 'static>(
+		class_id: T::ClassId,
+		token_id: Option<T::TokenId>,
+	) -> (Vec<u8>, u32) {
+		let mut count = 0;
+		let mut pairs: Vec<Vec<u8>> = vec![];
+		for key in Attribute::<T, I>::iter_key_prefix((class_id, token_id)) {
+			if let Some((value, _)) = Attribute::<T, I>::get((class_id, token_id, &key)) {
+				pairs.push([b"\"", &key[..], b"\":\"", &value[..], b"\""].concat());
+			}
+			count += 1;
+		}
+		let content = pairs.join(&b',');
+		([b"{", &content[..], b"}"].concat(), count)
 	}
 }

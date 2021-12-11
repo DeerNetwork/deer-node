@@ -1,12 +1,3 @@
-//! # NFT Module
-//!
-//! A simple, secure module for dealing with non-fungible assets.
-//!
-//! ## Related Modules
-//!
-//! * [`System`](../frame_system/index.html)
-//! * [`Support`](../frame_support/index.html)
-
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -22,17 +13,16 @@ pub mod migrations;
 
 use codec::{Decode, Encode, HasCompact};
 use frame_support::{
-	dispatch::DispatchResult,
-	ensure,
+	dispatch::{DispatchError, DispatchResult},
+	ensure, parameter_types,
 	traits::{Currency, ExistenceRequirement, Get, ReservableCurrency, WithdrawReasons},
-	weights::Weight,
-	BoundedVec,
+	transactional,
 };
 use frame_system::Config as SystemConfig;
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AtLeast32BitUnsigned, CheckedAdd, CheckedSub, Saturating, StaticLookup, Zero},
-	ArithmeticError, Perbill, RuntimeDebug,
+	traits::{AtLeast32BitUnsigned, CheckedAdd, CheckedSub, One, Saturating, StaticLookup, Zero},
+	Perbill, RuntimeDebug, SaturatedConversion,
 };
 use sp_std::prelude::*;
 
@@ -52,12 +42,13 @@ macro_rules! log {
 	};
 }
 
-pub type DepositBalanceOf<T, I = ()> =
+pub type BalanceOf<T, I = ()> =
 	<<T as Config<I>>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance;
-pub type ClassDetailsFor<T, I> =
-	ClassDetails<<T as SystemConfig>::AccountId, DepositBalanceOf<T, I>>;
-pub type InstanceDetailsFor<T, I> =
-	InstanceDetails<<T as SystemConfig>::AccountId, DepositBalanceOf<T, I>>;
+
+pub type ClassDetailsOf<T, I> =
+	ClassDetails<<T as SystemConfig>::AccountId, BalanceOf<T, I>, <T as Config<I>>::TokenId>;
+pub type TokenDetailsOf<T, I> =
+	TokenDetails<<T as SystemConfig>::AccountId, BalanceOf<T, I>, <T as Config<I>>::TokenId>;
 
 // A value placed in storage that represents the current version of the Scheduler storage.
 // This value is used by the `on_runtime_upgrade` logic to determine whether we run
@@ -66,6 +57,7 @@ pub type InstanceDetailsFor<T, I> =
 pub enum Releases {
 	V0,
 	V1,
+	V2,
 }
 
 impl Default for Releases {
@@ -75,7 +67,59 @@ impl Default for Releases {
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct ClassDetails<AccountId, DepositBalance> {
+pub struct ClassDetails<AccountId, Balance, TokenId> {
+	/// The owner of this class.
+	pub owner: AccountId,
+	/// Reserved balance for createing class
+	pub deposit: Balance,
+	/// Class metadata
+	pub metadata: Vec<u8>,
+	/// Summary of kind of tokens in class
+	#[codec(compact)]
+	pub total_tokens: TokenId,
+	/// Summary of tokens in class
+	#[codec(compact)]
+	pub total_issuance: TokenId,
+	/// Royalty rate
+	#[codec(compact)]
+	pub royalty_rate: Perbill,
+}
+
+/// Information concerning the ownership of token.
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
+pub struct TokenDetails<AccountId, Balance, TokenId> {
+	/// Token metadata
+	pub metadata: Vec<u8>,
+	/// The total balance deposited for this asset class.
+	pub deposit: Balance,
+	/// Token's amount.
+	#[codec(compact)]
+	pub quantity: TokenId,
+	/// Royalty rate
+	#[codec(compact)]
+	pub royalty_rate: Perbill,
+	/// Royalty beneficiary
+	pub royalty_beneficiary: AccountId,
+}
+
+/// Account Token
+#[derive(Clone, Copy, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
+pub struct TokenAmount<TokenId> {
+	/// account free token number.
+	#[codec(compact)]
+	pub free: TokenId,
+	/// account reserved token number.
+	#[codec(compact)]
+	pub reserved: TokenId,
+}
+
+parameter_types! {
+	pub const KeyLimit: u32 = 256;
+	pub const ValueLimit: u32 = 4096;
+}
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct OldClassDetails<AccountId, DepositBalance> {
 	/// The owner of this class.
 	pub owner: AccountId,
 	/// The total balance deposited for this asset class.
@@ -90,7 +134,7 @@ pub struct ClassDetails<AccountId, DepositBalance> {
 
 /// Information concerning the ownership of a single unique asset.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
-pub struct InstanceDetails<AccountId, DepositBalance> {
+pub struct OldTokenDetails<AccountId, DepositBalance> {
 	/// The owner of this asset.
 	pub owner: AccountId,
 	/// The total balance deposited for this asset class.
@@ -126,35 +170,22 @@ pub mod pallet {
 		type ClassId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
 
 		/// The type used to identify a unique asset within an asset class.
-		type InstanceId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
+		type TokenId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
 
 		/// The currency mechanism, used for paying for reserves.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
 		/// The basic amount of funds that must be reserved for an asset class.
 		#[pallet::constant]
-		type ClassDeposit: Get<DepositBalanceOf<Self, I>>;
+		type ClassDeposit: Get<BalanceOf<Self, I>>;
 
 		/// The basic amount of funds that must be reserved for an asset instance.
 		#[pallet::constant]
-		type InstanceDeposit: Get<DepositBalanceOf<Self, I>>;
+		type TokenDeposit: Get<BalanceOf<Self, I>>;
 
-		/// The basic amount of funds that must be reserved when adding an attribute to an asset.
+		/// The amount of balance that must be deposited per byte of metadata.
 		#[pallet::constant]
-		type DepositBase: Get<DepositBalanceOf<Self, I>>;
-
-		/// The additional funds that must be reserved for the number of bytes store in metadata,
-		/// either "normal" metadata or attribute metadata.
-		#[pallet::constant]
-		type DepositPerByte: Get<DepositBalanceOf<Self, I>>;
-
-		/// The maximum length of an attribute key.
-		#[pallet::constant]
-		type KeyLimit: Get<u32>;
-
-		/// The maximum length of an attribute value.
-		#[pallet::constant]
-		type ValueLimit: Get<u32>;
+		type MetaDataByteDeposit: Get<BalanceOf<Self, I>>;
 
 		/// The maximum of royalty rate
 		#[pallet::constant]
@@ -168,65 +199,43 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 	}
 
-	/// Details of an asset class.
+	/// Store class info.
 	#[pallet::storage]
-	pub type Class<T: Config<I>, I: 'static = ()> = StorageMap<
+	pub type Classes<T: Config<I>, I: 'static = ()> = StorageMap<
 		_,
 		Blake2_128Concat,
 		T::ClassId,
-		ClassDetails<T::AccountId, DepositBalanceOf<T, I>>,
+		ClassDetails<T::AccountId, BalanceOf<T, I>, T::TokenId>,
 	>;
 
-	/// The assets held by any given account; set out this way so that assets owned by a single
-	/// account can be enumerated.
+	/// Store token info.
 	#[pallet::storage]
-	pub type Account<T: Config<I>, I: 'static = ()> = StorageNMap<
-		_,
-		(
-			NMapKey<Blake2_128Concat, T::AccountId>, // owner
-			NMapKey<Blake2_128Concat, T::ClassId>,
-			NMapKey<Blake2_128Concat, T::InstanceId>,
-		),
-		(),
-		OptionQuery,
-	>;
-
-	/// The assets in existence and their ownership details.
-	#[pallet::storage]
-	pub type Asset<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
+	pub type Tokens<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
 		T::ClassId,
 		Blake2_128Concat,
-		T::InstanceId,
-		InstanceDetails<T::AccountId, DepositBalanceOf<T, I>>,
+		T::TokenId,
+		TokenDetails<T::AccountId, BalanceOf<T, I>, T::TokenId>,
 		OptionQuery,
 	>;
 
-	/// Metadata of an asset class.
+	/// Token existence check by owner and class ID.
 	#[pallet::storage]
-	pub type Attribute<T: Config<I>, I: 'static = ()> = StorageNMap<
+	#[pallet::getter(fn tokens_by_owner)]
+	pub type TokensByOwner<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
 		_,
-		(
-			NMapKey<Blake2_128Concat, T::ClassId>,
-			NMapKey<Blake2_128Concat, Option<T::InstanceId>>,
-			NMapKey<Blake2_128Concat, BoundedVec<u8, T::KeyLimit>>,
-		),
-		(BoundedVec<u8, T::ValueLimit>, DepositBalanceOf<T, I>),
-		OptionQuery,
+		Twox64Concat,
+		T::AccountId,
+		Twox64Concat,
+		(T::ClassId, T::TokenId),
+		TokenAmount<T::TokenId>,
 	>;
 
+	/// An index to query owners by token
 	#[pallet::storage]
-	pub type AssetTransfer<T: Config<I>, I: 'static = ()> = StorageNMap<
-		_,
-		(
-			NMapKey<Blake2_128Concat, T::AccountId>, // target
-			NMapKey<Blake2_128Concat, T::ClassId>,
-			NMapKey<Blake2_128Concat, T::InstanceId>,
-		),
-		(),
-		OptionQuery,
-	>;
+	pub type OwnersByToken<T: Config<I>, I: 'static = ()> =
+		StorageDoubleMap<_, Twox64Concat, (T::ClassId, T::TokenId), Twox64Concat, T::AccountId, ()>;
 
 	/// Maximum class id in this pallet
 	#[pallet::storage]
@@ -238,58 +247,68 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type StorageVersion<T: Config<I>, I: 'static = ()> = StorageValue<_, Releases, ValueQuery>;
 
+	#[pallet::storage]
+	pub type Class<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Blake2_128Concat, T::ClassId, OldClassDetails<T::AccountId, BalanceOf<T, I>>>;
+
+	/// The assets in existence and their ownership details.
+	#[pallet::storage]
+	pub type Asset<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		T::ClassId,
+		Blake2_128Concat,
+		T::TokenId,
+		OldTokenDetails<T::AccountId, BalanceOf<T, I>>,
+		OptionQuery,
+	>;
+
+	/// Metadata of an asset class.
+	#[pallet::storage]
+	pub type Attribute<T: Config<I>, I: 'static = ()> = StorageNMap<
+		_,
+		(
+			NMapKey<Blake2_128Concat, T::ClassId>,
+			NMapKey<Blake2_128Concat, Option<T::TokenId>>,
+			NMapKey<Blake2_128Concat, BoundedVec<u8, KeyLimit>>,
+		),
+		(BoundedVec<u8, ValueLimit>, BalanceOf<T, I>),
+		OptionQuery,
+	>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
-		/// An asset class was created. \[ class, creator \]
-		Created(T::ClassId, T::AccountId),
-		/// An asset `instace` was issued. \[ class, instance, owner \]
-		Issued(T::ClassId, T::InstanceId, T::AccountId),
-		/// An asset `instace` was transferred. \[ class, instance, from, to \]
-		Transferred(T::ClassId, T::InstanceId, T::AccountId, T::AccountId),
-		/// An asset `instance` was destroyed. \[ class, instance, owner \]
-		Burned(T::ClassId, T::InstanceId, T::AccountId),
-		/// New attribute metadata has been set for an asset class or instance.
-		/// \[ class, maybe_instance, key, value \]
-		AttributeSet(
-			T::ClassId,
-			Option<T::InstanceId>,
-			BoundedVec<u8, T::KeyLimit>,
-			BoundedVec<u8, T::ValueLimit>,
-		),
-		/// Attribute metadata has been cleared for an asset class or instance.
-		/// \[ class, maybe_instance, key, maybe_value \]
-		AttributeCleared(T::ClassId, Option<T::InstanceId>, BoundedVec<u8, T::KeyLimit>),
-		/// An asset `instace` was ready to transfer. \[ class, instance, from, to \]
-		ReadyTransfer(T::ClassId, T::InstanceId, T::AccountId, T::AccountId),
-		/// An asset `instace` was ready to transfer. \[ class, instance, owner \]
-		CancelTransfer(T::ClassId, T::InstanceId, T::AccountId),
+		/// An asset class was created. \[ class_id, creator \]
+		CreatedClass(T::ClassId, T::AccountId),
+		/// An asset `instace` was minted. \[ class_id, token_id, quantity, to, who \]
+		MintedToken(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AccountId),
+		/// An asset `instance` was burned. \[ class_id, token_id, quantity, owner \]
+		BurnedToken(T::ClassId, T::TokenId, T::TokenId, T::AccountId),
+		/// An asset `instace` was transferred. \[ class_id, token_id, quantity, from, to \]
+		TransferredToken(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AccountId),
 	}
 
 	#[pallet::error]
 	pub enum Error<T, I = ()> {
-		/// The given asset ID is nof found.
-		NotFound,
-		/// Unknown error
-		Unknown,
-		/// The asset class Id or instance ID has already been used for an asset.
-		AlreadyExists,
-		/// The owner of class turned out to be different to what was expected.
-		WrongClassOwner,
-		/// The owner turned out to be different to what was expected.
-		WrongOwner,
-		/// The asset is ready reserved
-		AlreadyReserved,
-		/// The asset is not reserved
-		NotReserved,
-		/// The asset is not ready to transer
-		NotReadyTransfer,
-		/// The transfer target is not origin
-		NotTranserTarget,
+		/// Class not found
+		ClassNotFound,
+		/// Token not found
+		TokenNotFound,
+		/// The operator is not the owner of the token and has no permission
+		NoPermission,
+		/// Class id in used
+		ConflictClassId,
+		/// Token id in used
+		ConflictTokenId,
+		/// Class id is invalid
+		InvalidClassId,
 		/// Royalty rate great than RoyaltyRateLimit
 		RoyaltyRateTooHigh,
-		/// The class id is not in (MaxClassId, MaxClassId + T::ClassIdIncLimit]
-		ClassIdTooLarge,
+		/// Quantity is invalid
+		InvalidQuantity,
+		/// Num overflow
+		NumOverflow,
 	}
 
 	#[pallet::genesis_config]
@@ -305,15 +324,15 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig {
 		fn build(&self) {
-			StorageVersion::<T, I>::put(Releases::V1);
+			StorageVersion::<T, I>::put(Releases::V2);
 		}
 	}
 
 	#[pallet::hooks]
 	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
 		fn on_runtime_upgrade() -> Weight {
-			if StorageVersion::<T, I>::get() == Releases::V0 {
-				migrations::v1::migrate::<T, I>()
+			if StorageVersion::<T, I>::get() == Releases::V1 {
+				migrations::v2::migrate::<T, I>()
 			} else {
 				T::DbWeight::get().reads(1)
 			}
@@ -330,465 +349,433 @@ pub mod pallet {
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade() -> Result<(), &'static str> {
-			Ok(())
+			if StorageVersion::<T, I>::get() == Releases::V2 {
+				migrations::v2::post_migrate::<T, I>()
+			} else {
+				Ok(())
+			}
 		}
 	}
 
 	#[pallet::call]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
-		/// Issue a new class of non-fungible assets from a public origin.
-		///
-		/// This new asset class has no assets initially and its owner is the origin.
-		///
-		/// The origin must be Signed and the sender must have sufficient funds free.
-		///
-		/// `AssetDeposit` funds of sender are reserved.
-		///
-		/// Parameters:
-		/// - `class`: The identifier of the new asset class. This must not be currently in use.
-		///
-		/// Emits `Created` event when successful.
-		///
-		/// Weight: `O(1)`
-		#[pallet::weight(T::WeightInfo::create())]
-		pub fn create(
+		/// Create NFT(non fungible token) class
+		#[pallet::weight(T::WeightInfo::create_class())]
+		#[transactional]
+		pub fn create_class(
 			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
+			#[pallet::compact] class_id: T::ClassId,
+			metadata: Vec<u8>,
 			#[pallet::compact] royalty_rate: Perbill,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 
-			ensure!(!Class::<T, I>::contains_key(class), Error::<T, I>::AlreadyExists);
+			ensure!(!Classes::<T, I>::contains_key(class_id), Error::<T, I>::ConflictClassId);
 			ensure!(T::RoyaltyRateLimit::get() >= royalty_rate, Error::<T, I>::RoyaltyRateTooHigh);
 
 			let max_class = MaxClassId::<T, I>::get();
-			ensure!(class <= max_class + T::ClassIdIncLimit::get(), Error::<T, I>::ClassIdTooLarge);
+			ensure!(
+				class_id <= max_class.saturating_add(T::ClassIdIncLimit::get()),
+				Error::<T, I>::InvalidClassId
+			);
 
-			let deposit = T::ClassDeposit::get();
+			let deposit =
+				Self::caculate_deposit(T::ClassDeposit::get(), metadata.len().saturated_into());
 			T::Currency::reserve(&owner, deposit)?;
 
-			Class::<T, I>::insert(
-				class,
-				ClassDetails { owner: owner.clone(), deposit, instances: 0, royalty_rate },
-			);
-			if class > max_class {
-				MaxClassId::<T, I>::put(class);
+			let class_details = ClassDetails {
+				owner: owner.clone(),
+				deposit,
+				metadata,
+				total_tokens: Zero::zero(),
+				total_issuance: Zero::zero(),
+				royalty_rate,
+			};
+
+			Classes::<T, I>::insert(class_id, class_details);
+			if class_id > max_class {
+				MaxClassId::<T, I>::put(class_id);
 			}
-			Self::deposit_event(Event::Created(class, owner));
-			Ok(())
+			Self::deposit_event(Event::CreatedClass(class_id, owner));
+			Ok(().into())
 		}
 
-		/// Mint an asset instance of a particular class.
-		///
-		/// The origin must be Signed and the sender must be the Issuer of the asset `class`.
-		///
-		/// - `class`: The class of the asset to be minted.
-		/// - `instance`: The instance value of the asset to be minted.
-		///
-		/// Emits `Issued` event when successful.
-		///
-		/// Weight: `O(1)`
+		/// Mint NFT token
 		#[pallet::weight(T::WeightInfo::mint())]
+		#[transactional]
 		pub fn mint(
 			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
+			to: <T::Lookup as StaticLookup>::Source,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			#[pallet::compact] quantity: T::TokenId,
+			metadata: Vec<u8>,
 			royalty_rate: Option<Perbill>,
 			royalty_beneficiary: Option<T::AccountId>,
 		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
+			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
+			ensure!(
+				!Tokens::<T, I>::contains_key(class_id, token_id),
+				Error::<T, I>::ConflictTokenId
+			);
 
-			ensure!(!Asset::<T, I>::contains_key(class, instance), Error::<T, I>::AlreadyExists);
-			if let Some(rate) = royalty_rate {
-				ensure!(T::RoyaltyRateLimit::get() >= rate, Error::<T, I>::RoyaltyRateTooHigh);
-			}
+			let to = T::Lookup::lookup(to)?;
 
-			Class::<T, I>::try_mutate(&class, |maybe_class_details| -> DispatchResult {
-				let class_details = maybe_class_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
-				ensure!(class_details.owner == owner, Error::<T, I>::WrongClassOwner);
+			Classes::<T, I>::try_mutate(&class_id, |maybe_class_details| -> DispatchResult {
+				let class_details =
+					maybe_class_details.as_mut().ok_or(Error::<T, I>::ClassNotFound)?;
+				ensure!(&who == &class_details.owner, Error::<T, I>::NoPermission);
 
-				let instances =
-					class_details.instances.checked_add(1).ok_or(ArithmeticError::Overflow)?;
-				class_details.instances = instances;
+				let royalty_rate = royalty_rate.unwrap_or(class_details.royalty_rate);
+				ensure!(
+					T::RoyaltyRateLimit::get() >= royalty_rate,
+					Error::<T, I>::RoyaltyRateTooHigh
+				);
 
-				let deposit = T::InstanceDeposit::get();
-				T::Currency::reserve(&owner, deposit)?;
+				let total_tokens = class_details
+					.total_tokens
+					.checked_add(&One::one())
+					.ok_or(Error::<T, I>::NumOverflow)?;
 
-				Account::<T, I>::insert((&owner, &class, &instance), ());
-				let details = InstanceDetails {
-					owner: owner.clone(),
+				let total_issuance = class_details
+					.total_issuance
+					.checked_add(&quantity)
+					.ok_or(Error::<T, I>::NumOverflow)?;
+
+				class_details.total_tokens = total_tokens;
+				class_details.total_issuance = total_issuance;
+
+				let deposit =
+					Self::caculate_deposit(T::TokenDeposit::get(), metadata.len().saturated_into());
+				T::Currency::reserve(&class_details.owner, deposit)?;
+
+				let token_details = TokenDetails {
+					metadata,
 					deposit,
-					reserved: false,
-					ready_transfer: None,
-					royalty_rate: royalty_rate.unwrap_or(class_details.royalty_rate),
-					royalty_beneficiary: royalty_beneficiary.unwrap_or(owner.clone()),
+					quantity,
+					royalty_rate,
+					royalty_beneficiary: royalty_beneficiary.unwrap_or(to.clone()),
 				};
-				Asset::<T, I>::insert(&class, &instance, details);
-				Ok(())
-			})?;
+				Tokens::<T, I>::insert(&class_id, &token_id, token_details);
+				TokensByOwner::<T, I>::insert(
+					&to,
+					(class_id, token_id),
+					TokenAmount { free: quantity, reserved: Zero::zero() },
+				);
+				OwnersByToken::<T, I>::insert((class_id, token_id), &to, ());
 
-			Self::deposit_event(Event::Issued(class, instance, owner));
-			Ok(())
+				Self::deposit_event(Event::MintedToken(class_id, token_id, quantity, to, who));
+
+				Ok(().into())
+			})
 		}
 
-		/// Destroy a single asset instance.
-		///
-		/// Origin must be Signed and the sender should be the Admin of the asset `class`.
-		///
-		/// - `class`: The class of the asset to be burned.
-		/// - `instance`: The instance of the asset to be burned.
-		///
-		/// Emits `Burned` with the actual amount burned.
-		///
-		/// Weight: `O(1)`
-		/// Modes: `check_owner.is_some()`.
+		/// Burn NFT token
 		#[pallet::weight(T::WeightInfo::burn())]
+		#[transactional]
 		pub fn burn(
 			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			#[pallet::compact] quantity: T::TokenId,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			Class::<T, I>::try_mutate(&class, |maybe_class_details| -> DispatchResult {
-				let class_details = maybe_class_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-				let details =
-					Asset::<T, I>::get(&class, &instance).ok_or(Error::<T, I>::Unknown)?;
-				ensure!(details.owner == owner, Error::<T, I>::WrongOwner);
-				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-				T::Currency::unreserve(&owner, details.deposit);
-				class_details.instances.saturating_dec();
-				Attribute::<T, I>::remove_prefix((class, Some(instance)), None);
-				Ok(())
-			})?;
-			Asset::<T, I>::remove(&class, &instance);
-			Account::<T, I>::remove((&owner, &class, &instance));
-			Self::deposit_event(Event::Burned(class, instance, owner));
-			Ok(())
-		}
+			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
 
-		/// Ready to transfer an asset from the sender account to another.
-		///
-		/// Arguments:
-		/// - `class`: The class of the asset to be transferred.
-		/// - `instance`: The instance of the asset to be transferred.
-		/// - `dest`: The account to receive ownership of the asset.
-		///
-		/// Emits `ReadyTransfer`.
-		///
-		/// Weight: `O(1)`
-		#[pallet::weight(T::WeightInfo::ready_transfer())]
-		pub fn ready_transfer(
-			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
-			dest: <T::Lookup as StaticLookup>::Source,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			let dest = T::Lookup::lookup(dest)?;
-			Self::update_asset(&class, &instance, |details| {
-				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
-				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-				details.ready_transfer = Some(dest.clone());
-				AssetTransfer::<T, I>::insert((dest.clone(), class, instance), ());
-				Self::deposit_event(Event::ReadyTransfer(class, instance, owner, dest));
-				Ok(())
-			})
-		}
+			Classes::<T, I>::try_mutate(&class_id, |maybe_class_details| -> DispatchResult {
+				let class_details =
+					maybe_class_details.as_mut().ok_or(Error::<T, I>::ClassNotFound)?;
 
-		/// Cancel transfer
-		///
-		/// Arguments:
-		/// - `class`: The class of the asset to be transferred.
-		/// - `instance`: The instance of the asset to be transferred.
-		///
-		/// Emits `CancelTransfer`.
-		///
-		/// Weight: `O(1)`
-		#[pallet::weight(T::WeightInfo::cancel_transfer())]
-		pub fn cancel_transfer(
-			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			Self::update_asset(&class, &instance, |details| {
-				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
-				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-				let dest =
-					details.ready_transfer.as_mut().ok_or(Error::<T, I>::NotReadyTransfer)?;
-				AssetTransfer::<T, I>::remove((dest.clone(), class, instance));
-				details.ready_transfer = None;
-				Self::deposit_event(Event::CancelTransfer(class, instance, owner));
-				Ok(())
-			})
-		}
+				let token_details = Tokens::<T, I>::try_mutate_exists(
+					&class_id,
+					&token_id,
+					|maybe_token_details| -> Result<TokenDetailsOf<T, I>, DispatchError> {
+						let token_details =
+							maybe_token_details.as_mut().ok_or(Error::<T, I>::TokenNotFound)?;
+						token_details.quantity = token_details
+							.quantity
+							.checked_sub(&quantity)
+							.ok_or(Error::<T, I>::NumOverflow)?;
+						let copyed_token_details = token_details.clone();
+						if token_details.quantity.is_zero() {
+							*maybe_token_details = None;
+						}
+						Ok(copyed_token_details)
+					},
+				)?;
 
-		/// Accept transfer
-		///
-		/// Arguments:
-		/// - `class`: The class of the asset to be transferred.
-		/// - `instance`: The instance of the asset to be transferred.
-		///
-		/// Emits `CancelTransfer`.
-		///
-		/// Weight: `O(1)`
-		#[pallet::weight(T::WeightInfo::accept_transfer())]
-		pub fn accept_transfer(
-			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
-		) -> DispatchResult {
-			let origin = ensure_signed(origin)?;
-			let details =
-				Asset::<T, I>::try_get(&class, &instance).map_err(|_| Error::<T, I>::NotFound)?;
-			let dest = details.ready_transfer.as_ref().ok_or(Error::<T, I>::NotReadyTransfer)?;
-			ensure!(dest == &origin, Error::<T, I>::NotTranserTarget);
-			ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-			Self::transfer(&class, &instance, &details.owner, dest)?;
-			AssetTransfer::<T, I>::remove((dest.clone(), class, instance));
-			Ok(())
-		}
-
-		/// Set an attribute for an asset class or instance.
-		///
-		/// If the origin is Signed, then funds of signer are reserved according to the formula:
-		/// `DepositBase + DepositPerByte * (key.len + value.len)` taking into
-		/// account any already reserved funds.
-		///
-		/// - `class`: The identifier of the asset class whose instance's metadata to set.
-		/// - `maybe_instance`: The identifier of the asset instance whose metadata to set.
-		/// - `key`: The key of the attribute.
-		/// - `value`: The value to which to set the attribute.
-		///
-		/// Emits `AttributeSet`.
-		///
-		/// Weight: `O(1)`
-		#[pallet::weight(T::WeightInfo::set_attribute())]
-		pub fn set_attribute(
-			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			maybe_instance: Option<T::InstanceId>,
-			key: BoundedVec<u8, T::KeyLimit>,
-			value: BoundedVec<u8, T::ValueLimit>,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			if let Some(ref instance) = maybe_instance {
-				let details =
-					Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::NotFound)?;
-				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
-				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-			} else {
-				let class_details = Class::<T, I>::get(&class).ok_or(Error::<T, I>::NotFound)?;
-				ensure!(&class_details.owner == &owner, Error::<T, I>::WrongClassOwner);
-			}
-			let attribute = Attribute::<T, I>::get((class, maybe_instance, &key));
-			let old_deposit = attribute.map_or(Zero::zero(), |m| m.1);
-			let deposit = T::DepositPerByte::get()
-				.saturating_mul(((key.len() + value.len()) as u32).into())
-				.saturating_add(T::DepositBase::get());
-			if deposit > old_deposit {
-				T::Currency::reserve(&owner, deposit - old_deposit)?;
-			} else if deposit < old_deposit {
-				T::Currency::unreserve(&owner, old_deposit - deposit);
-			}
-			if let Some(ref instance) = maybe_instance {
-				Asset::<T, I>::mutate(&class, instance, |maybe_details| -> DispatchResult {
-					let details = maybe_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-					Self::update_deposit(&mut details.deposit, &deposit, &old_deposit)
-				})?;
-			} else {
-				Class::<T, I>::mutate(&class, |maybe_class_details| -> DispatchResult {
-					let details = maybe_class_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-					Self::update_deposit(&mut details.deposit, &deposit, &old_deposit)
-				})?;
-			}
-			Attribute::<T, I>::insert(
-				(class, maybe_instance, key.clone()),
-				(value.clone(), deposit),
-			);
-			Self::deposit_event(Event::AttributeSet(class, maybe_instance, key, value));
-			Ok(())
-		}
-
-		/// Clear attribute for an asset class or instance.
-		///
-		/// Origin must be either `ForceOrigin` or Signed and the sender should be the Owner of the
-		/// asset `class`.
-		///
-		/// - `class`: The identifier of the asset class whose instance's metadata to set.
-		/// - `instance`: The identifier of the asset instance whose metadata to set.
-		/// - `key`: The key of the attribute.
-		///
-		/// Emits `AttributeCleared`.
-		///
-		/// Weight: `O(1)`
-		#[pallet::weight(T::WeightInfo::clear_attribute())]
-		pub fn clear_attribute(
-			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			maybe_instance: Option<T::InstanceId>,
-			key: BoundedVec<u8, T::KeyLimit>,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			if let Some(ref instance) = maybe_instance {
-				let details =
-					Asset::<T, I>::get(&class, instance).ok_or(Error::<T, I>::NotFound)?;
-				ensure!(&details.owner == &owner, Error::<T, I>::WrongOwner);
-				ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-			} else {
-				let class_details = Class::<T, I>::get(&class).ok_or(Error::<T, I>::NotFound)?;
-				ensure!(&class_details.owner == &owner, Error::<T, I>::WrongClassOwner);
-			}
-			if let Some((_, deposit)) = Attribute::<T, I>::take((class, maybe_instance, &key)) {
-				if let Some(ref instance) = maybe_instance {
-					Asset::<T, I>::mutate(&class, instance, |maybe_details| -> DispatchResult {
-						let details = maybe_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-						let new_deposit = details
-							.deposit
-							.checked_sub(&deposit)
-							.ok_or(ArithmeticError::Overflow)?;
-						details.deposit = new_deposit;
-						Ok(())
-					})?;
-				} else {
-					Class::<T, I>::mutate(&class, |maybe_class_details| -> DispatchResult {
-						let details = maybe_class_details.as_mut().ok_or(Error::<T, I>::Unknown)?;
-						let new_deposit = details
-							.deposit
-							.checked_sub(&deposit)
-							.ok_or(ArithmeticError::Overflow)?;
-						details.deposit = new_deposit;
-						Ok(())
-					})?;
+				if token_details.quantity.is_zero() {
+					T::Currency::unreserve(&class_details.owner, token_details.deposit);
+					class_details.total_tokens = class_details
+						.total_tokens
+						.checked_sub(&One::one())
+						.ok_or(Error::<T, I>::NumOverflow)?;
 				}
-				T::Currency::unreserve(&owner, deposit);
-				Self::deposit_event(Event::AttributeCleared(class, maybe_instance, key));
-			}
+
+				class_details.total_issuance = class_details
+					.total_issuance
+					.checked_sub(&quantity)
+					.ok_or(Error::<T, I>::NumOverflow)?;
+
+				TokensByOwner::<T, I>::try_mutate_exists(
+					owner.clone(),
+					(class_id, token_id),
+					|maybe_token_amount| -> DispatchResult {
+						let mut token_amount = maybe_token_amount.unwrap_or_default();
+						token_amount.free = token_amount
+							.free
+							.checked_sub(&quantity)
+							.ok_or(Error::<T, I>::NumOverflow)?;
+						if token_amount.free.is_zero() && token_amount.reserved.is_zero() {
+							*maybe_token_amount = None;
+							OwnersByToken::<T, I>::remove((class_id, token_id), owner.clone());
+						} else {
+							*maybe_token_amount = Some(token_amount);
+						}
+						Ok(())
+					},
+				)?;
+
+				Self::deposit_event(Event::BurnedToken(class_id, token_id, quantity, owner));
+				Ok(().into())
+			})
+		}
+
+		/// Update token royalty.
+		#[pallet::weight(T::WeightInfo::update_token_royalty())]
+		pub fn update_token_royalty(
+			origin: OriginFor<T>,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			royalty_rate: Perbill,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			ensure!(T::RoyaltyRateLimit::get() >= royalty_rate, Error::<T, I>::RoyaltyRateTooHigh);
+			Tokens::<T, I>::try_mutate(
+				class_id,
+				token_id,
+				|maybe_token_details| -> DispatchResult {
+					let token_details =
+						maybe_token_details.as_mut().ok_or(Error::<T, I>::TokenNotFound)?;
+					ensure!(who == token_details.royalty_beneficiary, Error::<T, I>::NoPermission);
+
+					let account_token =
+						Self::tokens_by_owner(&who, (class_id, token_id)).unwrap_or_default();
+					ensure!(
+						account_token.reserved.is_zero() &&
+							account_token.free == token_details.quantity,
+						Error::<T, I>::NoPermission
+					);
+					token_details.royalty_rate = royalty_rate;
+					Ok(().into())
+				},
+			)
+		}
+
+		/// Update token royalty beneficiary.
+		#[pallet::weight(T::WeightInfo::update_token_royalty_beneficiary())]
+		pub fn update_token_royalty_beneficiary(
+			origin: OriginFor<T>,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			to: <T::Lookup as StaticLookup>::Source,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			Tokens::<T, I>::try_mutate(
+				class_id,
+				token_id,
+				|maybe_token_details| -> DispatchResult {
+					let token_details =
+						maybe_token_details.as_mut().ok_or(Error::<T, I>::TokenNotFound)?;
+					ensure!(who == token_details.royalty_beneficiary, Error::<T, I>::NoPermission);
+					let to = T::Lookup::lookup(to)?;
+					token_details.royalty_beneficiary = to;
+					Ok(().into())
+				},
+			)
+		}
+
+		/// Transfer NFT tokens to another account
+		///
+		/// - `to`: the token owner's account
+		/// - `class_id`: class id
+		/// - `token_id`: token id
+		/// - `quantity`: quantity
+		#[pallet::weight(T::WeightInfo::transfer())]
+		#[transactional]
+		pub fn transfer(
+			origin: OriginFor<T>,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			#[pallet::compact] quantity: T::TokenId,
+			to: <T::Lookup as StaticLookup>::Source,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let to = T::Lookup::lookup(to)?;
+			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
+
+			Self::transfer_token(class_id, token_id, quantity, &who, &to)?;
 			Ok(())
 		}
 	}
 }
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
-	pub fn transfer(
-		class: &T::ClassId,
-		instance: &T::InstanceId,
-		owner: &T::AccountId,
-		dest: &T::AccountId,
-	) -> DispatchResult {
-		Self::update_asset(class, instance, |details| {
-			ensure!(&details.owner == owner, Error::<T, I>::WrongOwner);
-			ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-
-			Account::<T, I>::insert((dest, class, instance), ());
-			T::Currency::reserve(dest, details.deposit)?;
-
-			Account::<T, I>::remove((owner, class, instance));
-			T::Currency::unreserve(owner, details.deposit);
-
-			if let Some(ref ready_transfer) = details.ready_transfer {
-				AssetTransfer::<T, I>::remove((ready_transfer.clone(), class, instance));
-				details.ready_transfer = None;
-			}
-			details.owner = dest.clone();
-			Self::deposit_event(Event::Transferred(
-				class.clone(),
-				instance.clone(),
-				owner.clone(),
-				dest.clone(),
-			));
-			Ok(())
-		})
-	}
-	pub fn info(class: &T::ClassId, instance: &T::InstanceId) -> Option<(T::AccountId, bool)> {
-		Asset::<T, I>::get(class, instance).map(|v| (v.owner, v.reserved))
-	}
-	pub fn validate(class: &T::ClassId, instance: &T::InstanceId, owner: &T::AccountId) -> bool {
-		if let Some((token_owner, reserved)) = Self::info(class, instance) {
-			&token_owner == owner && !reserved
-		} else {
-			false
+	pub fn transfer_token(
+		class_id: T::ClassId,
+		token_id: T::TokenId,
+		quantity: T::TokenId,
+		from: &T::AccountId,
+		to: &T::AccountId,
+	) -> Result<bool, DispatchError> {
+		if from == to || quantity.is_zero() {
+			return Ok(false)
 		}
+		let token = (class_id, token_id);
+
+		TokensByOwner::<T, I>::try_mutate_exists(
+			from,
+			token,
+			|maybe_from_amount| -> Result<bool, DispatchError> {
+				let mut from_amount = maybe_from_amount.ok_or(Error::<T, I>::TokenNotFound)?;
+				from_amount.free =
+					from_amount.free.checked_sub(&quantity).ok_or(Error::<T, I>::NumOverflow)?;
+
+				TokensByOwner::<T, I>::try_mutate_exists(
+					to,
+					token,
+					|maybe_to_amount| -> DispatchResult {
+						match maybe_to_amount {
+							Some(to_amount) => {
+								to_amount.free = to_amount
+									.free
+									.checked_add(&quantity)
+									.ok_or(Error::<T, I>::NumOverflow)?;
+							},
+							None => {
+								*maybe_to_amount =
+									Some(TokenAmount { free: quantity, reserved: Zero::zero() });
+								OwnersByToken::<T, I>::insert(token, to, ());
+							},
+						}
+						Ok(())
+					},
+				)?;
+
+				if from_amount.free.is_zero() && from_amount.reserved.is_zero() {
+					*maybe_from_amount = None;
+					OwnersByToken::<T, I>::remove(token, from);
+				} else {
+					*maybe_from_amount = Some(from_amount);
+				}
+
+				Self::deposit_event(Event::TransferredToken(
+					class_id,
+					token_id,
+					quantity,
+					from.clone(),
+					to.clone(),
+				));
+
+				Ok(true)
+			},
+		)
 	}
+
+	pub fn can_trade(
+		class_id: T::ClassId,
+		token_id: T::TokenId,
+		quantity: T::TokenId,
+		owner: &T::AccountId,
+	) -> bool {
+		let token_amount = Self::tokens_by_owner(owner, (class_id, token_id)).unwrap_or_default();
+		return token_amount.free >= quantity
+	}
+
 	pub fn reserve(
-		class: &T::ClassId,
-		instance: &T::InstanceId,
+		class_id: T::ClassId,
+		token_id: T::TokenId,
+		quantity: T::TokenId,
 		owner: &T::AccountId,
 	) -> DispatchResult {
-		Self::update_asset(class, instance, |details| {
-			ensure!(&details.owner == owner, Error::<T, I>::WrongOwner);
-			ensure!(!details.reserved, Error::<T, I>::AlreadyReserved);
-			if let Some(ref ready_transfer) = details.ready_transfer {
-				AssetTransfer::<T, I>::remove((ready_transfer.clone(), class, instance));
-				details.ready_transfer = None;
-			}
-			details.reserved = true;
-			Ok(())
-		})
+		TokensByOwner::<T, I>::try_mutate_exists(
+			owner,
+			(class_id, token_id),
+			|maybe_amount| -> DispatchResult {
+				let mut amount = maybe_amount.unwrap_or_default();
+				amount.free =
+					amount.free.checked_sub(&quantity).ok_or(Error::<T, I>::NumOverflow)?;
+				amount.reserved =
+					amount.reserved.checked_add(&quantity).ok_or(Error::<T, I>::NumOverflow)?;
+				*maybe_amount = Some(amount);
+				Ok(())
+			},
+		)
 	}
-	pub fn unreserve(class: &T::ClassId, instance: &T::InstanceId) -> DispatchResult {
-		Self::update_asset(class, instance, |details| {
-			ensure!(details.reserved, Error::<T, I>::NotReserved);
-			details.reserved = false;
-			Ok(())
-		})
+
+	pub fn unreserve(
+		class_id: T::ClassId,
+		token_id: T::TokenId,
+		quantity: T::TokenId,
+		owner: &T::AccountId,
+	) -> DispatchResult {
+		TokensByOwner::<T, I>::try_mutate_exists(
+			owner,
+			(class_id, token_id),
+			|maybe_amount| -> DispatchResult {
+				let mut amount = maybe_amount.unwrap_or_default();
+				amount.reserved =
+					amount.reserved.checked_sub(&quantity).ok_or(Error::<T, I>::NumOverflow)?;
+				amount.free =
+					amount.free.checked_add(&quantity).ok_or(Error::<T, I>::NumOverflow)?;
+				*maybe_amount = Some(amount);
+				Ok(())
+			},
+		)
 	}
+
 	pub fn swap(
-		class: &T::ClassId,
-		instance: &T::InstanceId,
-		who: &T::AccountId,
-		price: DepositBalanceOf<T, I>,
+		class_id: T::ClassId,
+		token_id: T::TokenId,
+		quantity: T::TokenId,
+		from: &T::AccountId,
+		to: &T::AccountId,
+		price: BalanceOf<T, I>,
 		tax_ratio: Perbill,
 	) -> DispatchResult {
-		let token = Asset::<T, I>::get(class, instance).ok_or(Error::<T, I>::NotFound)?;
+		let token = Tokens::<T, I>::get(class_id, token_id).ok_or(Error::<T, I>::TokenNotFound)?;
+		Self::unreserve(class_id, token_id, quantity, from)?;
+		Self::transfer_token(class_id, token_id, quantity, from, to)?;
 		let mut royalty_fee = token.royalty_rate * price;
 		if royalty_fee < T::Currency::minimum_balance() &&
 			T::Currency::free_balance(&token.royalty_beneficiary).is_zero()
 		{
 			royalty_fee = Zero::zero();
 		}
-		let tax_fee = tax_ratio * price;
-		let order_fee = price.saturating_sub(royalty_fee).saturating_sub(tax_fee);
 		if !royalty_fee.is_zero() {
 			T::Currency::transfer(
-				who,
+				to,
 				&token.royalty_beneficiary,
 				royalty_fee,
 				ExistenceRequirement::KeepAlive,
 			)?;
 		}
+		let tax_fee = tax_ratio * price;
 		if !tax_fee.is_zero() {
 			T::Currency::withdraw(
-				who,
+				to,
 				tax_fee,
 				WithdrawReasons::TRANSFER,
 				ExistenceRequirement::KeepAlive,
 			)?;
 		}
-		T::Currency::transfer(who, &token.owner, order_fee, ExistenceRequirement::KeepAlive)?;
-		Self::unreserve(&class, &instance)?;
-		Self::transfer(&class, &instance, &token.owner, &who)?;
+		let order_fee = price.saturating_sub(royalty_fee).saturating_sub(tax_fee);
+		T::Currency::transfer(to, from, order_fee, ExistenceRequirement::KeepAlive)?;
 		Ok(())
 	}
-	fn update_asset(
-		class: &T::ClassId,
-		instance: &T::InstanceId,
-		with_details: impl FnOnce(&mut InstanceDetailsFor<T, I>) -> DispatchResult,
-	) -> DispatchResult {
-		Asset::<T, I>::try_mutate(class, instance, |maybe_details| -> DispatchResult {
-			let details = maybe_details.as_mut().ok_or(Error::<T, I>::NotFound)?;
-			with_details(details)
-		})
-	}
-	fn update_deposit(
-		target: &mut DepositBalanceOf<T, I>,
-		new: &DepositBalanceOf<T, I>,
-		old: &DepositBalanceOf<T, I>,
-	) -> DispatchResult {
-		*target = target
-			.checked_add(new)
-			.and_then(|sum| sum.checked_sub(old))
-			.ok_or(ArithmeticError::Overflow)?;
-		Ok(())
+
+	fn caculate_deposit(base: BalanceOf<T, I>, metadata_len: u32) -> BalanceOf<T, I> {
+		base.saturating_add(T::MetaDataByteDeposit::get().saturating_mul(metadata_len.into()))
 	}
 }
