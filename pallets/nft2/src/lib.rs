@@ -9,15 +9,14 @@ pub mod mock;
 mod tests;
 // pub mod weights;
 
-// pub mod migrations;
+pub mod migrations;
 
 use codec::{Decode, Encode, HasCompact};
 use frame_support::{
 	dispatch::{DispatchError, DispatchResult},
-	ensure,
+	ensure, parameter_types,
 	traits::{Currency, ExistenceRequirement, Get, ReservableCurrency, WithdrawReasons},
 	transactional,
-	weights::Weight,
 };
 use frame_system::Config as SystemConfig;
 use scale_info::TypeInfo;
@@ -58,6 +57,7 @@ pub type TokenDetailsOf<T, I> =
 pub enum Releases {
 	V0,
 	V1,
+	V2,
 }
 
 impl Default for Releases {
@@ -111,6 +111,43 @@ pub struct TokenAmount<TokenId> {
 	/// account reserved token number.
 	#[codec(compact)]
 	pub reserved: TokenId,
+}
+
+parameter_types! {
+	pub const KeyLimit: u32 = 256;
+	pub const ValueLimit: u32 = 4096;
+}
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct OldClassDetails<AccountId, DepositBalance> {
+	/// The owner of this class.
+	pub owner: AccountId,
+	/// The total balance deposited for this asset class.
+	pub deposit: DepositBalance,
+	/// The total number of outstanding instances of this asset class.
+	#[codec(compact)]
+	pub instances: u32,
+	/// Royalty rate
+	#[codec(compact)]
+	pub royalty_rate: Perbill,
+}
+
+/// Information concerning the ownership of a single unique asset.
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
+pub struct OldTokenDetails<AccountId, DepositBalance> {
+	/// The owner of this asset.
+	pub owner: AccountId,
+	/// The total balance deposited for this asset class.
+	pub deposit: DepositBalance,
+	/// Whether the asset can be reserved or not.
+	pub reserved: bool,
+	/// Set transfer target
+	pub ready_transfer: Option<AccountId>,
+	/// Royalty rate
+	#[codec(compact)]
+	pub royalty_rate: Perbill,
+	/// Royalty beneficiary
+	pub royalty_beneficiary: AccountId,
 }
 
 #[frame_support::pallet]
@@ -175,9 +212,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Tokens<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
 		_,
-		Blake2_128Concat,
+		Twox64Concat,
 		T::ClassId,
-		Blake2_128Concat,
+		Twox64Concat,
 		T::TokenId,
 		TokenDetails<T::AccountId, BalanceOf<T, I>, T::TokenId>,
 		OptionQuery,
@@ -209,6 +246,35 @@ pub mod pallet {
 	/// New networks start with last version.
 	#[pallet::storage]
 	pub type StorageVersion<T: Config<I>, I: 'static = ()> = StorageValue<_, Releases, ValueQuery>;
+
+	#[pallet::storage]
+	pub type Class<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Blake2_128Concat, T::ClassId, OldClassDetails<T::AccountId, BalanceOf<T, I>>>;
+
+	/// The assets in existence and their ownership details.
+	#[pallet::storage]
+	pub type Asset<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		T::ClassId,
+		Blake2_128Concat,
+		T::TokenId,
+		OldTokenDetails<T::AccountId, BalanceOf<T, I>>,
+		OptionQuery,
+	>;
+
+	/// Metadata of an asset class.
+	#[pallet::storage]
+	pub type Attribute<T: Config<I>, I: 'static = ()> = StorageNMap<
+		_,
+		(
+			NMapKey<Blake2_128Concat, T::ClassId>,
+			NMapKey<Blake2_128Concat, Option<T::TokenId>>,
+			NMapKey<Blake2_128Concat, BoundedVec<u8, KeyLimit>>,
+		),
+		(BoundedVec<u8, ValueLimit>, BalanceOf<T, I>),
+		OptionQuery,
+	>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
@@ -258,7 +324,7 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig {
 		fn build(&self) {
-			StorageVersion::<T, I>::put(Releases::V1);
+			StorageVersion::<T, I>::put(Releases::V2);
 		}
 	}
 
