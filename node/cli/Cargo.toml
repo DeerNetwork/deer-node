@@ -30,7 +30,7 @@ crate-type = ["cdylib", "rlib"]
 codec = { package = "parity-scale-codec", version = "2.2.0" }
 serde = { version = "1.0.126", features = ["derive"] }
 futures = "0.3.16"
-hex-literal = "0.3.1"
+hex-literal = "0.3.4"
 log = "0.4.8"
 rand = "0.7.2"
 structopt = { version = "0.3.8", optional = true }
@@ -40,6 +40,7 @@ parking_lot = "0.11.1"
 sp-authority-discovery = {  path = "../../substrate/primitives/authority-discovery" }
 sp-consensus-babe = { path = "../../substrate/primitives/consensus/babe" }
 grandpa-primitives = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }
+sp-api = { path = "../../substrate/primitives/api" }
 sp-core = { path = "../../substrate/primitives/core" }
 sp-runtime = { path = "../../substrate/primitives/runtime" }
 sp-timestamp = { path = "../../substrate/primitives/timestamp" }
@@ -73,6 +74,7 @@ sc-sync-state-rpc = { path = "../../substrate/client/sync-state-rpc" }
 
 # frame dependencies
 frame-system = { path = "../../substrate/frame/system" }
+frame-system-rpc-runtime-api = { path = "../../substrate/frame/system/rpc/runtime-api" }
 pallet-transaction-payment = { path = "../../substrate/frame/transaction-payment" }
 pallet-im-online = { path = "../../substrate/frame/im-online", default-features = false }
 
@@ -104,15 +106,16 @@ sc-service-test = { path = "../../substrate/client/service/test" }
 sp-tracing = { version = "4.0.0-dev", path = "../../substrate/primitives/tracing" }
 futures = "0.3.16"
 tempfile = "3.1.0"
-assert_cmd = "1.0"
+assert_cmd = "2.0.2"
 nix = "0.19"
 serde_json = "1.0"
 regex = "1"
 platforms = "1.1"
 async-std = { version = "1.10.0", features = ["attributes"] }
 soketto = "0.4.2"
-jsonrpsee-ws-client = { version = "0.3.0", default-features = false, features = ["tokio1"] }
+criterion = { version = "0.3.5", features = [ "async_tokio" ] }
 tokio = { version = "1.10", features = ["macros", "time"] }
+jsonrpsee-ws-client = { version = "0.3.1", default-features = false, features = ["tokio1"] }
 wait-timeout = "0.2"
 remote-externalities = { path = "../../substrate/utils/frame/remote-externalities" }
 
@@ -124,6 +127,7 @@ substrate-build-script-utils = { optional = true, path = "../../substrate/utils/
 substrate-frame-cli = { optional = true, path = "../../substrate/utils/frame/frame-utilities-cli" }
 try-runtime-cli = { optional = true, path = "../../substrate/utils/frame/try-runtime/cli" }
 sc-cli = { path = "../../substrate/client/cli", optional = true }
+pallet-balances = { path = "../../substrate/frame/balances" }
 
 [features]
 default = [ "cli" ]
