@@ -5,7 +5,6 @@ use frame_benchmarking::{
 	account, benchmarks_instance_pallet, impl_benchmark_test_suite, whitelist_account,
 	whitelisted_caller,
 };
-use frame_support::{traits::Get, BoundedVec};
 use frame_system::RawOrigin as SystemOrigin;
 use sp_runtime::{traits::Bounded, Perbill};
 use sp_std::{convert::TryInto, prelude::*};
@@ -18,50 +17,42 @@ fn rate(v: u32) -> Perbill {
 	Perbill::from_percent(v)
 }
 
-fn create_class<T: Config<I>, I: 'static>() -> (T::ClassId, T::AccountId) {
+fn new_class<T: Config<I>, I: 'static>() -> (T::ClassId, T::AccountId) {
 	let caller: T::AccountId = whitelisted_caller();
-	let class = Default::default();
-	T::Currency::make_free_balance_be(&caller, DepositBalanceOf::<T, I>::max_value());
-	assert!(
-		NFT::<T, I>::create(SystemOrigin::Signed(caller.clone()).into(), class, rate(10)).is_ok()
-	);
-	(class, caller)
+	let class_id = Default::default();
+	T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
+	assert!(NFT::<T, I>::create_class(
+		SystemOrigin::Signed(caller.clone()).into(),
+		class_id,
+		vec![0, 0, 0],
+		rate(10)
+	)
+	.is_ok());
+	(class_id, caller)
 }
 
-fn mint_instance<T: Config<I>, I: 'static>(instance: u32) -> (T::InstanceId, T::AccountId) {
-	let caller = Class::<T, I>::get(T::ClassId::default()).unwrap().owner;
+fn mint_token<T: Config<I>, I: 'static>(
+	class_id: T::ClassId,
+	token_id: T::TokenId,
+	quantity: T::TokenId,
+) -> (T::TokenId, T::TokenId, T::AccountId) {
+	let caller = Classes::<T, I>::get(T::ClassId::default()).unwrap().owner;
 	if caller != whitelisted_caller() {
 		whitelist_account!(caller);
 	}
-	let instance = instance.into();
+	let to: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(caller.clone());
 	assert!(NFT::<T, I>::mint(
 		SystemOrigin::Signed(caller.clone()).into(),
-		Default::default(),
-		instance,
+		to,
+		class_id,
+		token_id,
+		quantity,
+		vec![0, 0, 0],
 		Some(rate(10)),
 		None,
 	)
 	.is_ok());
-	(instance, caller)
-}
-
-fn add_instance_attribute<T: Config<I>, I: 'static>(
-	instance: T::InstanceId,
-) -> (BoundedVec<u8, T::KeyLimit>, T::AccountId) {
-	let caller = Class::<T, I>::get(T::ClassId::default()).unwrap().owner;
-	if caller != whitelisted_caller() {
-		whitelist_account!(caller);
-	}
-	let key: BoundedVec<_, _> = vec![0; T::KeyLimit::get() as usize].try_into().unwrap();
-	assert!(NFT::<T, I>::set_attribute(
-		SystemOrigin::Signed(caller.clone()).into(),
-		Default::default(),
-		Some(instance),
-		key.clone(),
-		vec![0; T::ValueLimit::get() as usize].try_into().unwrap(),
-	)
-	.is_ok());
-	(key, caller)
+	(token_id, quantity, caller)
 }
 
 fn assert_last_event<T: Config<I>, I: 'static>(generic_event: <T as Config<I>>::Event) {
@@ -73,86 +64,57 @@ fn assert_last_event<T: Config<I>, I: 'static>(generic_event: <T as Config<I>>::
 }
 
 benchmarks_instance_pallet! {
-	create {
+	create_class {
 		let caller: T::AccountId = whitelisted_caller();
-		let class = 1u32.into();
-		T::Currency::make_free_balance_be(&caller, DepositBalanceOf::<T, I>::max_value());
-	}: _(SystemOrigin::Signed(caller.clone()), class, rate(10))
+		let class_id = 1u32.into();
+		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
+	}: _(SystemOrigin::Signed(caller.clone()), class_id, vec![0, 0, 0], rate(10))
 	verify {
-		assert_last_event::<T, I>(Event::Created(class, caller).into());
+		assert_last_event::<T, I>(Event::CreatedClass(class_id, caller).into());
 	}
 
 	mint {
-		let (class, caller) = create_class::<T, I>();
-		let instance = Default::default();
+		let (class_id, caller) = new_class::<T, I>();
+		let to: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(caller.clone());
+		let token_id = 1u32.into();
+		let quantity = 1u32.into();
 		let beneficiary: T::AccountId = account("beneficiary", 0, SEED);
 		whitelist_account!(beneficiary);
-	}: _(SystemOrigin::Signed(caller.clone()), class, instance, Some(rate(10)), Some(beneficiary))
+	}: _(SystemOrigin::Signed(caller.clone()), to, class_id, token_id, quantity, vec![0, 0, 0], Some(rate(10)), Some(beneficiary))
 	verify {
-		assert_last_event::<T, I>(Event::Issued(class, instance, caller).into());
+		assert_last_event::<T, I>(Event::MintedToken(class_id, token_id, quantity, caller.clone(), caller).into());
 	}
 
 	burn {
-		let (class, caller) = create_class::<T, I>();
-		let (instance, ..) = mint_instance::<T, I>(0);
-	}: _(SystemOrigin::Signed(caller.clone()), class, instance)
+		let (class_id, caller) = new_class::<T, I>();
+		let (token_id, quantity, ..) = mint_token::<T, I>(class_id, 1u32.into(), 1u32.into());
+	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity)
 	verify {
-		assert_last_event::<T, I>(Event::Burned(class, instance, caller).into());
+		assert_last_event::<T, I>(Event::BurnedToken(class_id, token_id, quantity, caller).into());
 	}
 
-	ready_transfer {
-		let (class, caller) = create_class::<T, I>();
-		let (instance, ..) = mint_instance::<T, I>(0);
-		let target: T::AccountId = account("target", 0, SEED);
-		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
-		let target_lookup = T::Lookup::unlookup(target.clone());
-	}: _(SystemOrigin::Signed(caller.clone()), class, instance, target_lookup)
-	verify {
-		assert_last_event::<T, I>(Event::ReadyTransfer(class, instance, caller, target).into());
-	}
+	update_token_royalty {
+		let (class_id, caller) = new_class::<T, I>();
+		let (token_id, quantity, ..) = mint_token::<T, I>(class_id, 1u32.into(), 1u32.into());
+	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, rate(10))
 
-	cancel_transfer {
-		let (class, caller) = create_class::<T, I>();
-		let (instance, ..) = mint_instance::<T, I>(0);
-		let target: T::AccountId = account("target", 0, SEED);
-		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
-		let target_lookup = T::Lookup::unlookup(target.clone());
-		assert!(NFT::<T, I>::ready_transfer(SystemOrigin::Signed(caller.clone()).into(), class, instance, target_lookup).is_ok());
-	}: _(SystemOrigin::Signed(caller.clone()), class, instance)
-	verify {
-		assert_last_event::<T, I>(Event::CancelTransfer(class, instance, caller).into());
-	}
-
-	accept_transfer {
-		let (class, caller) = create_class::<T, I>();
-		let (instance, ..) = mint_instance::<T, I>(0);
+	update_token_royalty_beneficiary {
+		let (class_id, caller) = new_class::<T, I>();
+		let (token_id, quantity, ..) = mint_token::<T, I>(class_id, 1u32.into(), 1u32.into());
 		let target: T::AccountId = account("target", 0, SEED);
 		whitelist_account!(target);
-		T::Currency::make_free_balance_be(&target, DepositBalanceOf::<T, I>::max_value());
 		let target_lookup = T::Lookup::unlookup(target.clone());
-		assert!(NFT::<T, I>::ready_transfer(SystemOrigin::Signed(caller.clone()).into(), class, instance, target_lookup).is_ok());
-	}: _(SystemOrigin::Signed(target.clone()), class, instance)
-	verify {
-		assert_last_event::<T, I>(Event::Transferred(class, instance, caller, target).into());
-	}
+	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, target_lookup)
 
-	set_attribute {
-		let key: BoundedVec<_, _> = vec![0u8; T::KeyLimit::get() as usize].try_into().unwrap();
-		let value: BoundedVec<_, _> = vec![0u8; T::ValueLimit::get() as usize].try_into().unwrap();
-		let (class, caller) = create_class::<T, I>();
-		let (instance, ..) = mint_instance::<T, I>(0);
-	}: _(SystemOrigin::Signed(caller), class, Some(instance), key.clone(), value.clone())
+	transfer {
+		let (class_id, caller) = new_class::<T, I>();
+		let (token_id, quantity, ..) = mint_token::<T, I>(class_id, 1u32.into(), 1u32.into());
+		let target: T::AccountId = account("target", 0, SEED);
+		whitelist_account!(target);
+		let target_lookup = T::Lookup::unlookup(target.clone());
+	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity, target_lookup)
 	verify {
-		assert_last_event::<T, I>(Event::AttributeSet(class, Some(instance), key, value).into());
-	}
-
-	clear_attribute {
-		let (class, caller) = create_class::<T, I>();
-		let (instance, ..) = mint_instance::<T, I>(0);
-		let (key, ..) = add_instance_attribute::<T, I>(instance);
-	}: _(SystemOrigin::Signed(caller), class, Some(instance), key.clone())
-	verify {
-		assert_last_event::<T, I>(Event::AttributeCleared(class, Some(instance), key).into());
+		assert_last_event::<T, I>(Event::TransferredToken(class_id, token_id, quantity, caller, target).into());
 	}
 }
 

@@ -8,14 +8,17 @@ pub mod mock;
 mod tests;
 pub mod weights;
 
+pub mod migrations;
+
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency},
 	transactional,
+	weights::Weight,
 };
 use scale_info::TypeInfo;
-use sp_runtime::{Perbill, RuntimeDebug};
+use sp_runtime::{traits::One, Perbill, RuntimeDebug};
 use sp_std::prelude::*;
 
 pub use pallet::*;
@@ -25,12 +28,35 @@ pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Curre
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
 pub type ClassIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::ClassId;
-pub type InstanceIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::InstanceId;
+pub type TokenIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::TokenId;
+pub type OrderDetailsOf<T, I = ()> = OrderDetails<
+	<T as frame_system::Config>::AccountId,
+	BalanceOf<T, I>,
+	<T as frame_system::Config>::BlockNumber,
+	TokenIdOf<T, I>,
+>;
+
+// A value placed in storage that represents the current version of the Scheduler storage.
+// This value is used by the `on_runtime_upgrade` logic to determine whether we run
+// storage migration logic.
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub enum Releases {
+	V0,
+	V1,
+}
+
+impl Default for Releases {
+	fn default() -> Self {
+		Releases::V0
+	}
+}
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct OrderDetails<AccountId, Balance, BlockNumber> {
+pub struct OrderDetails<AccountId, Balance, BlockNumber, TokenId> {
 	/// Who create the order.
 	pub owner: AccountId,
+	/// Amount of token
+	pub quantity: TokenId,
 	/// Price of this order.
 	pub price: Balance,
 	/// The balances to create an order
@@ -70,15 +96,61 @@ pub mod pallet {
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T, I = ()>(_);
 
+	#[pallet::genesis_config]
+	pub struct GenesisConfig;
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> Self {
+			Self
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig {
+		fn build(&self) {
+			StorageVersion::<T, I>::put(Releases::V1);
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
+		fn on_runtime_upgrade() -> Weight {
+			if StorageVersion::<T, I>::get() == Releases::V0 {
+				migrations::v1::migrate::<T, I>()
+			} else {
+				T::DbWeight::get().reads(1)
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<(), &'static str> {
+			if StorageVersion::<T, I>::get() == Releases::V0 {
+				migrations::v1::pre_migrate::<T, I>()
+			} else {
+				Ok(())
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade() -> Result<(), &'static str> {
+			if StorageVersion::<T, I>::get() == Releases::V1 {
+				migrations::v1::post_migrate::<T, I>()
+			} else {
+				Ok(())
+			}
+		}
+	}
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
-		/// Selling a nft asset, \[ class, instance, account \]
-		Selling(T::ClassId, T::InstanceId, T::AccountId),
-		/// Make a deal with sell order, \[ class, instance, from, to \]
-		Dealed(T::ClassId, T::InstanceId, T::AccountId, T::AccountId),
-		/// Removed an sell order , \[ class, instance, account \]
-		Removed(T::ClassId, T::InstanceId, T::AccountId),
+		/// Selling a nft asset, \[ class_id, token_id, quantity, account \]
+		Selling(T::ClassId, T::TokenId, T::TokenId, T::AccountId),
+		/// Make a deal with sell order, \[ class_id, token_id, quantity, from, to \]
+		Dealed(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AccountId),
+		/// Removed an sell order , \[ class_id, token_id, quantity, account \]
+		Removed(T::ClassId, T::TokenId, T::TokenId, T::AccountId),
 	}
 
 	// Errors inform users that something went wrong.
@@ -108,8 +180,8 @@ pub mod pallet {
 		Blake2_128Concat,
 		T::ClassId,
 		Blake2_128Concat,
-		T::InstanceId,
-		OrderDetails<T::AccountId, BalanceOf<T, I>, BlockNumberFor<T>>,
+		T::TokenId,
+		OrderDetails<T::AccountId, BalanceOf<T, I>, BlockNumberFor<T>, T::TokenId>,
 		OptionQuery,
 	>;
 
@@ -120,9 +192,15 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		T::AccountId,
-		BoundedVec<(ClassIdOf<T, I>, InstanceIdOf<T, I>), T::MaxOrders>,
+		BoundedVec<(ClassIdOf<T, I>, TokenIdOf<T, I>), T::MaxOrders>,
 		ValueQuery,
 	>;
+
+	/// Storage version of the pallet.
+	///
+	/// New networks start with last version.
+	#[pallet::storage]
+	pub type StorageVersion<T: Config<I>, I: 'static = ()> = StorageValue<_, Releases, ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
@@ -131,14 +209,15 @@ pub mod pallet {
 		#[transactional]
 		pub fn sell(
 			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
+			#[pallet::compact] quantity: T::TokenId,
 			#[pallet::compact] price: BalanceOf<T, I>,
 			deadline: Option<T::BlockNumber>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(
-				pallet_nft::Pallet::<T, I>::validate(&class, &instance, &who),
+				pallet_nft::Pallet::<T, I>::can_trade(class_id, token_id, One::one(), &who),
 				Error::<T, I>::InvalidNFT
 			);
 			if let Some(ref deadline) = deadline {
@@ -148,19 +227,22 @@ pub mod pallet {
 				);
 			}
 			T::Currency::reserve(&who, T::OrderDeposit::get())?;
-			pallet_nft::Pallet::<T, I>::reserve(&class, &instance, &who)?;
+			pallet_nft::Pallet::<T, I>::reserve(class_id, token_id, quantity, &who)?;
 			let order = OrderDetails {
 				owner: who.clone(),
+				quantity,
 				deposit: T::OrderDeposit::get(),
 				price,
 				deadline,
 			};
 			AccountOrders::<T, I>::try_mutate(&who, |ref mut orders| -> DispatchResult {
-				orders.try_push((class, instance)).map_err(|_| Error::<T, I>::TooManyOrders)?;
+				orders
+					.try_push((class_id, token_id))
+					.map_err(|_| Error::<T, I>::TooManyOrders)?;
 				Ok(())
 			})?;
-			Orders::<T, I>::insert(class, instance, order);
-			Self::deposit_event(Event::Selling(class, instance, who));
+			Orders::<T, I>::insert(class_id, token_id, order);
+			Self::deposit_event(Event::Selling(class_id, token_id, quantity, who));
 			Ok(())
 		}
 
@@ -169,11 +251,11 @@ pub mod pallet {
 		#[transactional]
 		pub fn deal(
 			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let order = Orders::<T, I>::try_get(class, instance)
+			let order = Orders::<T, I>::try_get(class_id, token_id)
 				.map_err(|_| Error::<T, I>::OrderNotFound)?;
 			if let Some(ref deadline) = order.deadline {
 				ensure!(
@@ -186,14 +268,22 @@ pub mod pallet {
 				Error::<T, I>::InsufficientFunds
 			);
 			pallet_nft::Pallet::<T, I>::swap(
-				&class,
-				&instance,
+				class_id,
+				token_id,
+				order.quantity,
+				&order.owner,
 				&who,
 				order.price,
 				T::TradeFeeTaxRatio::get(),
 			)?;
-			Self::delete_order(class, instance)?;
-			Self::deposit_event(Event::Dealed(class, instance, order.owner.clone(), who));
+			Self::delete_order(class_id, token_id)?;
+			Self::deposit_event(Event::Dealed(
+				class_id,
+				token_id,
+				order.quantity,
+				order.owner.clone(),
+				who,
+			));
 			Ok(())
 		}
 
@@ -202,16 +292,16 @@ pub mod pallet {
 		#[transactional]
 		pub fn remove(
 			origin: OriginFor<T>,
-			#[pallet::compact] class: T::ClassId,
-			#[pallet::compact] instance: T::InstanceId,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] token_id: T::TokenId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let order = Orders::<T, I>::try_get(class, instance)
+			let order = Orders::<T, I>::try_get(class_id, token_id)
 				.map_err(|_| Error::<T, I>::OrderNotFound)?;
 			ensure!(who == order.owner, Error::<T, I>::OrderNotFound);
-			pallet_nft::Pallet::<T, I>::unreserve(&class, &instance)?;
-			Self::delete_order(class, instance)?;
-			Self::deposit_event(Event::Removed(class, instance, who));
+			pallet_nft::Pallet::<T, I>::unreserve(class_id, token_id, order.quantity, &who)?;
+			Self::delete_order(class_id, token_id)?;
+			Self::deposit_event(Event::Removed(class_id, token_id, order.quantity, who));
 			Ok(())
 		}
 	}
@@ -219,12 +309,12 @@ pub mod pallet {
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	/// Remove order
-	pub fn delete_order(class: ClassIdOf<T, I>, instance: InstanceIdOf<T, I>) -> DispatchResult {
-		Orders::<T, I>::try_mutate_exists(class, instance, |maybe_order| -> DispatchResult {
+	pub fn delete_order(class_id: ClassIdOf<T, I>, token_id: TokenIdOf<T, I>) -> DispatchResult {
+		Orders::<T, I>::try_mutate_exists(class_id, token_id, |maybe_order| -> DispatchResult {
 			let order = maybe_order.as_mut().ok_or(Error::<T, I>::OrderNotFound)?;
 			T::Currency::unreserve(&order.owner, order.deposit);
 			AccountOrders::<T, I>::try_mutate(&order.owner, |orders| -> DispatchResult {
-				if let Some(idx) = orders.iter().position(|&v| v.0 == class && v.1 == instance) {
+				if let Some(idx) = orders.iter().position(|&v| v.0 == class_id && v.1 == token_id) {
 					orders.remove(idx);
 				}
 				Ok(())

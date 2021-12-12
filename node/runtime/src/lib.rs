@@ -97,7 +97,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 300,
+	spec_version: 400,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1017,28 +1017,22 @@ impl pallet_vesting::Config for Runtime {
 
 parameter_types! {
 	pub const ClassDeposit: Balance = 10 * CENTS;
-	pub const InstanceDeposit: Balance = 1 * CENTS;
-	pub const NftKeyLimit: u32 = 256;
-	pub const NftValueLimit: u32 = 4096;
-	pub const NftDepositBase: Balance = 100 * MILLICENTS;
-	pub const NftDepositPerByte: Balance = 10 * MILLICENTS;
-	pub const NftRoyaltyRateLimit: Perbill = Perbill::from_percent(20);
-	pub const NftClassIdIncLimit: u32 = 100;
+	pub const TokenDeposit: Balance = 1 * CENTS;
+	pub const MetaDataByteDeposit: Balance = 10 * MILLICENTS;
+	pub const RoyaltyRateLimit: Perbill = Perbill::from_percent(20);
+	pub const ClassIdIncLimit: u32 = 100;
 }
 
 impl pallet_nft::Config for Runtime {
 	type Event = Event;
 	type ClassId = u32;
-	type InstanceId = u32;
+	type TokenId = u32;
 	type Currency = Balances;
 	type ClassDeposit = ClassDeposit;
-	type InstanceDeposit = InstanceDeposit;
-	type DepositBase = NftDepositBase;
-	type DepositPerByte = NftDepositPerByte;
-	type KeyLimit = NftKeyLimit;
-	type ValueLimit = NftValueLimit;
-	type RoyaltyRateLimit = NftRoyaltyRateLimit;
-	type ClassIdIncLimit = NftClassIdIncLimit;
+	type TokenDeposit = TokenDeposit;
+	type MetaDataByteDeposit = MetaDataByteDeposit;
+	type RoyaltyRateLimit = RoyaltyRateLimit;
+	type ClassIdIncLimit = ClassIdIncLimit;
 	type WeightInfo = pallet_nft::weights::SubstrateWeight<Runtime>;
 }
 
@@ -1550,8 +1544,8 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_staking, Staking);
 			add_benchmark!(params, batches, pallet_storage, FileStorage);
-			add_benchmark!(params, batches, pallet_bridge, Bridge);
-			add_benchmark!(params, batches, pallet_bridge_transfer, BridgeTransfer);
+			// add_benchmark!(params, batches, pallet_bridge, Bridge);
+			// add_benchmark!(params, batches, pallet_bridge_transfer, BridgeTransfer);
 			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_tips, Tips);
