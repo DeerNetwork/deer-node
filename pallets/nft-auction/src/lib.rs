@@ -311,11 +311,7 @@ pub mod pallet {
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade() -> Result<(), &'static str> {
-			if StorageVersion::<T, I>::get() == Releases::V2 {
-				migrations::v2::post_migrate::<T, I>()
-			} else {
-				Ok(())
-			}
+			migrations::v2::post_migrate::<T, I>()
 		}
 	}
 

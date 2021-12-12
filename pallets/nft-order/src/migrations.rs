@@ -64,6 +64,10 @@ pub mod v1 {
 	}
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
+		assert!(StorageVersion::<T, I>::get() == Releases::V1);
+		for (_, _, order) in Orders::<T, I>::iter() {
+			assert_eq!(order.quantity, One::one());
+		}
 		log::debug!(
 			target: "runtime::nft-order",
 			"migration: nft order storage version v1 POST migration checks succesful!",

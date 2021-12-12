@@ -2,7 +2,92 @@ use super::*;
 
 pub mod v2 {
 	use super::*;
-	use frame_support::{storage::migration, traits::PalletInfoAccess, weights::Weight};
+	use frame_support::{pallet_prelude::*, storage::migration, weights::Weight};
+
+	macro_rules! generate_storage_instance {
+		($pallet:ident, $name:ident, $storage_instance:ident) => {
+			pub struct $storage_instance<T, I>(core::marker::PhantomData<(T, I)>);
+			impl<T: Config<I>, I: 'static> frame_support::traits::StorageInstance
+				for $storage_instance<T, I>
+			{
+				fn pallet_prefix() -> &'static str {
+					stringify!($pallet)
+				}
+				const STORAGE_PREFIX: &'static str = stringify!($name);
+			}
+		};
+	}
+
+	parameter_types! {
+		pub const KeyLimit: u32 = 256;
+		pub const ValueLimit: u32 = 4096;
+	}
+
+	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+	pub struct OldClassDetails<AccountId, DepositBalance> {
+		/// The owner of this class.
+		pub owner: AccountId,
+		/// The total balance deposited for this asset class.
+		pub deposit: DepositBalance,
+		/// The total number of outstanding instances of this asset class.
+		#[codec(compact)]
+		pub instances: u32,
+		/// Royalty rate
+		#[codec(compact)]
+		pub royalty_rate: Perbill,
+	}
+
+	/// Information concerning the ownership of a single unique asset.
+	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
+	pub struct OldTokenDetails<AccountId, DepositBalance> {
+		/// The owner of this asset.
+		pub owner: AccountId,
+		/// The total balance deposited for this asset class.
+		pub deposit: DepositBalance,
+		/// Whether the asset can be reserved or not.
+		pub reserved: bool,
+		/// Set transfer target
+		pub ready_transfer: Option<AccountId>,
+		/// Royalty rate
+		#[codec(compact)]
+		pub royalty_rate: Perbill,
+		/// Royalty beneficiary
+		pub royalty_beneficiary: AccountId,
+	}
+
+	generate_storage_instance!(NFT, Class, ClassInstance);
+	#[allow(type_alias_bounds)]
+	pub type Class<T: Config<I>, I: 'static = ()> = StorageMap<
+		ClassInstance<T, I>,
+		Blake2_128Concat,
+		T::ClassId,
+		OldClassDetails<T::AccountId, BalanceOf<T, I>>,
+	>;
+
+	generate_storage_instance!(NFT, Asset, AssetInstance);
+	#[allow(type_alias_bounds)]
+	pub type Asset<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
+		AssetInstance<T, I>,
+		Blake2_128Concat,
+		T::ClassId,
+		Blake2_128Concat,
+		T::TokenId,
+		OldTokenDetails<T::AccountId, BalanceOf<T, I>>,
+		OptionQuery,
+	>;
+
+	generate_storage_instance!(NFT, Attribute, AttributeInstance);
+	#[allow(type_alias_bounds)]
+	pub type Attribute<T: Config<I>, I: 'static = ()> = StorageNMap<
+		AttributeInstance<T, I>,
+		(
+			NMapKey<Blake2_128Concat, T::ClassId>,
+			NMapKey<Blake2_128Concat, Option<T::TokenId>>,
+			NMapKey<Blake2_128Concat, BoundedVec<u8, KeyLimit>>,
+		),
+		(BoundedVec<u8, ValueLimit>, BalanceOf<T, I>),
+		OptionQuery,
+	>;
 
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
@@ -19,6 +104,7 @@ pub mod v2 {
 			target: "runtime::nft",
 			"Migrating nft to Releases::V2",
 		);
+		let pallet_name = <Pallet<T, I>>::name().as_bytes();
 
 		let mut class_count: u32 = 0;
 		let mut token_count: u32 = 0;
@@ -61,11 +147,18 @@ pub mod v2 {
 			token_count += 1;
 		}
 
-		migration::remove_storage_prefix(<Pallet<T, I>>::name().as_bytes(), b"AssetTransfer", b"");
-		migration::remove_storage_prefix(<Pallet<T, I>>::name().as_bytes(), b"Account", b"");
-		migration::remove_storage_prefix(<Pallet<T, I>>::name().as_bytes(), b"Attribute", b"");
+		migration::remove_storage_prefix(pallet_name, b"AssetTransfer", b"");
+		migration::remove_storage_prefix(pallet_name, b"Account", b"");
+		migration::remove_storage_prefix(pallet_name, b"Attribute", b"");
 
 		StorageVersion::<T, I>::put(Releases::V2);
+
+		log::info!(
+			target: "runtime::nft",
+			"Migrate {:?} classes, {:?} tokens",
+			class_count,
+			token_count,
+		);
 
 		T::DbWeight::get().reads_writes(
 			(class_count + token_count + attribute_count) as Weight,
@@ -75,11 +168,22 @@ pub mod v2 {
 
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
+		assert!(StorageVersion::<T, I>::get() == Releases::V2);
 		log::debug!(
 			target: "runtime::nft",
 			"migration: nft storage version v2 POST migration checks succesful!",
 		);
-		assert!(StorageVersion::<T, I>::get() == Releases::V2);
+		for (owner, (class_id, token_id), _) in TokensByOwner::<T, I>::iter() {
+			assert!(
+				OwnersByToken::<T, I>::get((class_id, token_id), owner.clone()).is_some() &&
+					Tokens::<T, I>::get(class_id, token_id).is_some(),
+				"invalid token ({:?} {:?})",
+				class_id,
+				token_id
+			);
+		}
+		assert_eq!(Class::<T, I>::iter().count(), 0);
+		assert_eq!(Asset::<T, I>::iter().count(), 0);
 		Ok(())
 	}
 
