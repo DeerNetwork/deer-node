@@ -88,16 +88,22 @@ pub mod v2 {
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
 		assert!(StorageVersion::<T, I>::get() == Releases::V1);
-		log!(debug, "migration: nft auction storage version v2 PRE migration checks succesful!");
+		log::debug!(
+			target: "runtime::nft-auction",
+			"migration: nft auction storage version v2 PRE migration checks succesful!",
+		);
 		Ok(())
 	}
 
 	pub fn migrate<T: Config<I>, I: 'static>() -> Weight {
-		log!(info, "Migrating nft auction to Releases::V2");
+		log::info!(
+			target: "runtime::nft-auction",
+			"Migrating nft auction to Releases::V2",
+		);
 
 		let mut dutch_auction_count = 0;
 		DutchAuctions::<T, I>::translate::<OldDutchAuctionOf<T, I>, _>(|_, p| {
-			let new_class = DutchAuction {
+			let new_auction = DutchAuction {
 				owner: p.owner,
 				class_id: p.class,
 				token_id: p.instance,
@@ -110,12 +116,12 @@ pub mod v2 {
 				deposit: p.deposit,
 			};
 			dutch_auction_count += 1;
-			Some(new_class)
+			Some(new_auction)
 		});
 
 		let mut english_auction_count = 0;
 		EnglishAuctions::<T, I>::translate::<OldEnglishAuctionOf<T, I>, _>(|_, p| {
-			let new_class = EnglishAuction {
+			let new_auction = EnglishAuction {
 				owner: p.owner,
 				class_id: p.class,
 				token_id: p.instance,
@@ -129,13 +135,13 @@ pub mod v2 {
 			};
 
 			english_auction_count += 1;
-			Some(new_class)
+			Some(new_auction)
 		});
 
 		StorageVersion::<T, I>::put(Releases::V2);
 
-		log!(
-			info,
+		log::info!(
+			target: "runtime::nft-auction",
 			"Migrate {} duction auctions, {} english auctions",
 			dutch_auction_count,
 			english_auction_count
@@ -148,6 +154,10 @@ pub mod v2 {
 	}
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
+		log::debug!(
+			target: "runtime::nft-auction",
+			"migration: nft auction storage version v2 POST migration checks succesful!",
+		);
 		Ok(())
 	}
 }

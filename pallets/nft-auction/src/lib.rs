@@ -27,19 +27,6 @@ use sp_runtime::{
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-pub(crate) const LOG_TARGET: &'static str = "runtime::nft_auction";
-
-// syntactic sugar for logging.
-#[macro_export]
-macro_rules! log {
-	($level:tt, $patter:expr $(, $values:expr)* $(,)?) => {
-		log::$level!(
-			target: crate::LOG_TARGET,
-			concat!("[{:?}] 💸 ", $patter), <frame_system::Pallet<T>>::block_number() $(, $values)*
-		)
-	};
-}
-
 pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
@@ -306,7 +293,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
 		fn on_runtime_upgrade() -> Weight {
-			if StorageVersion::<T, I>::get() == Releases::V0 {
+			if StorageVersion::<T, I>::get() == Releases::V1 {
 				migrations::v2::migrate::<T, I>()
 			} else {
 				T::DbWeight::get().reads(1)
@@ -316,7 +303,7 @@ pub mod pallet {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<(), &'static str> {
 			if StorageVersion::<T, I>::get() == Releases::V1 {
-				migrations::v1::pre_migrate::<T, I>()
+				migrations::v2::pre_migrate::<T, I>()
 			} else {
 				Ok(())
 			}

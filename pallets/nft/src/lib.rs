@@ -29,19 +29,6 @@ use sp_std::prelude::*;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-pub(crate) const LOG_TARGET: &'static str = "runtime::nft";
-
-// syntactic sugar for logging.
-#[macro_export]
-macro_rules! log {
-	($level:tt, $patter:expr $(, $values:expr)* $(,)?) => {
-		log::$level!(
-			target: crate::LOG_TARGET,
-			concat!("[{:?}] 💸 ", $patter), <frame_system::Pallet<T>>::block_number() $(, $values)*
-		)
-	};
-}
-
 pub type BalanceOf<T, I = ()> =
 	<<T as Config<I>>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance;
 
@@ -340,8 +327,8 @@ pub mod pallet {
 
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<(), &'static str> {
-			if StorageVersion::<T, I>::get() == Releases::V0 {
-				migrations::v1::pre_migrate::<T, I>()
+			if StorageVersion::<T, I>::get() == Releases::V1 {
+				migrations::v2::pre_migrate::<T, I>()
 			} else {
 				Ok(())
 			}

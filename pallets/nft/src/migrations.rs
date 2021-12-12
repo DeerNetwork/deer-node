@@ -7,12 +7,18 @@ pub mod v2 {
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
 		assert!(StorageVersion::<T, I>::get() == Releases::V1);
-		log!(debug, "migration: nft storage version v2 PRE migration checks succesful!");
+		log::debug!(
+			target: "runtime::nft",
+			"migration: nft storage version v2 PRE migration checks succesful!",
+		);
 		Ok(())
 	}
 
 	pub fn migrate<T: Config<I>, I: 'static>() -> Weight {
-		log!(info, "Migrating nft to Releases::V2");
+		log::info!(
+			target: "runtime::nft",
+			"Migrating nft to Releases::V2",
+		);
 
 		let mut class_count: u32 = 0;
 		let mut token_count: u32 = 0;
@@ -69,19 +75,12 @@ pub mod v2 {
 
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
+		log::debug!(
+			target: "runtime::nft",
+			"migration: nft storage version v2 POST migration checks succesful!",
+		);
 		assert!(StorageVersion::<T, I>::get() == Releases::V2);
-
-		log!(info, "Attribute.exits()? {:?}", Attribute::exists());
-		log!(info, "Class.exits()? {:?}", Class::exists());
-		log!(info, "Asset.exits()? {:?}", Asset::exists());
-
-		for (class_id, p) in Classes::<T, I>::iter() {
-			log!(info, "Class {:?} {:?}", class_Id, p);
-		}
-
-		for (class_id, token_id, p) in Tokens::<T, I>::iter() {
-			log!(info, "Token {:?} {:?} {:?}", class_Id, token_id, p);
-		}
+		Ok(())
 	}
 
 	fn attributes_to_metadata<T: Config<I>, I: 'static>(

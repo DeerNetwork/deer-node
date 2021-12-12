@@ -8,11 +8,14 @@ pub mod mock;
 mod tests;
 pub mod weights;
 
+pub mod migrations;
+
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency},
 	transactional,
+	weights::Weight,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, Perbill, RuntimeDebug};
@@ -26,6 +29,27 @@ pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Curre
 >>::Balance;
 pub type ClassIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::ClassId;
 pub type TokenIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::TokenId;
+pub type OrderDetailsOf<T, I = ()> = OrderDetails<
+	<T as frame_system::Config>::AccountId,
+	BalanceOf<T, I>,
+	<T as frame_system::Config>::BlockNumber,
+	TokenIdOf<T, I>,
+>;
+
+// A value placed in storage that represents the current version of the Scheduler storage.
+// This value is used by the `on_runtime_upgrade` logic to determine whether we run
+// storage migration logic.
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub enum Releases {
+	V0,
+	V1,
+}
+
+impl Default for Releases {
+	fn default() -> Self {
+		Releases::V0
+	}
+}
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct OrderDetails<AccountId, Balance, BlockNumber, TokenId> {
@@ -71,6 +95,52 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T, I = ()>(_);
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig;
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> Self {
+			Self
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config<I>, I: 'static> GenesisBuild<T, I> for GenesisConfig {
+		fn build(&self) {
+			StorageVersion::<T, I>::put(Releases::V1);
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
+		fn on_runtime_upgrade() -> Weight {
+			if StorageVersion::<T, I>::get() == Releases::V0 {
+				migrations::v1::migrate::<T, I>()
+			} else {
+				T::DbWeight::get().reads(1)
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<(), &'static str> {
+			if StorageVersion::<T, I>::get() == Releases::V0 {
+				migrations::v1::pre_migrate::<T, I>()
+			} else {
+				Ok(())
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade() -> Result<(), &'static str> {
+			if StorageVersion::<T, I>::get() == Releases::V1 {
+				migrations::v1::post_migrate::<T, I>()
+			} else {
+				Ok(())
+			}
+		}
+	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -125,6 +195,12 @@ pub mod pallet {
 		BoundedVec<(ClassIdOf<T, I>, TokenIdOf<T, I>), T::MaxOrders>,
 		ValueQuery,
 	>;
+
+	/// Storage version of the pallet.
+	///
+	/// New networks start with last version.
+	#[pallet::storage]
+	pub type StorageVersion<T: Config<I>, I: 'static = ()> = StorageValue<_, Releases, ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
