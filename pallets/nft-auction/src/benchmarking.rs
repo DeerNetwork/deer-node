@@ -28,14 +28,15 @@ fn create_nft<T: Config<I>, I: 'static>(
 	let permission = ClassPermission(
 		Permission::Burnable | Permission::Transferable | Permission::DelegateMintable,
 	);
+	let class_id = NextClassId::<T, I>::get();
 	assert_ok!(NFT::<T, I>::create_class(
 		SystemOrigin::Signed(owner.clone()).into(),
 		vec![0, 0, 0],
 		rate(10),
 		permission,
 	));
-	let class_id = NextClassId::<T, I>::get().saturating_sub(One::one());
 	let to: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
+	let token_id = NextTokenId::<T, I>::get(&class_id);
 	assert_ok!(NFT::<T, I>::mint(
 		SystemOrigin::Signed(owner.clone()).into(),
 		to,
@@ -45,7 +46,6 @@ fn create_nft<T: Config<I>, I: 'static>(
 		None,
 		None
 	));
-	let token_id = NextTokenId::<T, I>::get(&class_id).saturating_sub(One::one());
 	(class_id, token_id, quantity)
 }
 
@@ -136,7 +136,7 @@ benchmarks_instance_pallet! {
 		System::<T>::set_block_number(T::MinDeadline::get().saturating_add(1u32.into()));
 
 		let caller = owner.clone();
-	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id)
+	}: _(SystemOrigin::Signed(caller.clone()), auction_id)
 	verify {
 		assert_last_event::<T, I>(Event::<T, I>::CanceledDutchAuction(caller, auction_id).into());
 	}
@@ -216,7 +216,7 @@ benchmarks_instance_pallet! {
 		System::<T>::set_block_number(T::MinDeadline::get().saturating_add(1u32.into()));
 
 		let caller = owner.clone();
-	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id)
+	}: _(SystemOrigin::Signed(caller.clone()), auction_id)
 	verify {
 		assert_last_event::<T, I>(Event::<T, I>::CanceledEnglishAuction(caller, auction_id).into());
 	}

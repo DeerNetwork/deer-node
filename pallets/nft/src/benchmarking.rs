@@ -71,9 +71,9 @@ benchmarks_instance_pallet! {
 		let permission = ClassPermission(
 			Permission::Burnable | Permission::Transferable | Permission::DelegateMintable,
 		);
+		let class_id = NextClassId::<T, I>::get();
 	}: _(SystemOrigin::Signed(caller.clone()), vec![0, 0, 0], rate(10), permission)
 	verify {
-		let class_id = NextClassId::<T, I>::get().saturating_sub(One::one());
 		assert_last_event::<T, I>(Event::CreatedClass(class_id, caller).into());
 	}
 
@@ -82,10 +82,10 @@ benchmarks_instance_pallet! {
 		let to: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(caller.clone());
 		let quantity = 1u32.into();
 		let beneficiary: T::AccountId = account("beneficiary", 0, SEED);
+		let token_id = NextTokenId::<T, I>::get(&class_id);
 		whitelist_account!(beneficiary);
 	}: _(SystemOrigin::Signed(caller.clone()), to, class_id, quantity, vec![0, 0, 0], Some(rate(10)), Some(beneficiary))
 	verify {
-		let token_id = NextTokenId::<T, I>::get(&class_id).saturating_sub(One::one());
 		assert_last_event::<T, I>(Event::MintedToken(class_id, token_id, quantity, caller.clone(), caller).into());
 	}
 
@@ -96,10 +96,10 @@ benchmarks_instance_pallet! {
 		let to: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(caller.clone());
 		let quantity = 1u32.into();
 		let beneficiary: T::AccountId = account("beneficiary", 0, SEED);
+		let token_id = NextTokenId::<T, I>::get(&class_id);
 		whitelist_account!(beneficiary);
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, quantity, vec![0, 0, 0], Some(rate(10)), Some(beneficiary))
 	verify {
-		let token_id = NextTokenId::<T, I>::get(&class_id).saturating_sub(One::one());
 		assert_last_event::<T, I>(Event::MintedToken(class_id, token_id, quantity, caller.clone(), caller).into());
 	}
 
