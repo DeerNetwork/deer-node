@@ -99,8 +99,8 @@ parameter_types! {
 
 impl Config for Test {
 	type Event = Event;
+	type OrderId = u32;
 	type OrderDeposit = OrderDeposit;
-	type MaxOrders = MaxOrders;
 	type TradeFeeTaxRatio = TradeFeeTaxRatio;
 	type WeightInfo = ();
 }

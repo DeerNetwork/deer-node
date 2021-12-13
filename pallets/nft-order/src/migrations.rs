@@ -3,7 +3,27 @@ use super::*;
 pub mod v1 {
 	use super::*;
 
-	use frame_support::traits::Get;
+	use frame_support::{pallet_prelude::*, parameter_types, weights::Weight};
+	use sp_runtime::traits::{One, Saturating, Zero};
+	use sp_std::collections::btree_map::BTreeMap;
+
+	macro_rules! generate_storage_instance {
+		($pallet:ident, $name:ident, $storage_instance:ident) => {
+			pub struct $storage_instance<T, I>(core::marker::PhantomData<(T, I)>);
+			impl<T: Config<I>, I: 'static> frame_support::traits::StorageInstance
+				for $storage_instance<T, I>
+			{
+				fn pallet_prefix() -> &'static str {
+					stringify!($pallet)
+				}
+				const STORAGE_PREFIX: &'static str = stringify!($name);
+			}
+		};
+	}
+
+	parameter_types! {
+		pub const MaxOrders: u32 = 50;
+	}
 
 	pub type OldOrderDetailsOf<T, I = ()> = OldOrderDetails<
 		<T as frame_system::Config>::AccountId,
@@ -11,7 +31,29 @@ pub mod v1 {
 		<T as frame_system::Config>::BlockNumber,
 	>;
 
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+	generate_storage_instance!(NFTOrder, Orders, OrdersInstance);
+	#[allow(type_alias_bounds)]
+	pub type OldOrders<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
+		OrdersInstance<T, I>,
+		Blake2_128Concat,
+		T::ClassId,
+		Blake2_128Concat,
+		T::TokenId,
+		OldOrderDetails<T::AccountId, BalanceOf<T, I>, T::BlockNumber>,
+		OptionQuery,
+	>;
+
+	generate_storage_instance!(NFTOrder, AccountOrders, AccountOrdersInstance);
+	#[allow(type_alias_bounds)]
+	pub type AccountOrders<T: Config<I>, I: 'static = ()> = StorageMap<
+		AccountOrdersInstance<T, I>,
+		Twox64Concat,
+		T::AccountId,
+		BoundedVec<(ClassIdOf<T, I>, TokenIdOf<T, I>), MaxOrders>,
+		ValueQuery,
+	>;
+
+	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 	pub struct OldOrderDetails<AccountId, Balance, BlockNumber> {
 		/// Who create the order.
 		pub owner: AccountId,
@@ -40,17 +82,35 @@ pub mod v1 {
 		);
 
 		let mut order_count = 0;
-		Orders::<T, I>::translate::<OldOrderDetailsOf<T, I>, _>(|_, _, p| {
-			let new_order = OrderDetails {
-				owner: p.owner,
-				quantity: One::one(),
-				price: p.price,
-				deposit: p.deposit,
-				deadline: p.deadline,
-			};
+		let mut current_order_id: T::OrderId = Zero::zero();
+		let mut order_map: BTreeMap<T::OrderId, (T::ClassId, T::TokenId, OldOrderDetailsOf<T, I>)> =
+			BTreeMap::new();
+		for (class_id, token_id, old_order) in OldOrders::<T, I>::drain() {
+			order_map.insert(current_order_id, (class_id, token_id, old_order));
+			current_order_id = current_order_id.saturating_add(One::one());
 			order_count += 1;
-			Some(new_order)
-		});
+		}
+
+		for (order_id, (class_id, token_id, old_order)) in order_map.into_iter() {
+			let new_order = OrderDetails {
+				class_id,
+				token_id,
+				quantity: One::one(),
+				price: old_order.price,
+				deposit: old_order.deposit,
+				deadline: old_order.deadline,
+			};
+			Orders::<T, I>::insert(old_order.owner, order_id, new_order);
+		}
+
+		let mut account_order_count = 0;
+		for _ in AccountOrders::<T, I>::drain() {
+			account_order_count += 1;
+		}
+
+		let next_order_id = current_order_id.saturating_add(One::one());
+
+		NextOrderId::<T, I>::put(next_order_id);
 
 		StorageVersion::<T, I>::put(Releases::V1);
 
@@ -60,12 +120,16 @@ pub mod v1 {
 			order_count,
 		);
 
-		T::DbWeight::get().reads_writes(order_count as Weight, (order_count + 1) as Weight)
+		T::DbWeight::get().reads_writes(
+			(order_count + account_order_count) as Weight,
+			(order_count + account_order_count + 2) as Weight,
+		)
 	}
+
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
 		assert!(StorageVersion::<T, I>::get() == Releases::V1);
-		for (_, _, order) in Orders::<T, I>::iter() {
+		for (_owner, _order_id, order) in Orders::<T, I>::iter() {
 			assert_eq!(order.quantity, One::one());
 		}
 		log::debug!(
