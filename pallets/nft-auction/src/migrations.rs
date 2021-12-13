@@ -3,6 +3,23 @@ use super::*;
 pub mod v2 {
 	use super::*;
 
+	use frame_support::{pallet_prelude::*, weights::Weight};
+	use sp_std::collections::btree_map::BTreeMap;
+
+	macro_rules! generate_storage_instance {
+		($pallet:ident, $name:ident, $storage_instance:ident) => {
+			pub struct $storage_instance<T, I>(core::marker::PhantomData<(T, I)>);
+			impl<T: Config<I>, I: 'static> frame_support::traits::StorageInstance
+				for $storage_instance<T, I>
+			{
+				fn pallet_prefix() -> &'static str {
+					stringify!($pallet)
+				}
+				const STORAGE_PREFIX: &'static str = stringify!($name);
+			}
+		};
+	}
+
 	pub type OldDutchAuctionOf<T, I = ()> = OldDutchAuction<
 		<T as frame_system::Config>::AccountId,
 		ClassIdOf<T, I>,
@@ -18,6 +35,43 @@ pub mod v2 {
 		BalanceOf<T, I>,
 		<T as frame_system::Config>::BlockNumber,
 	>;
+
+	generate_storage_instance!(NFTAuction, Auctions, AuctionsInstance);
+	#[allow(type_alias_bounds)]
+	pub type Auctions<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
+		AuctionsInstance<T, I>,
+		Blake2_128Concat,
+		T::ClassId,
+		Blake2_128Concat,
+		T::TokenId,
+		T::AuctionId,
+		OptionQuery,
+	>;
+
+	generate_storage_instance!(NFTAuction, DutchAuctions, DutchAuctionsInstance);
+	#[allow(type_alias_bounds)]
+	pub type OldDutchAuctions<T: Config<I>, I: 'static = ()> = StorageMap<
+		DutchAuctionsInstance<T, I>,
+		Blake2_128Concat,
+		T::AuctionId,
+		OldDutchAuctionOf<T, I>,
+		OptionQuery,
+	>;
+
+	generate_storage_instance!(NFTAuction, EnglishAuctions, EnglishAuctionsInstance);
+	#[allow(type_alias_bounds)]
+	pub type OldEnglishAuctions<T: Config<I>, I: 'static = ()> = StorageMap<
+		EnglishAuctionsInstance<T, I>,
+		Blake2_128Concat,
+		T::AuctionId,
+		OldEnglishAuctionOf<T, I>,
+		OptionQuery,
+	>;
+
+	generate_storage_instance!(NFTAuction, CurrentAuctionId, CurrentAuctionIdInstance);
+	#[allow(type_alias_bounds)]
+	pub type CurrentAuctionId<T: Config<I>, I: 'static = ()> =
+		StorageValue<CurrentAuctionIdInstance<T, I>, T::AuctionId, ValueQuery>;
 
 	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 	pub struct OldDutchAuction<AccountId, ClassId, InstanceId, Balance, BlockNumber> {
@@ -102,41 +156,54 @@ pub mod v2 {
 		);
 
 		let mut dutch_auction_count = 0;
-		DutchAuctions::<T, I>::translate::<OldDutchAuctionOf<T, I>, _>(|_, p| {
-			let new_auction = DutchAuction {
-				owner: p.owner,
-				class_id: p.class,
-				token_id: p.instance,
-				quantity: One::one(),
-				min_price: p.min_price,
-				max_price: p.max_price,
-				created_at: p.created_at,
-				open_at: p.created_at,
-				deadline: p.deadline,
-				deposit: p.deposit,
-			};
+
+		let mut dutch_auction_map: BTreeMap<T::AuctionId, OldDutchAuctionOf<T, I>> =
+			BTreeMap::new();
+		for (auction_id, old_auction) in OldDutchAuctions::<T, I>::drain() {
+			dutch_auction_map.insert(auction_id, old_auction);
 			dutch_auction_count += 1;
-			Some(new_auction)
-		});
+		}
+		for (auction_id, old_auction) in dutch_auction_map.into_iter() {
+			let auction_owner = old_auction.owner;
+			let new_auction = DutchAuction {
+				class_id: old_auction.class,
+				token_id: old_auction.instance,
+				quantity: One::one(),
+				min_price: old_auction.min_price,
+				max_price: old_auction.max_price,
+				created_at: old_auction.created_at,
+				open_at: old_auction.created_at,
+				deadline: old_auction.deadline,
+				deposit: old_auction.deposit,
+			};
+			DutchAuctions::<T, I>::insert(auction_owner, auction_id, new_auction);
+		}
 
 		let mut english_auction_count = 0;
-		EnglishAuctions::<T, I>::translate::<OldEnglishAuctionOf<T, I>, _>(|_, p| {
-			let new_auction = EnglishAuction {
-				owner: p.owner,
-				class_id: p.class,
-				token_id: p.instance,
-				quantity: One::one(),
-				init_price: p.init_price,
-				min_raise_price: p.min_raise_price,
-				created_at: p.created_at,
-				deadline: p.deadline,
-				open_at: p.created_at,
-				deposit: p.deposit,
-			};
-
+		let mut english_auction_map: BTreeMap<T::AuctionId, OldEnglishAuctionOf<T, I>> =
+			BTreeMap::new();
+		for (auction_id, old_auction) in OldEnglishAuctions::<T, I>::drain() {
+			english_auction_map.insert(auction_id, old_auction);
 			english_auction_count += 1;
-			Some(new_auction)
-		});
+		}
+		for (auction_id, old_auction) in english_auction_map.into_iter() {
+			let auction_owner = old_auction.owner;
+			let new_auction = EnglishAuction {
+				class_id: old_auction.class,
+				token_id: old_auction.instance,
+				quantity: One::one(),
+				init_price: old_auction.init_price,
+				min_raise_price: old_auction.min_raise_price,
+				created_at: old_auction.created_at,
+				deadline: old_auction.deadline,
+				open_at: old_auction.created_at,
+				deposit: old_auction.deposit,
+			};
+			EnglishAuctions::<T, I>::insert(auction_owner, auction_id, new_auction);
+		}
+
+		let next_auction_id = CurrentAuctionId::<T, I>::take();
+		NextAuctionId::<T, I>::put(next_auction_id);
 
 		StorageVersion::<T, I>::put(Releases::V2);
 
@@ -148,17 +215,17 @@ pub mod v2 {
 		);
 
 		T::DbWeight::get().reads_writes(
-			(dutch_auction_count + english_auction_count) as Weight,
-			(dutch_auction_count + english_auction_count) as Weight + 1,
+			(dutch_auction_count + english_auction_count + 1) as Weight,
+			(dutch_auction_count + english_auction_count + 2) as Weight,
 		)
 	}
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
 		assert!(StorageVersion::<T, I>::get() == Releases::V2);
-		for (_, auction) in DutchAuctions::<T, I>::iter() {
+		for (_, _, auction) in DutchAuctions::<T, I>::iter() {
 			assert_eq!(auction.quantity, One::one());
 		}
-		for (_, auction) in EnglishAuctions::<T, I>::iter() {
+		for (_, _, auction) in EnglishAuctions::<T, I>::iter() {
 			assert_eq!(auction.quantity, One::one());
 		}
 		log::debug!(
