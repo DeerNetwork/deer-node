@@ -21,6 +21,7 @@ pub mod pallet {
 	use scale_info::TypeInfo;
 	use sp_arithmetic::traits::SaturatedConversion;
 	use sp_core::U256;
+	use sp_runtime::traits::StaticLookup;
 	use sp_std::prelude::*;
 
 	type ResourceId = bridge::ResourceId;
@@ -141,6 +142,26 @@ pub mod pallet {
 				U256::from(amount.saturated_into::<u128>()),
 			)
 		}
+
+		/// Returns some amount of the native token as proposal rejected
+		#[pallet::weight(195_000_000)]
+		pub fn return_transfer_native(
+			origin: OriginFor<T>,
+			amount: BalanceOf<T>,
+			to: <T::Lookup as StaticLookup>::Source,
+		) -> DispatchResult {
+			T::BridgeCommitteeOrigin::ensure_origin(origin)?;
+			let to = T::Lookup::lookup(to)?;
+			let bridge_id = <bridge::Pallet<T>>::account_id();
+			<T as Config>::Currency::transfer(
+				&bridge_id,
+				&to,
+				amount,
+				ExistenceRequirement::AllowDeath,
+			)?;
+			Ok(())
+		}
+
 		/// Executes a simple currency transfer using the bridge account as the source
 		#[pallet::weight(195_000_000)]
 		pub fn transfer(

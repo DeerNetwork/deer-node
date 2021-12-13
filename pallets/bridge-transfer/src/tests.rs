@@ -67,6 +67,30 @@ fn transfer_native() {
 }
 
 #[test]
+fn return_transfer_native() {
+	new_test_ext().execute_with(|| {
+		let dest_chain = 0;
+		let amount: u64 = 100;
+		let recipient = vec![99];
+
+		assert_ok!(Bridge::whitelist_chain(Origin::root(), dest_chain.clone()));
+		assert_ok!(BridgeTransfer::change_fee(Origin::root(), 2, 2, dest_chain.clone()));
+		assert_ok!(BridgeTransfer::transfer_native(
+			Origin::signed(RELAYER_A),
+			amount.clone(),
+			recipient.clone(),
+			dest_chain,
+		));
+		let bridge_id: u64 = Bridge::account_id();
+		let bridge_balance = Balances::free_balance(&bridge_id);
+		let relayer_a_balance = Balances::free_balance(&RELAYER_A);
+		assert_ok!(BridgeTransfer::return_transfer_native(Origin::root(), amount, RELAYER_A));
+		assert_eq!(bridge_balance - amount, Balances::free_balance(&bridge_id));
+		assert_eq!(relayer_a_balance + amount, Balances::free_balance(&RELAYER_A));
+	})
+}
+
+#[test]
 fn transfer() {
 	new_test_ext().execute_with(|| {
 		// Check inital state
