@@ -1,7 +1,8 @@
 use super::*;
 use crate as pallet_nft_order;
 
-use frame_support::{construct_runtime, parameter_types};
+use frame_support::{assert_ok, construct_runtime, parameter_types};
+use pallet_nft::{ClassPermission, Permission};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -76,7 +77,6 @@ parameter_types! {
 	pub const TokenDeposit: u64 = 1;
 	pub const MetaDataByteDeposit: u64 = 1;
 	pub const RoyaltyRateLimit: Perbill = Perbill::from_percent(20);
-	pub const ClassIdIncLimit: u32 = 10;
 }
 
 impl pallet_nft::Config for Test {
@@ -88,7 +88,6 @@ impl pallet_nft::Config for Test {
 	type TokenDeposit = TokenDeposit;
 	type MetaDataByteDeposit = MetaDataByteDeposit;
 	type RoyaltyRateLimit = RoyaltyRateLimit;
-	type ClassIdIncLimit = ClassIdIncLimit;
 	type WeightInfo = ();
 }
 
@@ -108,6 +107,25 @@ impl Config for Test {
 
 pub(crate) fn rate(v: u32) -> Perbill {
 	Perbill::from_percent(v)
+}
+
+pub(crate) fn add_class(caller: u32) -> u32 {
+	let permission = ClassPermission(Permission::Burnable | Permission::Transferable);
+	assert_ok!(NFT::create_class(Origin::signed(caller.into()), vec![], rate(10), permission));
+	pallet_nft::NextClassId::<Test>::get() - 1
+}
+
+pub(crate) fn add_token(caller: u32, class_id: u32) -> u32 {
+	assert_ok!(NFT::mint(
+		Origin::signed(caller.into()),
+		caller.into(),
+		class_id,
+		1,
+		vec![],
+		None,
+		None
+	));
+	pallet_nft::NextTokenId::<Test>::get(class_id) - 1
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {

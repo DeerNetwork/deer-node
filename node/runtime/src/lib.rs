@@ -1015,7 +1015,7 @@ impl pallet_vesting::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ClassDeposit: Balance = 10 * CENTS;
+	pub const ClassDeposit: Balance = 100 * DOLLARS;
 	pub const TokenDeposit: Balance = 1 * CENTS;
 	pub const MetaDataByteDeposit: Balance = 10 * MILLICENTS;
 	pub const RoyaltyRateLimit: Perbill = Perbill::from_percent(20);
@@ -1031,7 +1031,6 @@ impl pallet_nft::Config for Runtime {
 	type TokenDeposit = TokenDeposit;
 	type MetaDataByteDeposit = MetaDataByteDeposit;
 	type RoyaltyRateLimit = RoyaltyRateLimit;
-	type ClassIdIncLimit = ClassIdIncLimit;
 	type WeightInfo = pallet_nft::weights::SubstrateWeight<Runtime>;
 }
 

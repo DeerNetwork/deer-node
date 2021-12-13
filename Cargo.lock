@@ -4638,6 +4638,7 @@ dependencies = [
 name = "pallet-nft"
 version = "0.3.0"
 dependencies = [
+ "enumflags2",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

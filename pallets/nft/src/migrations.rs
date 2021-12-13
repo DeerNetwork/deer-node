@@ -2,7 +2,9 @@ use super::*;
 
 pub mod v2 {
 	use super::*;
-	use frame_support::{pallet_prelude::*, storage::migration, weights::Weight};
+	use frame_support::{pallet_prelude::*, parameter_types, storage::migration, weights::Weight};
+	use sp_runtime::traits::Zero;
+	use sp_std::collections::btree_map::BTreeMap;
 
 	macro_rules! generate_storage_instance {
 		($pallet:ident, $name:ident, $storage_instance:ident) => {
@@ -110,20 +112,31 @@ pub mod v2 {
 		let mut token_count: u32 = 0;
 		let mut attribute_count: u32 = 0;
 
+		let permission = ClassPermission(
+			Permission::Burnable | Permission::Transferable | Permission::DelegateMintable,
+		);
+		let mut max_class_id: T::ClassId = Zero::zero();
 		for (class_id, p) in Class::<T, I>::drain() {
 			let (metadata, count) = attributes_to_metadata::<T, I>(class_id, None);
 			attribute_count += count;
 			let new_class_details = ClassDetails {
 				owner: p.owner,
 				deposit: p.deposit,
+				permission,
 				metadata,
 				total_tokens: p.instances.saturated_into(),
 				total_issuance: p.instances.saturated_into(),
 				royalty_rate: p.royalty_rate,
 			};
 			Classes::<T, I>::insert(class_id, new_class_details);
+			if class_id > max_class_id {
+				max_class_id = class_id;
+			}
 			class_count += 1;
 		}
+
+		let mut max_token_id_map: BTreeMap<T::ClassId, T::TokenId> = BTreeMap::new();
+		let zero = Zero::zero();
 
 		for (class_id, token_id, p) in Asset::<T, I>::drain() {
 			let (metadata, count) = attributes_to_metadata::<T, I>(class_id, Some(token_id));
@@ -141,15 +154,26 @@ pub mod v2 {
 			} else {
 				token_amount.free = One::one();
 			}
+			let max_token_id = max_token_id_map.get(&class_id).unwrap_or(&zero);
+			if token_id > *max_token_id {
+				max_token_id_map.insert(class_id, token_id);
+			}
+
 			Tokens::<T, I>::insert(class_id, token_id, new_token_details);
 			TokensByOwner::<T, I>::insert(p.owner.clone(), (class_id, token_id), token_amount);
 			OwnersByToken::<T, I>::insert((class_id, token_id), p.owner, ());
 			token_count += 1;
 		}
 
+		for (class_id, max_token_id) in max_token_id_map.iter() {
+			NextTokenId::<T, I>::insert(*class_id, max_token_id.saturating_add(One::one()));
+		}
+
 		migration::remove_storage_prefix(pallet_name, b"AssetTransfer", b"");
 		migration::remove_storage_prefix(pallet_name, b"Account", b"");
 		migration::remove_storage_prefix(pallet_name, b"Attribute", b"");
+		migration::remove_storage_prefix(pallet_name, b"MaxClassId", b"");
+		NextClassId::<T, I>::put(max_class_id.saturating_add(One::one()));
 
 		StorageVersion::<T, I>::put(Releases::V2);
 
@@ -162,7 +186,7 @@ pub mod v2 {
 
 		T::DbWeight::get().reads_writes(
 			(class_count + token_count + attribute_count) as Weight,
-			(class_count + token_count * 3 + 4) as Weight,
+			(class_count * 2 + token_count * 3 + 5) as Weight,
 		)
 	}
 

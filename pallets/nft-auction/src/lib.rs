@@ -255,7 +255,6 @@ pub mod pallet {
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T, I = ()> {
-		InvalidNFT,
 		InvalidDeadline,
 		InvalidPrice,
 		InvalidNextAuctionId,
@@ -331,10 +330,8 @@ pub mod pallet {
 			open_at: Option<BlockNumberFor<T>>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(
-				pallet_nft::Pallet::<T, I>::can_trade(class_id, token_id, quantity, &who),
-				Error::<T, I>::InvalidNFT
-			);
+
+			pallet_nft::Pallet::<T, I>::ensure_transferable(class_id, token_id, quantity, &who)?;
 			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
 			ensure!(max_price > min_price, Error::<T, I>::InvalidPrice);
 			let now = frame_system::Pallet::<T>::block_number();
@@ -492,10 +489,8 @@ pub mod pallet {
 			open_at: Option<BlockNumberFor<T>>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(
-				pallet_nft::Pallet::<T, I>::can_trade(class_id, token_id, quantity, &who),
-				Error::<T, I>::InvalidNFT
-			);
+
+			pallet_nft::Pallet::<T, I>::ensure_transferable(class_id, token_id, quantity, &who)?;
 			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
 			let now = frame_system::Pallet::<T>::block_number();
 			let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);

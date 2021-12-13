@@ -152,10 +152,6 @@ pub mod pallet {
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T, I = ()> {
-		/// Not own the asset
-		NotOwn,
-		/// Invalid NFt
-		InvalidNFT,
 		/// Invalid deaeline
 		InvalidDeadline,
 		/// Order not found
@@ -212,10 +208,7 @@ pub mod pallet {
 			deadline: Option<T::BlockNumber>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(
-				pallet_nft::Pallet::<T, I>::can_trade(class_id, token_id, One::one(), &who),
-				Error::<T, I>::InvalidNFT
-			);
+			pallet_nft::Pallet::<T, I>::ensure_transferable(class_id, token_id, quantity, &who)?;
 			if let Some(ref deadline) = deadline {
 				ensure!(
 					<frame_system::Pallet<T>>::block_number() < *deadline,

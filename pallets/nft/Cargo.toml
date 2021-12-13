@@ -9,6 +9,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false }
+enumflags2 = { version = "0.6.3" }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 sp-std = { default-features = false, path = "../../substrate/primitives/std" }
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }

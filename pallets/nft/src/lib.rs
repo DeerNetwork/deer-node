@@ -11,15 +11,16 @@ pub mod weights;
 
 pub mod migrations;
 
-use codec::{Decode, Encode, HasCompact};
+use codec::{Decode, Encode, HasCompact, MaxEncodedLen};
+pub use enumflags2::BitFlags;
 use frame_support::{
 	dispatch::{DispatchError, DispatchResult},
-	ensure, parameter_types,
+	ensure,
 	traits::{Currency, ExistenceRequirement, Get, ReservableCurrency, WithdrawReasons},
 	transactional,
 };
 use frame_system::Config as SystemConfig;
-use scale_info::TypeInfo;
+use scale_info::{build::Fields, meta_type, Path, Type, TypeInfo, TypeParameter};
 use sp_runtime::{
 	traits::{AtLeast32BitUnsigned, CheckedAdd, CheckedSub, One, Saturating, StaticLookup, Zero},
 	Perbill, RuntimeDebug, SaturatedConversion,
@@ -53,12 +54,57 @@ impl Default for Releases {
 	}
 }
 
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, BitFlags, RuntimeDebug, TypeInfo)]
+pub enum Permission {
+	/// Token can be transferred
+	Transferable = 0b00000001,
+	/// Token can be burned
+	Burnable = 0b00000010,
+	/// Token can be minted by user other than class owner
+	DelegateMintable = 0b00000100,
+}
+
+#[derive(Clone, Copy, PartialEq, Default, RuntimeDebug)]
+pub struct ClassPermission(pub BitFlags<Permission>);
+
+impl MaxEncodedLen for ClassPermission {
+	fn max_encoded_len() -> usize {
+		u8::max_encoded_len()
+	}
+}
+
+impl Eq for ClassPermission {}
+impl Encode for ClassPermission {
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+		self.0.bits().using_encoded(f)
+	}
+}
+impl Decode for ClassPermission {
+	fn decode<I: codec::Input>(input: &mut I) -> sp_std::result::Result<Self, codec::Error> {
+		let field = u8::decode(input)?;
+		Ok(Self(<BitFlags<Permission>>::from_bits(field as u8).map_err(|_| "invalid value")?))
+	}
+}
+impl TypeInfo for ClassPermission {
+	type Identity = Self;
+
+	fn type_info() -> Type {
+		Type::builder()
+			.path(Path::new("BitFlags", module_path!()))
+			.type_params(vec![TypeParameter::new("T", Some(meta_type::<Permission>()))])
+			.composite(Fields::unnamed().field(|f| f.ty::<u8>().type_name("Permission")))
+	}
+}
+
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct ClassDetails<AccountId, Balance, TokenId> {
 	/// The owner of this class.
 	pub owner: AccountId,
 	/// Reserved balance for createing class
 	pub deposit: Balance,
+	/// Class permissons
+	pub permission: ClassPermission,
 	/// Class metadata
 	pub metadata: Vec<u8>,
 	/// Summary of kind of tokens in class
@@ -141,10 +187,6 @@ pub mod pallet {
 		#[pallet::constant]
 		type RoyaltyRateLimit: Get<Perbill>;
 
-		/// The new class id must in (MaxClassId, MaxClassId + T::ClassIdIncLimit]
-		#[pallet::constant]
-		type ClassIdIncLimit: Get<Self::ClassId>;
-
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 	}
@@ -153,7 +195,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Classes<T: Config<I>, I: 'static = ()> = StorageMap<
 		_,
-		Blake2_128Concat,
+		Twox64Concat,
 		T::ClassId,
 		ClassDetails<T::AccountId, BalanceOf<T, I>, T::TokenId>,
 	>;
@@ -162,9 +204,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Tokens<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
 		_,
-		Blake2_128Concat,
+		Twox64Concat,
 		T::ClassId,
-		Blake2_128Concat,
+		Twox64Concat,
 		T::TokenId,
 		TokenDetails<T::AccountId, BalanceOf<T, I>, T::TokenId>,
 		OptionQuery,
@@ -187,9 +229,16 @@ pub mod pallet {
 	pub type OwnersByToken<T: Config<I>, I: 'static = ()> =
 		StorageDoubleMap<_, Twox64Concat, (T::ClassId, T::TokenId), Twox64Concat, T::AccountId, ()>;
 
-	/// Maximum class id in this pallet
+	/// Next available class ID.
 	#[pallet::storage]
-	pub type MaxClassId<T: Config<I>, I: 'static = ()> = StorageValue<_, T::ClassId, ValueQuery>;
+	#[pallet::getter(fn next_class_id)]
+	pub type NextClassId<T: Config<I>, I: 'static = ()> = StorageValue<_, T::ClassId, ValueQuery>;
+
+	/// Next available token ID.
+	#[pallet::storage]
+	#[pallet::getter(fn next_token_id)]
+	pub type NextTokenId<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Twox64Concat, T::ClassId, T::TokenId, ValueQuery>;
 
 	/// Storage version of the pallet.
 	///
@@ -200,9 +249,9 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
-		/// An asset class was created. \[ class_id, creator \]
+		/// An asset class was created. \[ class_id, owner \]
 		CreatedClass(T::ClassId, T::AccountId),
-		/// An asset `instace` was minted. \[ class_id, token_id, quantity, to, who \]
+		/// An asset `instace` was minted. \[ class_id, token_id, quantity, owner, who \]
 		MintedToken(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AccountId),
 		/// An asset `instance` was burned. \[ class_id, token_id, quantity, owner \]
 		BurnedToken(T::ClassId, T::TokenId, T::TokenId, T::AccountId),
@@ -218,12 +267,10 @@ pub mod pallet {
 		TokenNotFound,
 		/// The operator is not the owner of the token and has no permission
 		NoPermission,
-		/// Class id in used
-		ConflictClassId,
-		/// Token id in used
-		ConflictTokenId,
-		/// Class id is invalid
-		InvalidClassId,
+		/// No available class ID
+		NoAvailableClassId,
+		/// No available token ID
+		NoAvailableTokenId,
 		/// Royalty rate great than RoyaltyRateLimit
 		RoyaltyRateTooHigh,
 		/// Quantity is invalid
@@ -281,20 +328,19 @@ pub mod pallet {
 		#[transactional]
 		pub fn create_class(
 			origin: OriginFor<T>,
-			#[pallet::compact] class_id: T::ClassId,
 			metadata: Vec<u8>,
 			#[pallet::compact] royalty_rate: Perbill,
+			permission: ClassPermission,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-
-			ensure!(!Classes::<T, I>::contains_key(class_id), Error::<T, I>::ConflictClassId);
 			ensure!(T::RoyaltyRateLimit::get() >= royalty_rate, Error::<T, I>::RoyaltyRateTooHigh);
 
-			let max_class = MaxClassId::<T, I>::get();
-			ensure!(
-				class_id <= max_class.saturating_add(T::ClassIdIncLimit::get()),
-				Error::<T, I>::InvalidClassId
-			);
+			let class_id =
+				NextClassId::<T, I>::try_mutate(|id| -> Result<T::ClassId, DispatchError> {
+					let current_id = *id;
+					*id = id.checked_add(&One::one()).ok_or(Error::<T, I>::NoAvailableClassId)?;
+					Ok(current_id)
+				})?;
 
 			let deposit =
 				Self::caculate_deposit(T::ClassDeposit::get(), metadata.len().saturated_into());
@@ -303,6 +349,7 @@ pub mod pallet {
 			let class_details = ClassDetails {
 				owner: owner.clone(),
 				deposit,
+				permission,
 				metadata,
 				total_tokens: Zero::zero(),
 				total_issuance: Zero::zero(),
@@ -310,21 +357,17 @@ pub mod pallet {
 			};
 
 			Classes::<T, I>::insert(class_id, class_details);
-			if class_id > max_class {
-				MaxClassId::<T, I>::put(class_id);
-			}
 			Self::deposit_event(Event::CreatedClass(class_id, owner));
 			Ok(().into())
 		}
 
-		/// Mint NFT token
+		/// Mint NFT token by class owner
 		#[pallet::weight(T::WeightInfo::mint())]
 		#[transactional]
 		pub fn mint(
 			origin: OriginFor<T>,
 			to: <T::Lookup as StaticLookup>::Source,
 			#[pallet::compact] class_id: T::ClassId,
-			#[pallet::compact] token_id: T::TokenId,
 			#[pallet::compact] quantity: T::TokenId,
 			metadata: Vec<u8>,
 			royalty_rate: Option<Perbill>,
@@ -332,59 +375,62 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
-			ensure!(
-				!Tokens::<T, I>::contains_key(class_id, token_id),
-				Error::<T, I>::ConflictTokenId
-			);
-
 			let to = T::Lookup::lookup(to)?;
-
 			Classes::<T, I>::try_mutate(&class_id, |maybe_class_details| -> DispatchResult {
 				let class_details =
 					maybe_class_details.as_mut().ok_or(Error::<T, I>::ClassNotFound)?;
 				ensure!(&who == &class_details.owner, Error::<T, I>::NoPermission);
+				Self::mint_token(
+					class_details,
+					&who,
+					&to,
+					class_id,
+					quantity,
+					metadata,
+					royalty_rate,
+					royalty_beneficiary,
+				)
+			})
+		}
 
-				let royalty_rate = royalty_rate.unwrap_or(class_details.royalty_rate);
+		/// Mint NFT token anyone else other than class owner
+		#[pallet::weight(T::WeightInfo::delegate_mint())]
+		#[transactional]
+		pub fn delegate_mint(
+			origin: OriginFor<T>,
+			#[pallet::compact] class_id: T::ClassId,
+			#[pallet::compact] quantity: T::TokenId,
+			metadata: Vec<u8>,
+			royalty_rate: Option<Perbill>,
+			royalty_beneficiary: Option<T::AccountId>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
+			Classes::<T, I>::try_mutate(&class_id, |maybe_class_details| -> DispatchResult {
+				let class_details =
+					maybe_class_details.as_mut().ok_or(Error::<T, I>::ClassNotFound)?;
 				ensure!(
-					T::RoyaltyRateLimit::get() >= royalty_rate,
-					Error::<T, I>::RoyaltyRateTooHigh
+					class_details.permission.0.contains(Permission::DelegateMintable),
+					Error::<T, I>::NoPermission
 				);
-
-				let total_tokens = class_details
-					.total_tokens
-					.checked_add(&One::one())
-					.ok_or(Error::<T, I>::NumOverflow)?;
-
-				let total_issuance = class_details
-					.total_issuance
-					.checked_add(&quantity)
-					.ok_or(Error::<T, I>::NumOverflow)?;
-
-				class_details.total_tokens = total_tokens;
-				class_details.total_issuance = total_issuance;
-
 				let deposit =
 					Self::caculate_deposit(T::TokenDeposit::get(), metadata.len().saturated_into());
-				T::Currency::reserve(&class_details.owner, deposit)?;
-
-				let token_details = TokenDetails {
-					metadata,
+				T::Currency::transfer(
+					&who,
+					&class_details.owner,
 					deposit,
+					ExistenceRequirement::KeepAlive,
+				)?;
+				Self::mint_token(
+					class_details,
+					&who,
+					&who,
+					class_id,
 					quantity,
+					metadata,
 					royalty_rate,
-					royalty_beneficiary: royalty_beneficiary.unwrap_or(to.clone()),
-				};
-				Tokens::<T, I>::insert(&class_id, &token_id, token_details);
-				TokensByOwner::<T, I>::insert(
-					&to,
-					(class_id, token_id),
-					TokenAmount { free: quantity, reserved: Zero::zero() },
-				);
-				OwnersByToken::<T, I>::insert((class_id, token_id), &to, ());
-
-				Self::deposit_event(Event::MintedToken(class_id, token_id, quantity, to, who));
-
-				Ok(().into())
+					royalty_beneficiary,
+				)
 			})
 		}
 
@@ -403,6 +449,11 @@ pub mod pallet {
 			Classes::<T, I>::try_mutate(&class_id, |maybe_class_details| -> DispatchResult {
 				let class_details =
 					maybe_class_details.as_mut().ok_or(Error::<T, I>::ClassNotFound)?;
+
+				ensure!(
+					class_details.permission.0.contains(Permission::Burnable),
+					Error::<T, I>::NoPermission
+				);
 
 				let token_details = Tokens::<T, I>::try_mutate_exists(
 					&class_id,
@@ -600,14 +651,21 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		)
 	}
 
-	pub fn can_trade(
+	pub fn ensure_transferable(
 		class_id: T::ClassId,
 		token_id: T::TokenId,
 		quantity: T::TokenId,
 		owner: &T::AccountId,
-	) -> bool {
-		let token_amount = Self::tokens_by_owner(owner, (class_id, token_id)).unwrap_or_default();
-		return token_amount.free >= quantity
+	) -> DispatchResult {
+		let token_amount = Self::tokens_by_owner(owner, (class_id, token_id))
+			.ok_or(Error::<T, I>::TokenNotFound)?;
+		ensure!(token_amount.free >= quantity, Error::<T, I>::InvalidQuantity);
+		let class_details = Classes::<T, I>::get(class_id).ok_or(Error::<T, I>::ClassNotFound)?;
+		ensure!(
+			class_details.permission.0.contains(Permission::Transferable),
+			Error::<T, I>::NoPermission
+		);
+		Ok(())
 	}
 
 	pub fn reserve(
@@ -694,5 +752,66 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 
 	fn caculate_deposit(base: BalanceOf<T, I>, metadata_len: u32) -> BalanceOf<T, I> {
 		base.saturating_add(T::MetaDataByteDeposit::get().saturating_mul(metadata_len.into()))
+	}
+
+	fn mint_token(
+		class_details: &mut ClassDetailsOf<T, I>,
+		who: &T::AccountId,
+		to: &T::AccountId,
+		class_id: T::ClassId,
+		quantity: T::TokenId,
+		metadata: Vec<u8>,
+		royalty_rate: Option<Perbill>,
+		royalty_beneficiary: Option<T::AccountId>,
+	) -> DispatchResult {
+		NextTokenId::<T, I>::try_mutate(class_id, |id| -> DispatchResult {
+			let royalty_rate = royalty_rate.unwrap_or(class_details.royalty_rate);
+			ensure!(T::RoyaltyRateLimit::get() >= royalty_rate, Error::<T, I>::RoyaltyRateTooHigh);
+
+			let total_tokens = class_details
+				.total_tokens
+				.checked_add(&One::one())
+				.ok_or(Error::<T, I>::NumOverflow)?;
+
+			let total_issuance = class_details
+				.total_issuance
+				.checked_add(&quantity)
+				.ok_or(Error::<T, I>::NumOverflow)?;
+
+			let token_id = *id;
+			*id = id.checked_add(&One::one()).ok_or(Error::<T, I>::NoAvailableTokenId)?;
+
+			class_details.total_tokens = total_tokens;
+			class_details.total_issuance = total_issuance;
+
+			let deposit =
+				Self::caculate_deposit(T::TokenDeposit::get(), metadata.len().saturated_into());
+			T::Currency::reserve(&class_details.owner, deposit)?;
+
+			let token_details = TokenDetails {
+				metadata,
+				deposit,
+				quantity,
+				royalty_rate,
+				royalty_beneficiary: royalty_beneficiary.unwrap_or(to.clone()),
+			};
+			Tokens::<T, I>::insert(&class_id, &token_id, token_details);
+			TokensByOwner::<T, I>::insert(
+				&to,
+				(class_id, token_id),
+				TokenAmount { free: quantity, reserved: Zero::zero() },
+			);
+			OwnersByToken::<T, I>::insert((class_id, token_id), &to, ());
+
+			Self::deposit_event(Event::MintedToken(
+				class_id,
+				token_id,
+				quantity,
+				to.clone(),
+				who.clone(),
+			));
+
+			Ok(().into())
+		})
 	}
 }

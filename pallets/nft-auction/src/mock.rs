@@ -76,7 +76,6 @@ parameter_types! {
 	pub const TokenDeposit: u64 = 1;
 	pub const MetaDataByteDeposit: u64 = 1;
 	pub const RoyaltyRateLimit: Perbill = Perbill::from_percent(20);
-	pub const ClassIdIncLimit: u32 = 10;
 }
 
 impl pallet_nft::Config for Test {
@@ -88,7 +87,6 @@ impl pallet_nft::Config for Test {
 	type TokenDeposit = TokenDeposit;
 	type MetaDataByteDeposit = MetaDataByteDeposit;
 	type RoyaltyRateLimit = RoyaltyRateLimit;
-	type ClassIdIncLimit = ClassIdIncLimit;
 	type WeightInfo = ();
 }
 

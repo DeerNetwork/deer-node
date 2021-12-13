@@ -7,13 +7,13 @@ use frame_benchmarking::{
 use frame_support::assert_ok;
 use frame_system::{Pallet as System, RawOrigin as SystemOrigin};
 use sp_runtime::{
-	traits::{One, StaticLookup},
+	traits::{One, Saturating, StaticLookup},
 	Perbill,
 };
 use sp_std::prelude::*;
 
 use crate::Pallet as NFTAuction;
-use pallet_nft::Pallet as NFT;
+use pallet_nft::{ClassPermission, NextClassId, NextTokenId, Pallet as NFT, Permission};
 
 const SEED: u32 = 0;
 
@@ -24,28 +24,28 @@ fn rate(v: u32) -> Perbill {
 fn create_nft<T: Config<I>, I: 'static>(
 	owner: &T::AccountId,
 ) -> (T::ClassId, T::TokenId, T::TokenId) {
-	let class_id = Default::default();
-	let token_id = Default::default();
 	let quantity = One::one();
-	assert!(NFT::<T, I>::create_class(
+	let permission = ClassPermission(
+		Permission::Burnable | Permission::Transferable | Permission::DelegateMintable,
+	);
+	assert_ok!(NFT::<T, I>::create_class(
 		SystemOrigin::Signed(owner.clone()).into(),
-		class_id,
 		vec![0, 0, 0],
-		rate(10)
-	)
-	.is_ok());
+		rate(10),
+		permission,
+	));
+	let class_id = NextClassId::<T, I>::get().saturating_sub(One::one());
 	let to: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
-	assert!(NFT::<T, I>::mint(
+	assert_ok!(NFT::<T, I>::mint(
 		SystemOrigin::Signed(owner.clone()).into(),
 		to,
 		class_id,
-		token_id,
 		quantity,
 		vec![0, 0, 0],
 		None,
 		None
-	)
-	.is_ok());
+	));
+	let token_id = NextTokenId::<T, I>::get(&class_id).saturating_sub(One::one());
 	(class_id, token_id, quantity)
 }
 

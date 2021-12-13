@@ -3,17 +3,19 @@
 use super::*;
 use crate::mock::*;
 use frame_support::{assert_err, assert_ok};
+use pallet_nft::{ClassPermission, Error as NFTError, Permission};
 
 fn prepare_token() {
-	assert_ok!(NFT::create_class(Origin::signed(1), 0, vec![], rate(10)));
-	assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 42, 1, vec![], None, None));
+	let permission = ClassPermission(Permission::Burnable | Permission::Transferable);
+	assert_ok!(NFT::create_class(Origin::signed(1), vec![], rate(10), permission));
+	assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 1, vec![], None, None));
 }
 
 fn create_dutch_auction() -> u32 {
 	Balances::make_free_balance_be(&1, 100);
 	prepare_token();
 	let auction_id: u32 = CurrentAuctionId::<Test>::get();
-	assert_ok!(NFTAuction::create_dutch(Origin::signed(1), 0, 42, 1, 20, 80, 1200, None));
+	assert_ok!(NFTAuction::create_dutch(Origin::signed(1), 0, 0, 1, 20, 80, 1200, None));
 	return auction_id
 }
 
@@ -21,7 +23,7 @@ fn create_english_auction() -> u32 {
 	Balances::make_free_balance_be(&1, 100);
 	prepare_token();
 	let auction_id: u32 = CurrentAuctionId::<Test>::get();
-	assert_ok!(NFTAuction::create_english(Origin::signed(1), 0, 42, 1, 20, 1, 1200, None));
+	assert_ok!(NFTAuction::create_english(Origin::signed(1), 0, 0, 1, 20, 1, 1200, None));
 	return auction_id
 }
 
@@ -39,28 +41,27 @@ fn create_dutch_auction_should_work() {
 		// should work and reserve balance
 		assert_eq!(Balances::reserved_balance(&1), 3);
 		let auction_id: u32 = CurrentAuctionId::<Test>::get();
-		assert_ok!(NFTAuction::create_dutch(Origin::signed(1), 0, 42, 1, 20, 80, 1200, None));
+		assert_ok!(NFTAuction::create_dutch(Origin::signed(1), 0, 0, 1, 20, 80, 1200, None));
 		assert_eq!(Balances::reserved_balance(&1), 13);
-		assert_eq!(token_info(1, 0, 42), (0, 1));
-		assert_eq!(Auctions::<Test>::get(0, 42).unwrap(), auction_id);
+		assert_eq!(token_info(1, 0, 0), (0, 1));
+		assert_eq!(Auctions::<Test>::get(0, 0).unwrap(), auction_id);
 
 		// Failed when nft not found
 		assert_err!(
-			NFTAuction::create_dutch(Origin::signed(1), 1, 42, 1, 20, 80, 1200, None),
-			Error::<Test>::InvalidNFT
+			NFTAuction::create_dutch(Origin::signed(1), 1, 0, 1, 20, 80, 1200, None),
+			NFTError::<Test>::TokenNotFound,
 		);
 
 		// Failed when deadline lt T::MinDeadline
-
-		assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 43, 1, vec![], None, None));
+		assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 1, vec![], None, None));
 		assert_err!(
-			NFTAuction::create_dutch(Origin::signed(1), 0, 43, 1, 20, 80, 100, None),
+			NFTAuction::create_dutch(Origin::signed(1), 0, 1, 1, 20, 80, 100, None),
 			Error::<Test>::InvalidDeadline
 		);
 
 		// Failed when price is invalid
 		assert_err!(
-			NFTAuction::create_dutch(Origin::signed(1), 0, 43, 1, 80, 80, 1200, None),
+			NFTAuction::create_dutch(Origin::signed(1), 0, 1, 1, 80, 80, 1200, None),
 			Error::<Test>::InvalidPrice
 		);
 	});
@@ -103,7 +104,7 @@ fn bid_dutch_auction_with_max_price_should_work() {
 
 		Balances::make_free_balance_be(&2, 100);
 		assert_ok!(NFTAuction::bid_dutch(Origin::signed(2), auction_id, Some(80)));
-		assert_eq!(token_info(2, 0, 42), (1, 0));
+		assert_eq!(token_info(2, 0, 0), (1, 0));
 		assert_eq!(Balances::free_balance(&2), 20);
 	});
 }
@@ -119,7 +120,7 @@ fn bid_dutch_auction_again_with_max_price_should_work() {
 
 		Balances::make_free_balance_be(&3, 100);
 		assert_ok!(NFTAuction::bid_dutch(Origin::signed(3), auction_id, Some(80)));
-		assert_eq!(token_info(3, 0, 42), (1, 0));
+		assert_eq!(token_info(3, 0, 0), (1, 0));
 	});
 }
 
@@ -196,7 +197,7 @@ fn bid_dutch_auction_with_open_at_should_work() {
 		Balances::make_free_balance_be(&1, 100);
 		prepare_token();
 		let auction_id: u32 = CurrentAuctionId::<Test>::get();
-		assert_ok!(NFTAuction::create_dutch(Origin::signed(1), 0, 42, 1, 20, 80, 1200, Some(600)));
+		assert_ok!(NFTAuction::create_dutch(Origin::signed(1), 0, 0, 1, 20, 80, 1200, Some(600)));
 
 		Balances::make_free_balance_be(&2, 100);
 		assert_err!(
@@ -220,7 +221,7 @@ fn redeem_dutch_auction_should_work() {
 		assert_ok!(NFTAuction::bid_dutch(Origin::signed(2), auction_id, None));
 		run_to_block(662);
 		assert_ok!(NFTAuction::redeem_dutch(Origin::signed(2), auction_id));
-		assert_eq!(token_info(2, 0, 42), (1, 0));
+		assert_eq!(token_info(2, 0, 0), (1, 0));
 		assert_eq!(Balances::free_balance(&2), 50);
 	});
 }
@@ -263,7 +264,7 @@ fn cancel_dutch_auction_should_work() {
 	new_test_ext().execute_with(|| {
 		let auction_id = create_dutch_auction();
 		assert_ok!(NFTAuction::cancel_dutch(Origin::signed(1), auction_id));
-		assert_eq!(token_info(1, 0, 42), (1, 0));
+		assert_eq!(token_info(1, 0, 0), (1, 0));
 	});
 }
 
@@ -300,21 +301,21 @@ fn create_english_auction_should_work() {
 		// should work and reserve balance
 		assert_eq!(Balances::reserved_balance(&1), 3);
 		let auction_id: u32 = CurrentAuctionId::<Test>::get();
-		assert_ok!(NFTAuction::create_english(Origin::signed(1), 0, 42, 1, 20, 1, 1200, None));
+		assert_ok!(NFTAuction::create_english(Origin::signed(1), 0, 0, 1, 20, 1, 1200, None));
 		assert_eq!(Balances::reserved_balance(&1), 13);
-		assert_eq!(token_info(1, 0, 42), (0, 1));
-		assert_eq!(Auctions::<Test>::get(0, 42).unwrap(), auction_id);
+		assert_eq!(token_info(1, 0, 0), (0, 1));
+		assert_eq!(Auctions::<Test>::get(0, 0).unwrap(), auction_id);
 
 		// Failed when nft not found
 		assert_err!(
-			NFTAuction::create_english(Origin::signed(1), 1, 42, 1, 20, 1, 1200, None),
-			Error::<Test>::InvalidNFT
+			NFTAuction::create_english(Origin::signed(1), 1, 0, 1, 20, 1, 1200, None),
+			NFTError::<Test>::TokenNotFound,
 		);
 
 		// Failed when deadline lt T::MinDeadline
-		assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 43, 1, vec![], None, None));
+		assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 1, vec![], None, None));
 		assert_err!(
-			NFTAuction::create_english(Origin::signed(1), 0, 43, 1, 20, 1, 100, None),
+			NFTAuction::create_english(Origin::signed(1), 0, 1, 1, 20, 1, 100, None),
 			Error::<Test>::InvalidDeadline
 		);
 	});
@@ -402,7 +403,7 @@ fn bid_english_auction_with_open_at_should_work() {
 		Balances::make_free_balance_be(&1, 100);
 		prepare_token();
 		let auction_id: u32 = CurrentAuctionId::<Test>::get();
-		assert_ok!(NFTAuction::create_english(Origin::signed(1), 0, 42, 1, 20, 1, 1200, Some(600)));
+		assert_ok!(NFTAuction::create_english(Origin::signed(1), 0, 0, 1, 20, 1, 1200, Some(600)));
 
 		Balances::make_free_balance_be(&2, 100);
 		assert_err!(
@@ -428,7 +429,7 @@ fn redeem_english_auction_should_work() {
 		run_to_block(1201);
 		assert_ok!(NFTAuction::redeem_english(Origin::signed(2), auction_id));
 		assert_eq!(Balances::reserved_balance(&2), 0);
-		assert_eq!(token_info(2, 0, 42), (1, 0));
+		assert_eq!(token_info(2, 0, 0), (1, 0));
 		assert_eq!(Balances::free_balance(&2), 80);
 	});
 }
@@ -477,7 +478,7 @@ fn cancel_english_auction_should_work() {
 	new_test_ext().execute_with(|| {
 		let auction_id = create_english_auction();
 		assert_ok!(NFTAuction::cancel_english(Origin::signed(1), auction_id));
-		assert_eq!(token_info(1, 0, 42), (1, 0));
+		assert_eq!(token_info(1, 0, 0), (1, 0));
 	});
 }
 
