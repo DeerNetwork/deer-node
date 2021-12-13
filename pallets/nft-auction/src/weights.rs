@@ -63,18 +63,17 @@ pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: NFT TokensByOwner (r:1 w:1)
 	// Storage: NFT Classes (r:1 w:0)
-	// Storage: NFTAuction CurrentAuctionId (r:1 w:1)
+	// Storage: NFTAuction NextAuctionId (r:1 w:1)
 	// Storage: NFTAuction DutchAuctions (r:0 w:1)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn create_dutch() -> Weight {
-		(58_450_000 as Weight)
+		(58_507_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	// Storage: NFTAuction DutchAuctions (r:1 w:0)
 	// Storage: NFTAuction DutchAuctionBids (r:1 w:1)
 	fn bid_dutch() -> Weight {
-		(48_157_000 as Weight)
+		(50_954_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -83,35 +82,32 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: NFT Tokens (r:1 w:0)
 	// Storage: NFT TokensByOwner (r:2 w:2)
 	// Storage: NFT OwnersByToken (r:0 w:2)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn redeem_dutch() -> Weight {
-		(160_600_000 as Weight)
+		(160_902_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
 	// Storage: NFTAuction DutchAuctions (r:1 w:1)
 	// Storage: NFTAuction DutchAuctionBids (r:1 w:1)
 	// Storage: NFT TokensByOwner (r:1 w:1)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn cancel_dutch() -> Weight {
-		(56_739_000 as Weight)
+		(56_988_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	// Storage: NFT TokensByOwner (r:1 w:1)
 	// Storage: NFT Classes (r:1 w:0)
-	// Storage: NFTAuction CurrentAuctionId (r:1 w:1)
+	// Storage: NFTAuction NextAuctionId (r:1 w:1)
 	// Storage: NFTAuction EnglishAuctions (r:0 w:1)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn create_english() -> Weight {
-		(58_693_000 as Weight)
+		(59_102_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	// Storage: NFTAuction EnglishAuctions (r:1 w:0)
 	// Storage: NFTAuction EnglishAuctionBids (r:1 w:1)
 	fn bid_english() -> Weight {
-		(47_811_000 as Weight)
+		(50_527_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -120,20 +116,18 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: NFT Tokens (r:1 w:0)
 	// Storage: NFT TokensByOwner (r:2 w:2)
 	// Storage: NFT OwnersByToken (r:0 w:2)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn redeem_english() -> Weight {
-		(159_250_000 as Weight)
+		(160_026_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
 	// Storage: NFTAuction EnglishAuctions (r:1 w:1)
 	// Storage: NFTAuction EnglishAuctionBids (r:1 w:1)
 	// Storage: NFT TokensByOwner (r:1 w:1)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn cancel_english() -> Weight {
-		(56_774_000 as Weight)
+		(56_881_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 }
 
@@ -141,18 +135,17 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 impl WeightInfo for () {
 	// Storage: NFT TokensByOwner (r:1 w:1)
 	// Storage: NFT Classes (r:1 w:0)
-	// Storage: NFTAuction CurrentAuctionId (r:1 w:1)
+	// Storage: NFTAuction NextAuctionId (r:1 w:1)
 	// Storage: NFTAuction DutchAuctions (r:0 w:1)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn create_dutch() -> Weight {
-		(58_450_000 as Weight)
+		(58_507_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
 	}
 	// Storage: NFTAuction DutchAuctions (r:1 w:0)
 	// Storage: NFTAuction DutchAuctionBids (r:1 w:1)
 	fn bid_dutch() -> Weight {
-		(48_157_000 as Weight)
+		(50_954_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
@@ -161,35 +154,32 @@ impl WeightInfo for () {
 	// Storage: NFT Tokens (r:1 w:0)
 	// Storage: NFT TokensByOwner (r:2 w:2)
 	// Storage: NFT OwnersByToken (r:0 w:2)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn redeem_dutch() -> Weight {
-		(160_600_000 as Weight)
+		(160_902_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(7 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(6 as Weight))
 	}
 	// Storage: NFTAuction DutchAuctions (r:1 w:1)
 	// Storage: NFTAuction DutchAuctionBids (r:1 w:1)
 	// Storage: NFT TokensByOwner (r:1 w:1)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn cancel_dutch() -> Weight {
-		(56_739_000 as Weight)
+		(56_988_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
 	}
 	// Storage: NFT TokensByOwner (r:1 w:1)
 	// Storage: NFT Classes (r:1 w:0)
-	// Storage: NFTAuction CurrentAuctionId (r:1 w:1)
+	// Storage: NFTAuction NextAuctionId (r:1 w:1)
 	// Storage: NFTAuction EnglishAuctions (r:0 w:1)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn create_english() -> Weight {
-		(58_693_000 as Weight)
+		(59_102_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
 	}
 	// Storage: NFTAuction EnglishAuctions (r:1 w:0)
 	// Storage: NFTAuction EnglishAuctionBids (r:1 w:1)
 	fn bid_english() -> Weight {
-		(47_811_000 as Weight)
+		(50_527_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
@@ -198,19 +188,17 @@ impl WeightInfo for () {
 	// Storage: NFT Tokens (r:1 w:0)
 	// Storage: NFT TokensByOwner (r:2 w:2)
 	// Storage: NFT OwnersByToken (r:0 w:2)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn redeem_english() -> Weight {
-		(159_250_000 as Weight)
+		(160_026_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(7 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(6 as Weight))
 	}
 	// Storage: NFTAuction EnglishAuctions (r:1 w:1)
 	// Storage: NFTAuction EnglishAuctionBids (r:1 w:1)
 	// Storage: NFT TokensByOwner (r:1 w:1)
-	// Storage: NFTAuction Auctions (r:0 w:1)
 	fn cancel_english() -> Weight {
-		(56_774_000 as Weight)
+		(56_881_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
 	}
 }

@@ -58,30 +58,28 @@ pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: NFT TokensByOwner (r:1 w:1)
 	// Storage: NFT Classes (r:1 w:0)
-	// Storage: NFTOrder AccountOrders (r:1 w:1)
+	// Storage: NFTOrder NextOrderId (r:1 w:1)
 	// Storage: NFTOrder Orders (r:0 w:1)
 	fn sell() -> Weight {
-		(58_898_000 as Weight)
+		(56_860_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	// Storage: NFTOrder Orders (r:1 w:1)
 	// Storage: NFT Tokens (r:1 w:0)
 	// Storage: NFT TokensByOwner (r:2 w:2)
-	// Storage: NFTOrder AccountOrders (r:1 w:1)
 	// Storage: NFT OwnersByToken (r:0 w:2)
 	fn deal() -> Weight {
-		(129_977_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+		(120_785_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(4 as Weight))
+			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
 	// Storage: NFTOrder Orders (r:1 w:1)
 	// Storage: NFT TokensByOwner (r:1 w:1)
-	// Storage: NFTOrder AccountOrders (r:1 w:1)
 	fn remove() -> Weight {
-		(55_179_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		(47_244_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(2 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
 }
 
@@ -89,29 +87,27 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 impl WeightInfo for () {
 	// Storage: NFT TokensByOwner (r:1 w:1)
 	// Storage: NFT Classes (r:1 w:0)
-	// Storage: NFTOrder AccountOrders (r:1 w:1)
+	// Storage: NFTOrder NextOrderId (r:1 w:1)
 	// Storage: NFTOrder Orders (r:0 w:1)
 	fn sell() -> Weight {
-		(58_898_000 as Weight)
+		(56_860_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
 	}
 	// Storage: NFTOrder Orders (r:1 w:1)
 	// Storage: NFT Tokens (r:1 w:0)
 	// Storage: NFT TokensByOwner (r:2 w:2)
-	// Storage: NFTOrder AccountOrders (r:1 w:1)
 	// Storage: NFT OwnersByToken (r:0 w:2)
 	fn deal() -> Weight {
-		(129_977_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(6 as Weight))
+		(120_785_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(4 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(5 as Weight))
 	}
 	// Storage: NFTOrder Orders (r:1 w:1)
 	// Storage: NFT TokensByOwner (r:1 w:1)
-	// Storage: NFTOrder AccountOrders (r:1 w:1)
 	fn remove() -> Weight {
-		(55_179_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
+		(47_244_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(2 as Weight))
 	}
 }

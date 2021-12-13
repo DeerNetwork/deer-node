@@ -63,7 +63,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: NFT NextClassId (r:1 w:1)
 	// Storage: NFT Classes (r:0 w:1)
 	fn create_class() -> Weight {
-		(39_764_000 as Weight)
+		(39_590_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
@@ -73,7 +73,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: NFT OwnersByToken (r:0 w:1)
 	// Storage: NFT TokensByOwner (r:0 w:1)
 	fn mint() -> Weight {
-		(53_827_000 as Weight)
+		(54_983_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
@@ -83,7 +83,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: NFT OwnersByToken (r:0 w:1)
 	// Storage: NFT TokensByOwner (r:0 w:1)
 	fn delegate_mint() -> Weight {
-		(52_385_000 as Weight)
+		(54_491_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
@@ -92,27 +92,27 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: NFT TokensByOwner (r:1 w:1)
 	// Storage: NFT OwnersByToken (r:0 w:1)
 	fn burn() -> Weight {
-		(53_586_000 as Weight)
+		(55_430_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	// Storage: NFT Tokens (r:1 w:1)
 	// Storage: NFT TokensByOwner (r:1 w:0)
 	fn update_token_royalty() -> Weight {
-		(14_377_000 as Weight)
+		(14_529_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: NFT Tokens (r:1 w:1)
 	fn update_token_royalty_beneficiary() -> Weight {
-		(9_809_000 as Weight)
+		(10_012_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: NFT TokensByOwner (r:2 w:2)
 	// Storage: NFT OwnersByToken (r:0 w:2)
 	fn transfer() -> Weight {
-		(33_274_000 as Weight)
+		(33_422_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
@@ -123,7 +123,7 @@ impl WeightInfo for () {
 	// Storage: NFT NextClassId (r:1 w:1)
 	// Storage: NFT Classes (r:0 w:1)
 	fn create_class() -> Weight {
-		(39_764_000 as Weight)
+		(39_590_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(2 as Weight))
 	}
@@ -133,7 +133,7 @@ impl WeightInfo for () {
 	// Storage: NFT OwnersByToken (r:0 w:1)
 	// Storage: NFT TokensByOwner (r:0 w:1)
 	fn mint() -> Weight {
-		(53_827_000 as Weight)
+		(54_983_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(5 as Weight))
 	}
@@ -143,7 +143,7 @@ impl WeightInfo for () {
 	// Storage: NFT OwnersByToken (r:0 w:1)
 	// Storage: NFT TokensByOwner (r:0 w:1)
 	fn delegate_mint() -> Weight {
-		(52_385_000 as Weight)
+		(54_491_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(5 as Weight))
 	}
@@ -152,27 +152,27 @@ impl WeightInfo for () {
 	// Storage: NFT TokensByOwner (r:1 w:1)
 	// Storage: NFT OwnersByToken (r:0 w:1)
 	fn burn() -> Weight {
-		(53_586_000 as Weight)
+		(55_430_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
 	}
 	// Storage: NFT Tokens (r:1 w:1)
 	// Storage: NFT TokensByOwner (r:1 w:0)
 	fn update_token_royalty() -> Weight {
-		(14_377_000 as Weight)
+		(14_529_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
 	// Storage: NFT Tokens (r:1 w:1)
 	fn update_token_royalty_beneficiary() -> Weight {
-		(9_809_000 as Weight)
+		(10_012_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
 	// Storage: NFT TokensByOwner (r:2 w:2)
 	// Storage: NFT OwnersByToken (r:0 w:2)
 	fn transfer() -> Weight {
-		(33_274_000 as Weight)
+		(33_422_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
 	}
