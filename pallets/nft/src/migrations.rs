@@ -145,6 +145,7 @@ pub mod v2 {
 				metadata,
 				deposit: p.deposit,
 				quantity: One::one(),
+				consumers: 0,
 				royalty_rate: p.royalty_rate,
 				royalty_beneficiary: p.royalty_beneficiary,
 			};

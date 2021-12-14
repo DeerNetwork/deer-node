@@ -65,6 +65,9 @@ pub enum Permission {
 	DelegateMintable = 0b00000100,
 }
 
+/// Type used to encode the number of references an token has.
+pub type RefCount = u32;
+
 #[derive(Clone, Copy, PartialEq, Default, RuntimeDebug)]
 pub struct ClassPermission(pub BitFlags<Permission>);
 
@@ -128,6 +131,9 @@ pub struct TokenDetails<AccountId, Balance, TokenId> {
 	/// Token's amount.
 	#[codec(compact)]
 	pub quantity: TokenId,
+	/// The number of other modules that currently depend on this token's existence. The account
+	/// cannot be burend until this is zero.
+	pub consumers: RefCount,
 	/// Royalty rate
 	#[codec(compact)]
 	pub royalty_rate: Perbill,
@@ -193,6 +199,7 @@ pub mod pallet {
 
 	/// Store class info.
 	#[pallet::storage]
+	#[pallet::getter(fn classes)]
 	pub type Classes<T: Config<I>, I: 'static = ()> = StorageMap<
 		_,
 		Twox64Concat,
@@ -202,6 +209,7 @@ pub mod pallet {
 
 	/// Store token info.
 	#[pallet::storage]
+	#[pallet::getter(fn tokens)]
 	pub type Tokens<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
 		_,
 		Twox64Concat,
@@ -277,6 +285,8 @@ pub mod pallet {
 		InvalidQuantity,
 		/// Num overflow
 		NumOverflow,
+		/// At least one consumer is remaining so the token cannot be burend.
+		ConsumerRemaining,
 	}
 
 	#[pallet::genesis_config]
@@ -473,6 +483,8 @@ pub mod pallet {
 					},
 				)?;
 
+				ensure!(token_details.consumers == 0, Error::<T, I>::ConsumerRemaining);
+
 				if token_details.quantity.is_zero() {
 					T::Currency::unreserve(&class_details.owner, token_details.deposit);
 					class_details.total_tokens = class_details
@@ -668,6 +680,22 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		Ok(())
 	}
 
+	pub fn inc_consumers(class_id: T::ClassId, token_id: T::TokenId) -> DispatchResult {
+		Tokens::<T, I>::try_mutate(class_id, token_id, |maybe_token| {
+			let token = maybe_token.as_mut().ok_or(Error::<T, I>::TokenNotFound)?;
+			token.consumers = token.consumers.saturating_add(1);
+			Ok(())
+		})
+	}
+
+	pub fn dec_consumers(class_id: T::ClassId, token_id: T::TokenId) -> DispatchResult {
+		Tokens::<T, I>::try_mutate(class_id, token_id, |maybe_token| {
+			let token = maybe_token.as_mut().ok_or(Error::<T, I>::TokenNotFound)?;
+			token.consumers = token.consumers.saturating_sub(1);
+			Ok(())
+		})
+	}
+
 	pub fn reserve(
 		class_id: T::ClassId,
 		token_id: T::TokenId,
@@ -720,7 +748,6 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		tax_ratio: Perbill,
 	) -> DispatchResult {
 		let token = Tokens::<T, I>::get(class_id, token_id).ok_or(Error::<T, I>::TokenNotFound)?;
-		Self::unreserve(class_id, token_id, quantity, from)?;
 		Self::transfer_token(class_id, token_id, quantity, from, to)?;
 		let mut royalty_fee = token.royalty_rate * price;
 		if royalty_fee < T::Currency::minimum_balance() &&
@@ -792,6 +819,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 				metadata,
 				deposit,
 				quantity,
+				consumers: 0,
 				royalty_rate,
 				royalty_beneficiary: royalty_beneficiary.unwrap_or(to.clone()),
 			};
@@ -811,7 +839,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 				who.clone(),
 			));
 
-			Ok(().into())
+			Ok(())
 		})
 	}
 }

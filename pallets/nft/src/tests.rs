@@ -230,6 +230,19 @@ fn reserve_unreserve_should_work() {
 }
 
 #[test]
+fn consumer_should_work() {
+	new_test_ext().execute_with(|| {
+		Balances::make_free_balance_be(&1, 100);
+		add_class(1);
+		add_token(1, 0);
+		assert_ok!(NFT::inc_consumers(0, 0));
+		assert_err!(NFT::burn(Origin::signed(1), 0, 0, 2), Error::<Test>::ConsumerRemaining);
+		assert_ok!(NFT::dec_consumers(0, 0));
+		assert_ok!(NFT::burn(Origin::signed(1), 0, 0, 2));
+	});
+}
+
+#[test]
 fn swap_should_work() {
 	new_test_ext().execute_with(|| {
 		Balances::make_free_balance_be(&1, 1000);
@@ -242,7 +255,6 @@ fn swap_should_work() {
 		let free1 = Balances::free_balance(&1);
 		let free2 = Balances::free_balance(&2);
 		let free3 = Balances::free_balance(&3);
-		assert_ok!(NFT::reserve(0, 0, 2, &2));
 		assert_ok!(NFT::swap(0, 0, 2, &2, &3, 100, rate(1)));
 		assert_eq!(OwnersByToken::<Test>::get((0, 0), 2), None);
 		assert_eq!(OwnersByToken::<Test>::get((0, 0), 3), Some(()));
