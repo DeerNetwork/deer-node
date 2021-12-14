@@ -382,7 +382,7 @@ pub mod pallet {
 		}
 
 		/// Create a offer to buy a non-fungible asset
-		#[pallet::weight(195_000_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::buy())]
 		#[transactional]
 		pub fn buy(
 			origin: OriginFor<T>,
@@ -415,7 +415,7 @@ pub mod pallet {
 		}
 
 		/// Deal an offer
-		#[pallet::weight(195_000_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::deal_offer())]
 		#[transactional]
 		pub fn deal_offer(
 			origin: OriginFor<T>,
@@ -463,7 +463,7 @@ pub mod pallet {
 		}
 
 		/// Remove an offer
-		#[pallet::weight(195_000_000)]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::remove_offer())]
 		#[transactional]
 		pub fn remove_offer(
 			origin: OriginFor<T>,
