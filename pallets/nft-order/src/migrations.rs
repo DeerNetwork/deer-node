@@ -108,7 +108,6 @@ pub mod v1 {
 			account_order_count += 1;
 		}
 
-
 		NextOrderId::<T, I>::put(next_order_id);
 
 		StorageVersion::<T, I>::put(Releases::V1);
