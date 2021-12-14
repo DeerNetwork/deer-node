@@ -58,7 +58,7 @@ fn assert_last_event<T: Config<I>, I: 'static>(generic_event: <T as Config<I>>::
 }
 
 benchmarks_instance_pallet! {
-	sell {
+	sell_order {
 		let caller: T::AccountId = account("anonymous", 0, SEED);
 		whitelist_account!(caller);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
@@ -69,7 +69,7 @@ benchmarks_instance_pallet! {
 		assert_last_event::<T, I>(Event::<T, I>::Selling(order_id, class_id, token_id, quantity, caller).into());
 	}
 
-	deal {
+	deal_order {
 		let owner: T::AccountId = account("anonymous", 0, SEED);
 		whitelist_account!(owner);
 		T::Currency::make_free_balance_be(&owner, BalanceOf::<T, I>::max_value());
@@ -78,20 +78,20 @@ benchmarks_instance_pallet! {
 		whitelist_account!(caller);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
 		let order_id = NextOrderId::<T, I>::get();
-		assert!(NFTOrder::<T, I>::sell(SystemOrigin::Signed(owner.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
+		assert!(NFTOrder::<T, I>::sell_order(SystemOrigin::Signed(owner.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
 		let order_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
 	}: _(SystemOrigin::Signed(caller.clone()), order_owner, order_id)
 	verify {
 		assert_last_event::<T, I>(Event::<T, I>::Dealed(order_id, class_id, token_id, quantity, owner, caller).into());
 	}
 
-	remove {
+	remove_order {
 		let caller: T::AccountId = account("anonymous", 0, SEED);
 		whitelist_account!(caller);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
 		let (class_id, token_id, quantity) = create_nft::<T, I>(&caller);
 		let order_id = NextOrderId::<T, I>::get();
-		assert!(NFTOrder::<T, I>::sell(SystemOrigin::Signed(caller.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
+		assert!(NFTOrder::<T, I>::sell_order(SystemOrigin::Signed(caller.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
 	}: _(SystemOrigin::Signed(caller.clone()), order_id)
 	verify {
 		assert_last_event::<T, I>(Event::<T, I>::Removed(order_id, class_id, token_id, quantity, caller).into());

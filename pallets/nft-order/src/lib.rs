@@ -201,9 +201,9 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		/// Create a order to sell a non-fungible asset
-		#[pallet::weight(<T as Config<I>>::WeightInfo::sell())]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::sell_order())]
 		#[transactional]
-		pub fn sell(
+		pub fn sell_order(
 			origin: OriginFor<T>,
 			#[pallet::compact] class_id: T::ClassId,
 			#[pallet::compact] token_id: T::TokenId,
@@ -241,9 +241,9 @@ pub mod pallet {
 		}
 
 		/// Deal an order
-		#[pallet::weight(<T as Config<I>>::WeightInfo::deal())]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::deal_order())]
 		#[transactional]
-		pub fn deal(
+		pub fn deal_order(
 			origin: OriginFor<T>,
 			order_owner: <T::Lookup as StaticLookup>::Source,
 			#[pallet::compact] order_id: T::OrderId,
@@ -294,9 +294,9 @@ pub mod pallet {
 		}
 
 		/// Remove an order
-		#[pallet::weight(<T as Config<I>>::WeightInfo::remove())]
+		#[pallet::weight(<T as Config<I>>::WeightInfo::remove_order())]
 		#[transactional]
-		pub fn remove(
+		pub fn remove_order(
 			origin: OriginFor<T>,
 			#[pallet::compact] order_id: T::OrderId,
 		) -> DispatchResult {
