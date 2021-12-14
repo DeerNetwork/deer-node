@@ -399,7 +399,9 @@ pub mod pallet {
 					Error::<T, I>::InvalidDeadline
 				);
 			}
-			pallet_nft::Pallet::<T, I>::ensure_buyable(class_id, token_id)?;
+
+			pallet_nft::Pallet::<T, I>::inc_consumers(class_id, token_id)?;
+
 			NextOfferId::<T, I>::try_mutate(|id| -> DispatchResult {
 				let offer_id = *id;
 				*id = id.checked_add(&One::one()).ok_or(Error::<T, I>::NoAvailableOfferId)?;
@@ -440,9 +442,13 @@ pub mod pallet {
 					}
 
 					T::Currency::unreserve(&buyer, offer.price);
+
 					let class_id = offer.class_id;
 					let token_id = offer.token_id;
 					let quantity = offer.quantity;
+
+					pallet_nft::Pallet::<T, I>::dec_consumers(class_id, token_id)?;
+
 					pallet_nft::Pallet::<T, I>::swap(
 						class_id,
 						token_id,
@@ -480,6 +486,8 @@ pub mod pallet {
 					let class_id = offer.class_id;
 					let token_id = offer.token_id;
 					let quantity = offer.quantity;
+
+					pallet_nft::Pallet::<T, I>::dec_consumers(class_id, token_id)?;
 
 					T::Currency::unreserve(&who, offer.price);
 
