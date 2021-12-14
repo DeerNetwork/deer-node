@@ -399,6 +399,7 @@ pub mod pallet {
 					Error::<T, I>::InvalidDeadline
 				);
 			}
+			pallet_nft::Pallet::<T, I>::ensure_buyable(class_id, token_id)?;
 			NextOfferId::<T, I>::try_mutate(|id| -> DispatchResult {
 				let offer_id = *id;
 				*id = id.checked_add(&One::one()).ok_or(Error::<T, I>::NoAvailableOfferId)?;

@@ -193,6 +193,7 @@ pub mod pallet {
 
 	/// Store class info.
 	#[pallet::storage]
+	#[pallet::getter(fn classes)]
 	pub type Classes<T: Config<I>, I: 'static = ()> = StorageMap<
 		_,
 		Twox64Concat,
@@ -202,6 +203,7 @@ pub mod pallet {
 
 	/// Store token info.
 	#[pallet::storage]
+	#[pallet::getter(fn tokens)]
 	pub type Tokens<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
 		_,
 		Twox64Concat,
@@ -665,6 +667,11 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			class_details.permission.0.contains(Permission::Transferable),
 			Error::<T, I>::NoPermission
 		);
+		Ok(())
+	}
+
+	pub fn ensure_buyable(class_id: T::ClassId, token_id: T::TokenId) -> DispatchResult {
+		Tokens::<T, I>::get(class_id, token_id).ok_or(Error::<T, I>::TokenNotFound)?;
 		Ok(())
 	}
 

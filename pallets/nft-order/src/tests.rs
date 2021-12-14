@@ -185,6 +185,11 @@ fn buy_should_work() {
 			NFTOrder::buy(Origin::signed(1), 0, 2, 1, 10, Some(2)),
 			Error::<Test>::InvalidDeadline
 		);
+		// should work with deadline
+		assert_err!(
+			NFTOrder::buy(Origin::signed(1), 0, 3, 1, 10, None),
+			NFTError::<Test>::TokenNotFound
+		);
 	})
 }
 
