@@ -1266,7 +1266,7 @@ dependencies = [
 
 [[package]]
 name = "deer-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "assert_cmd",
  "async-std",
@@ -1432,7 +1432,7 @@ dependencies = [
 
 [[package]]
 name = "deer-runtime"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "deer-primitives",
  "frame-benchmarking",
@@ -4636,7 +4636,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-nft"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -4654,7 +4654,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-nft-auction"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4672,7 +4672,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-nft-order"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4837,7 +4837,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-storage"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.13.0",
  "frame-benchmarking",

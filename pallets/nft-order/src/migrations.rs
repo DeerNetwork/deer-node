@@ -82,12 +82,12 @@ pub mod v1 {
 		);
 
 		let mut order_count = 0;
-		let mut current_order_id: T::OrderId = Zero::zero();
+		let mut next_order_id: T::OrderId = Zero::zero();
 		let mut order_map: BTreeMap<T::OrderId, (T::ClassId, T::TokenId, OldOrderDetailsOf<T, I>)> =
 			BTreeMap::new();
 		for (class_id, token_id, old_order) in OldOrders::<T, I>::drain() {
-			order_map.insert(current_order_id, (class_id, token_id, old_order));
-			current_order_id = current_order_id.saturating_add(One::one());
+			order_map.insert(next_order_id, (class_id, token_id, old_order));
+			next_order_id = next_order_id.saturating_add(One::one());
 			order_count += 1;
 		}
 
@@ -107,8 +107,6 @@ pub mod v1 {
 		for _ in AccountOrders::<T, I>::drain() {
 			account_order_count += 1;
 		}
-
-		let next_order_id = current_order_id.saturating_add(One::one());
 
 		NextOrderId::<T, I>::put(next_order_id);
 

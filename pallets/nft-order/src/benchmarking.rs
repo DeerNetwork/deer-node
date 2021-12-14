@@ -7,7 +7,7 @@ use frame_benchmarking::{
 use frame_support::assert_ok;
 use frame_system::RawOrigin as SystemOrigin;
 use sp_runtime::{
-	traits::{Bounded, One, Saturating, StaticLookup},
+	traits::{Bounded, One, StaticLookup},
 	Perbill,
 };
 use sp_std::prelude::*;
@@ -28,14 +28,15 @@ fn create_nft<T: Config<I>, I: 'static>(
 	let permission = ClassPermission(
 		Permission::Burnable | Permission::Transferable | Permission::DelegateMintable,
 	);
+	let class_id = NextClassId::<T, I>::get();
 	assert_ok!(NFT::<T, I>::create_class(
 		SystemOrigin::Signed(owner.clone()).into(),
 		vec![0, 0, 0],
 		rate(10),
 		permission,
 	));
-	let class_id = NextClassId::<T, I>::get().saturating_sub(One::one());
 	let to: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
+	let token_id = NextTokenId::<T, I>::get(&class_id);
 	assert_ok!(NFT::<T, I>::mint(
 		SystemOrigin::Signed(owner.clone()).into(),
 		to,
@@ -45,7 +46,6 @@ fn create_nft<T: Config<I>, I: 'static>(
 		None,
 		None
 	));
-	let token_id = NextTokenId::<T, I>::get(class_id).saturating_sub(One::one());
 	(class_id, token_id, quantity)
 }
 
@@ -63,9 +63,9 @@ benchmarks_instance_pallet! {
 		whitelist_account!(caller);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
 		let (class_id, token_id, quantity) = create_nft::<T, I>(&caller);
+		let order_id = NextOrderId::<T, I>::get();
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity, 10u32.into(), Some(3u32.into()))
 	verify {
-		let order_id = NextOrderId::<T, I>::get().saturating_sub(One::one());
 		assert_last_event::<T, I>(Event::<T, I>::Selling(order_id, class_id, token_id, quantity, caller).into());
 	}
 
@@ -77,9 +77,9 @@ benchmarks_instance_pallet! {
 		let caller: T::AccountId = account("target", 0, SEED);
 		whitelist_account!(caller);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
+		let order_id = NextOrderId::<T, I>::get();
 		assert!(NFTOrder::<T, I>::sell(SystemOrigin::Signed(owner.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
 		let order_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
-		let order_id = NextOrderId::<T, I>::get().saturating_sub(One::one());
 	}: _(SystemOrigin::Signed(caller.clone()), order_owner, order_id)
 	verify {
 		assert_last_event::<T, I>(Event::<T, I>::Dealed(order_id, class_id, token_id, quantity, owner, caller).into());
@@ -90,8 +90,8 @@ benchmarks_instance_pallet! {
 		whitelist_account!(caller);
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
 		let (class_id, token_id, quantity) = create_nft::<T, I>(&caller);
+		let order_id = NextOrderId::<T, I>::get();
 		assert!(NFTOrder::<T, I>::sell(SystemOrigin::Signed(caller.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
-		let order_id = NextOrderId::<T, I>::get().saturating_sub(One::one());
 	}: _(SystemOrigin::Signed(caller.clone()), order_id)
 	verify {
 		assert_last_event::<T, I>(Event::<T, I>::Removed(order_id, class_id, token_id, quantity, caller).into());
