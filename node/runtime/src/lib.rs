@@ -1015,7 +1015,7 @@ impl pallet_vesting::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ClassDeposit: Balance = 100 * DOLLARS;
+	pub const ClassDeposit: Balance = 1 * DOLLARS;
 	pub const TokenDeposit: Balance = 1 * CENTS;
 	pub const MetaDataByteDeposit: Balance = 10 * MILLICENTS;
 	pub const RoyaltyRateLimit: Perbill = Perbill::from_percent(20);
