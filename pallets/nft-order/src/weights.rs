@@ -48,7 +48,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions needed for pallet_nft_order.
 pub trait WeightInfo {
-	fn sell_order() -> Weight;
+	fn sell() -> Weight;
 	fn deal_order() -> Weight;
 	fn remove_order() -> Weight;
 }
@@ -60,7 +60,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: NFT Classes (r:1 w:0)
 	// Storage: NFTOrder NextOrderId (r:1 w:1)
 	// Storage: NFTOrder Orders (r:0 w:1)
-	fn sell_order() -> Weight {
+	fn sell() -> Weight {
 		(56_860_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
@@ -89,7 +89,7 @@ impl WeightInfo for () {
 	// Storage: NFT Classes (r:1 w:0)
 	// Storage: NFTOrder NextOrderId (r:1 w:1)
 	// Storage: NFTOrder Orders (r:0 w:1)
-	fn sell_order() -> Weight {
+	fn sell() -> Weight {
 		(56_860_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(3 as Weight))

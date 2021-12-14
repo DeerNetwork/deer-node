@@ -58,43 +58,88 @@ fn assert_last_event<T: Config<I>, I: 'static>(generic_event: <T as Config<I>>::
 }
 
 benchmarks_instance_pallet! {
-	sell_order {
-		let caller: T::AccountId = account("anonymous", 0, SEED);
-		whitelist_account!(caller);
-		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
-		let (class_id, token_id, quantity) = create_nft::<T, I>(&caller);
-		let order_id = NextOrderId::<T, I>::get();
-	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity, 10u32.into(), Some(3u32.into()))
-	verify {
-		assert_last_event::<T, I>(Event::<T, I>::Selling(order_id, class_id, token_id, quantity, caller).into());
-	}
-
-	deal_order {
-		let owner: T::AccountId = account("anonymous", 0, SEED);
+	sell {
+		let owner: T::AccountId = account("owner", 0, SEED);
 		whitelist_account!(owner);
 		T::Currency::make_free_balance_be(&owner, BalanceOf::<T, I>::max_value());
 		let (class_id, token_id, quantity) = create_nft::<T, I>(&owner);
-		let caller: T::AccountId = account("target", 0, SEED);
-		whitelist_account!(caller);
-		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
 		let order_id = NextOrderId::<T, I>::get();
-		assert!(NFTOrder::<T, I>::sell_order(SystemOrigin::Signed(owner.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
-		let order_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
-	}: _(SystemOrigin::Signed(caller.clone()), order_owner, order_id)
+	}: _(SystemOrigin::Signed(owner.clone()), class_id, token_id, quantity, 10u32.into(), Some(3u32.into()))
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::Dealed(order_id, class_id, token_id, quantity, owner, caller).into());
+		assert_last_event::<T, I>(Event::<T, I>::CreatedOrder(order_id, class_id, token_id, quantity, owner).into());
+	}
+
+	deal_order {
+		let owner: T::AccountId = account("owner", 0, SEED);
+		whitelist_account!(owner);
+		T::Currency::make_free_balance_be(&owner, BalanceOf::<T, I>::max_value());
+		let (class_id, token_id, quantity) = create_nft::<T, I>(&owner);
+		let buyer: T::AccountId = account("buyer", 0, SEED);
+		whitelist_account!(buyer);
+		T::Currency::make_free_balance_be(&buyer, BalanceOf::<T, I>::max_value());
+		let order_id = NextOrderId::<T, I>::get();
+		assert!(NFTOrder::<T, I>::sell(SystemOrigin::Signed(owner.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
+		let order_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
+	}: _(SystemOrigin::Signed(buyer.clone()), order_owner, order_id)
+	verify {
+		assert_last_event::<T, I>(Event::<T, I>::DealedOrder(order_id, class_id, token_id, quantity, owner, buyer).into());
 	}
 
 	remove_order {
-		let caller: T::AccountId = account("anonymous", 0, SEED);
-		whitelist_account!(caller);
-		T::Currency::make_free_balance_be(&caller, BalanceOf::<T, I>::max_value());
-		let (class_id, token_id, quantity) = create_nft::<T, I>(&caller);
+		let owner: T::AccountId = account("owner", 0, SEED);
+		whitelist_account!(owner);
+		T::Currency::make_free_balance_be(&owner, BalanceOf::<T, I>::max_value());
+		let (class_id, token_id, quantity) = create_nft::<T, I>(&owner);
 		let order_id = NextOrderId::<T, I>::get();
-		assert!(NFTOrder::<T, I>::sell_order(SystemOrigin::Signed(caller.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
-	}: _(SystemOrigin::Signed(caller.clone()), order_id)
+		assert!(NFTOrder::<T, I>::sell(SystemOrigin::Signed(owner.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
+	}: _(SystemOrigin::Signed(owner.clone()), order_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::Removed(order_id, class_id, token_id, quantity, caller).into());
+		assert_last_event::<T, I>(Event::<T, I>::RemovedOrder(order_id, class_id, token_id, quantity, owner).into());
+	}
+
+	buy {
+		let owner: T::AccountId = account("owner", 0, SEED);
+		whitelist_account!(owner);
+		T::Currency::make_free_balance_be(&owner, BalanceOf::<T, I>::max_value());
+		let (class_id, token_id, quantity) = create_nft::<T, I>(&owner);
+		let buyer: T::AccountId = account("buyer", 0, SEED);
+		whitelist_account!(buyer);
+		T::Currency::make_free_balance_be(&buyer, BalanceOf::<T, I>::max_value());
+		let offer_id = NextOfferId::<T, I>::get();
+	}: _(SystemOrigin::Signed(buyer.clone()), class_id, token_id, quantity, 10u32.into(), Some(3u32.into()))
+	verify {
+		assert_last_event::<T, I>(Event::<T, I>::CreatedOffer(offer_id, class_id, token_id, quantity, buyer).into());
+	}
+
+	deal_offer {
+		let owner: T::AccountId = account("owner", 0, SEED);
+		whitelist_account!(owner);
+		T::Currency::make_free_balance_be(&owner, BalanceOf::<T, I>::max_value());
+		let (class_id, token_id, quantity) = create_nft::<T, I>(&owner);
+		let buyer: T::AccountId = account("buyer", 0, SEED);
+		whitelist_account!(buyer);
+		T::Currency::make_free_balance_be(&buyer, BalanceOf::<T, I>::max_value());
+		let offer_id = NextOfferId::<T, I>::get();
+		assert!(NFTOrder::<T, I>::buy(SystemOrigin::Signed(buyer.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
+		let offer_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(buyer.clone());
+	}: _(SystemOrigin::Signed(owner.clone()), offer_owner, offer_id)
+	verify {
+		assert_last_event::<T, I>(Event::<T, I>::DealedOffer(offer_id, class_id, token_id, quantity, buyer, owner).into());
+	}
+
+	remove_offer {
+		let owner: T::AccountId = account("owner", 0, SEED);
+		whitelist_account!(owner);
+		T::Currency::make_free_balance_be(&owner, BalanceOf::<T, I>::max_value());
+		let (class_id, token_id, quantity) = create_nft::<T, I>(&owner);
+		let buyer: T::AccountId = account("buyer", 0, SEED);
+		whitelist_account!(buyer);
+		T::Currency::make_free_balance_be(&buyer, BalanceOf::<T, I>::max_value());
+		let offer_id = NextOfferId::<T, I>::get();
+		assert!(NFTOrder::<T, I>::buy(SystemOrigin::Signed(buyer.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
+	}: _(SystemOrigin::Signed(buyer.clone()), offer_id)
+	verify {
+		assert_last_event::<T, I>(Event::<T, I>::RemovedOffer(offer_id, class_id, token_id, quantity, buyer).into());
 	}
 }
 

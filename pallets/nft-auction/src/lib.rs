@@ -593,10 +593,14 @@ pub mod pallet {
 			);
 			T::Currency::unreserve(&bid.account, bid.price);
 
+			let class_id = auction.class_id;
+			let token_id = auction.token_id;
+			let quantity = auction.quantity;
+			pallet_nft::Pallet::<T, I>::unreserve(class_id, token_id, quantity, &auction_owner)?;
 			pallet_nft::Pallet::<T, I>::swap(
-				auction.class_id,
-				auction.token_id,
-				auction.quantity,
+				class_id,
+				token_id,
+				quantity,
 				&auction_owner,
 				&bid.account,
 				bid.price,
@@ -660,10 +664,14 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		auction: &DutchAuctionOf<T, I>,
 		bid: &AuctionBidOf<T, I>,
 	) -> DispatchResult {
+		let class_id = auction.class_id;
+		let token_id = auction.token_id;
+		let quantity = auction.quantity;
+		pallet_nft::Pallet::<T, I>::unreserve(class_id, token_id, quantity, auction_owner)?;
 		pallet_nft::Pallet::<T, I>::swap(
-			auction.class_id,
-			auction.token_id,
-			auction.quantity,
+			class_id,
+			token_id,
+			quantity,
 			auction_owner,
 			&bid.account,
 			bid.price,

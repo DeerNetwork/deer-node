@@ -242,7 +242,6 @@ fn swap_should_work() {
 		let free1 = Balances::free_balance(&1);
 		let free2 = Balances::free_balance(&2);
 		let free3 = Balances::free_balance(&3);
-		assert_ok!(NFT::reserve(0, 0, 2, &2));
 		assert_ok!(NFT::swap(0, 0, 2, &2, &3, 100, rate(1)));
 		assert_eq!(OwnersByToken::<Test>::get((0, 0), 2), None);
 		assert_eq!(OwnersByToken::<Test>::get((0, 0), 3), Some(()));

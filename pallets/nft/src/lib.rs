@@ -720,7 +720,6 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		tax_ratio: Perbill,
 	) -> DispatchResult {
 		let token = Tokens::<T, I>::get(class_id, token_id).ok_or(Error::<T, I>::TokenNotFound)?;
-		Self::unreserve(class_id, token_id, quantity, from)?;
 		Self::transfer_token(class_id, token_id, quantity, from, to)?;
 		let mut royalty_fee = token.royalty_rate * price;
 		if royalty_fee < T::Currency::minimum_balance() &&
