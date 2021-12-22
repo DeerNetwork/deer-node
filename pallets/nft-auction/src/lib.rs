@@ -326,9 +326,12 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 
 			pallet_nft::Pallet::<T, I>::ensure_transferable(class_id, token_id, quantity, &who)?;
-			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
 			ensure!(max_price > min_price, Error::<T, I>::InvalidPrice);
 			let now = frame_system::Pallet::<T>::block_number();
+			ensure!(
+				deadline >= now.saturating_add(T::MinDeadline::get()),
+				Error::<T, I>::InvalidDeadline
+			);
 			let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
 
 			let deposit = T::AuctionDeposit::get();
@@ -492,8 +495,11 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 
 			pallet_nft::Pallet::<T, I>::ensure_transferable(class_id, token_id, quantity, &who)?;
-			ensure!(deadline >= T::MinDeadline::get(), Error::<T, I>::InvalidDeadline);
 			let now = frame_system::Pallet::<T>::block_number();
+			ensure!(
+				deadline >= now.saturating_add(T::MinDeadline::get()),
+				Error::<T, I>::InvalidDeadline
+			);
 			let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
 
 			let deposit = T::AuctionDeposit::get();
