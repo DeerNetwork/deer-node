@@ -261,7 +261,6 @@ pub mod pallet {
 		MissDutchBidPrice,
 		InvalidBidPrice,
 		InsufficientFunds,
-		NotBidAccount,
 		CannotRedeemNow,
 		CannotRemoveAuction,
 	}
@@ -439,13 +438,12 @@ pub mod pallet {
 			auction_owner: <T::Lookup as StaticLookup>::Source,
 			#[pallet::compact] auction_id: T::AuctionId,
 		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
+			let _ = ensure_signed(origin)?;
 			let auction_owner = T::Lookup::lookup(auction_owner)?;
 			let auction = DutchAuctions::<T, I>::get(&auction_owner, auction_id)
 				.ok_or(Error::<T, I>::AuctionNotFound)?;
 			let bid = DutchAuctionBids::<T, I>::get(auction_id)
 				.ok_or(Error::<T, I>::AuctionBidNotFound)?;
-			ensure!(bid.account == who, Error::<T, I>::NotBidAccount);
 			let now = frame_system::Pallet::<T>::block_number();
 			ensure!(
 				bid.bid_at.saturating_add(T::DelayOfAuction::get()) < now,
@@ -585,13 +583,12 @@ pub mod pallet {
 			auction_owner: <T::Lookup as StaticLookup>::Source,
 			#[pallet::compact] auction_id: T::AuctionId,
 		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
+			let _ = ensure_signed(origin)?;
 			let auction_owner = T::Lookup::lookup(auction_owner)?;
 			let auction = EnglishAuctions::<T, I>::get(&auction_owner, auction_id)
 				.ok_or(Error::<T, I>::AuctionNotFound)?;
 			let bid = EnglishAuctionBids::<T, I>::get(auction_id)
 				.ok_or(Error::<T, I>::AuctionBidNotFound)?;
-			ensure!(bid.account == who, Error::<T, I>::NotBidAccount);
 			let now = frame_system::Pallet::<T>::block_number();
 			ensure!(
 				bid.bid_at.saturating_add(T::DelayOfAuction::get()) < now && auction.deadline < now,

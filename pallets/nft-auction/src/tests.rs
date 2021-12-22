@@ -250,10 +250,7 @@ fn redeem_dutch_auction_should_fail() {
 
 		run_to_block(662);
 		Balances::make_free_balance_be(&3, 100);
-		assert_err!(
-			NFTAuction::redeem_dutch(Origin::signed(3), 1, auction_id),
-			Error::<Test>::NotBidAccount
-		);
+		assert_ok!(NFTAuction::redeem_dutch(Origin::signed(3), 1, auction_id));
 	});
 }
 
@@ -462,10 +459,7 @@ fn redeem_english_auction_should_fail() {
 
 		run_to_block(1201);
 		Balances::make_free_balance_be(&3, 100);
-		assert_err!(
-			NFTAuction::redeem_english(Origin::signed(3), 1, auction_id),
-			Error::<Test>::NotBidAccount
-		);
+		assert_ok!(NFTAuction::redeem_english(Origin::signed(3), 1, auction_id));
 	});
 }
 
