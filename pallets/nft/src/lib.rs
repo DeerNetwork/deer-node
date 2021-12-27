@@ -124,6 +124,8 @@ pub struct ClassDetails<AccountId, Balance, TokenId> {
 /// Information concerning the ownership of token.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct TokenDetails<AccountId, Balance, TokenId> {
+	/// The creator of this class.
+	pub creator: AccountId,
 	/// Token metadata
 	pub metadata: Vec<u8>,
 	/// The total balance deposited for this asset class.
@@ -816,6 +818,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			T::Currency::reserve(&class_details.owner, deposit)?;
 
 			let token_details = TokenDetails {
+				creator: who.clone(),
 				metadata,
 				deposit,
 				quantity,

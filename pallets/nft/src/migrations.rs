@@ -142,6 +142,7 @@ pub mod v2 {
 			let (metadata, count) = attributes_to_metadata::<T, I>(class_id, Some(token_id));
 			attribute_count += count;
 			let new_token_details = TokenDetails {
+				creator: p.owner.clone(),
 				metadata,
 				deposit: p.deposit,
 				quantity: One::one(),

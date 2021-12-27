@@ -34,6 +34,7 @@ fn mint_should_work() {
 		assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 2, vec![0, 0, 1], None, None));
 		assert_eq!(Balances::reserved_balance(&1), 9);
 		let t = Tokens::<Test>::get(0, 0).unwrap();
+		assert_eq!(t.creator, 1);
 		assert_eq!(t.metadata, vec![0, 0, 1]);
 		assert_eq!(t.deposit, 4);
 		assert_eq!(t.quantity, 2);
@@ -85,8 +86,11 @@ fn delegate_mint_should_work() {
 		let permission = ClassPermission(
 			Permission::Burnable | Permission::Transferable | Permission::DelegateMintable,
 		);
+
 		assert_ok!(NFT::create_class(Origin::signed(1), vec![0, 0, 0], rate(5), permission));
 		assert_ok!(NFT::delegate_mint(Origin::signed(2), 0, 2, vec![0, 0, 1], None, None));
+		let t = Tokens::<Test>::get(0, 0).unwrap();
+		assert_eq!(t.creator, 2);
 		assert_eq!(Balances::free_balance(&1), 95);
 		assert_eq!(Balances::reserved_balance(&1), 9);
 		assert_eq!(Balances::free_balance(&2), 96);
