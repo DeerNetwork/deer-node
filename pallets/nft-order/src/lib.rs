@@ -32,15 +32,18 @@ pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Curre
 >>::Balance;
 pub type ClassIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::ClassId;
 pub type TokenIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::TokenId;
+pub type QuantityOf<T, I = ()> = <T as pallet_nft::Config<I>>::Quantity;
 pub type OrderDetailsOf<T, I = ()> = OrderDetails<
 	ClassIdOf<T, I>,
 	TokenIdOf<T, I>,
+	QuantityOf<T, I>,
 	BalanceOf<T, I>,
 	<T as frame_system::Config>::BlockNumber,
 >;
 pub type OfferDetailsOf<T, I = ()> = OfferDetails<
 	ClassIdOf<T, I>,
 	TokenIdOf<T, I>,
+	QuantityOf<T, I>,
 	BalanceOf<T, I>,
 	<T as frame_system::Config>::BlockNumber,
 >;
@@ -62,7 +65,7 @@ impl Default for Releases {
 
 /// Order detail
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct OrderDetails<ClassId, TokenId, Balance, BlockNumber> {
+pub struct OrderDetails<ClassId, TokenId, Quantity, Balance, BlockNumber> {
 	/// Nft class id
 	#[codec(compact)]
 	pub class_id: ClassId,
@@ -71,10 +74,10 @@ pub struct OrderDetails<ClassId, TokenId, Balance, BlockNumber> {
 	pub token_id: TokenId,
 	/// Amount of tokens in sale
 	#[codec(compact)]
-	pub quantity: TokenId,
+	pub quantity: Quantity,
 	/// Total amount of tokens
 	#[codec(compact)]
-	pub total_quantity: TokenId,
+	pub total_quantity: Quantity,
 	/// Price of this order.
 	pub price: Balance,
 	/// The balances to create an order
@@ -85,7 +88,7 @@ pub struct OrderDetails<ClassId, TokenId, Balance, BlockNumber> {
 
 /// Offer detail
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct OfferDetails<ClassId, TokenId, Balance, BlockNumber> {
+pub struct OfferDetails<ClassId, TokenId, Quantity, Balance, BlockNumber> {
 	/// Nft class id
 	#[codec(compact)]
 	pub class_id: ClassId,
@@ -94,7 +97,7 @@ pub struct OfferDetails<ClassId, TokenId, Balance, BlockNumber> {
 	pub token_id: TokenId,
 	/// Amount of tokens
 	#[codec(compact)]
-	pub quantity: TokenId,
+	pub quantity: Quantity,
 	/// Price of this order.
 	pub price: Balance,
 	/// This order will be invalidated after `deadline` block number.
@@ -177,19 +180,17 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Create sell order, \[ order_id, class_id, token_id, quantity, seller \]
-		CreatedOrder(T::OrderId, T::ClassId, T::TokenId, T::TokenId, T::AccountId),
-		/// Make a deal with sell order, \[ order_id, class_id, token_id, quantity, seller, buyer
-		/// \]
-		DealedOrder(T::OrderId, T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AccountId),
-		/// Remove an sell order , \[ order_id, class_id, token_id, quantity, seller \]
-		RemovedOrder(T::OrderId, T::ClassId, T::TokenId, T::TokenId, T::AccountId),
+		CreatedOrder(T::OrderId, T::ClassId, T::TokenId, T::Quantity, T::AccountId),
+		/// Make a deal with sell order, \[ order_id, seller, buyer \]
+		DealedOrder(T::OrderId, T::AccountId, T::AccountId),
+		/// Remove an sell order , \[ order_id, seller \]
+		RemovedOrder(T::OrderId, T::AccountId),
 		/// Create buy offer, \[ offer_id, class_id, token_id, quantity, buyer \]
-		CreatedOffer(T::OrderId, T::ClassId, T::TokenId, T::TokenId, T::AccountId),
-		/// Make a deal with buy offer, \[ offer_id, class_id, token_id, quantity, buyer, seller
-		/// \]
-		DealedOffer(T::OrderId, T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AccountId),
-		/// Remove an buy offer , \[ offer_id, class_id, token_id, quantity, buyer \]
-		RemovedOffer(T::OrderId, T::ClassId, T::TokenId, T::TokenId, T::AccountId),
+		CreatedOffer(T::OrderId, T::ClassId, T::TokenId, T::Quantity, T::AccountId),
+		/// Make a deal with buy offer, \[ offer_id, buyer, seller \]
+		DealedOffer(T::OrderId, T::AccountId, T::AccountId),
+		/// Remove an buy offer , \[ offer_id, buyer \]
+		RemovedOffer(T::OrderId, T::AccountId),
 	}
 
 	// Errors inform users that something went wrong.
@@ -224,7 +225,7 @@ pub mod pallet {
 		T::AccountId,
 		Twox64Concat,
 		T::OrderId,
-		OrderDetails<T::ClassId, T::TokenId, BalanceOf<T, I>, BlockNumberFor<T>>,
+		OrderDetailsOf<T, I>,
 		OptionQuery,
 	>;
 
@@ -242,7 +243,7 @@ pub mod pallet {
 		T::AccountId,
 		Twox64Concat,
 		T::OrderId,
-		OfferDetails<T::ClassId, T::TokenId, BalanceOf<T, I>, BlockNumberFor<T>>,
+		OfferDetailsOf<T, I>,
 		OptionQuery,
 	>;
 
@@ -266,7 +267,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			#[pallet::compact] class_id: T::ClassId,
 			#[pallet::compact] token_id: T::TokenId,
-			#[pallet::compact] quantity: T::TokenId,
+			#[pallet::compact] quantity: T::Quantity,
 			#[pallet::compact] price: BalanceOf<T, I>,
 			deadline: Option<T::BlockNumber>,
 		) -> DispatchResult {
@@ -309,7 +310,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			order_owner: <T::Lookup as StaticLookup>::Source,
 			#[pallet::compact] order_id: T::OrderId,
-			#[pallet::compact] quantity: T::TokenId,
+			#[pallet::compact] quantity: T::Quantity,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let owner = T::Lookup::lookup(order_owner)?;
@@ -360,9 +361,7 @@ pub mod pallet {
 						order.quantity = order.quantity.saturating_sub(quantity);
 					}
 
-					Self::deposit_event(Event::DealedOrder(
-						order_id, class_id, token_id, quantity, owner, who,
-					));
+					Self::deposit_event(Event::DealedOrder(order_id, owner, who));
 					Ok(())
 				},
 			)
@@ -391,9 +390,7 @@ pub mod pallet {
 
 					*maybe_order = None;
 
-					Self::deposit_event(Event::RemovedOrder(
-						order_id, class_id, token_id, quantity, who,
-					));
+					Self::deposit_event(Event::RemovedOrder(order_id, who));
 					Ok(())
 				},
 			)
@@ -406,7 +403,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			#[pallet::compact] class_id: T::ClassId,
 			#[pallet::compact] token_id: T::TokenId,
-			#[pallet::compact] quantity: T::TokenId,
+			#[pallet::compact] quantity: T::Quantity,
 			#[pallet::compact] price: BalanceOf<T, I>,
 			deadline: Option<T::BlockNumber>,
 		) -> DispatchResult {
@@ -479,9 +476,7 @@ pub mod pallet {
 
 					*maybe_offer = None;
 
-					Self::deposit_event(Event::DealedOffer(
-						offer_id, class_id, token_id, quantity, buyer, owner,
-					));
+					Self::deposit_event(Event::DealedOffer(offer_id, buyer, owner));
 					Ok(())
 				},
 			)
@@ -511,9 +506,7 @@ pub mod pallet {
 
 					*maybe_offer = None;
 
-					Self::deposit_event(Event::RemovedOffer(
-						offer_id, class_id, token_id, quantity, who,
-					));
+					Self::deposit_event(Event::RemovedOffer(offer_id, who));
 					Ok(())
 				},
 			)

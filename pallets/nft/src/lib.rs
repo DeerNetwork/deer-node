@@ -34,9 +34,9 @@ pub type BalanceOf<T, I = ()> =
 	<<T as Config<I>>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance;
 
 pub type ClassDetailsOf<T, I> =
-	ClassDetails<<T as SystemConfig>::AccountId, BalanceOf<T, I>, <T as Config<I>>::TokenId>;
+	ClassDetails<<T as SystemConfig>::AccountId, BalanceOf<T, I>, <T as Config<I>>::Quantity>;
 pub type TokenDetailsOf<T, I> =
-	TokenDetails<<T as SystemConfig>::AccountId, BalanceOf<T, I>, <T as Config<I>>::TokenId>;
+	TokenDetails<<T as SystemConfig>::AccountId, BalanceOf<T, I>, <T as Config<I>>::Quantity>;
 
 // A value placed in storage that represents the current version of the Scheduler storage.
 // This value is used by the `on_runtime_upgrade` logic to determine whether we run
@@ -101,7 +101,7 @@ impl TypeInfo for ClassPermission {
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct ClassDetails<AccountId, Balance, TokenId> {
+pub struct ClassDetails<AccountId, Balance, Quantity> {
 	/// The owner of this class.
 	pub owner: AccountId,
 	/// Reserved balance for createing class
@@ -112,10 +112,10 @@ pub struct ClassDetails<AccountId, Balance, TokenId> {
 	pub metadata: Vec<u8>,
 	/// Summary of kind of tokens in class
 	#[codec(compact)]
-	pub total_tokens: TokenId,
+	pub total_tokens: Quantity,
 	/// Summary of tokens in class
 	#[codec(compact)]
-	pub total_issuance: TokenId,
+	pub total_issuance: Quantity,
 	/// Royalty rate
 	#[codec(compact)]
 	pub royalty_rate: Perbill,
@@ -123,7 +123,7 @@ pub struct ClassDetails<AccountId, Balance, TokenId> {
 
 /// Information concerning the ownership of token.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
-pub struct TokenDetails<AccountId, Balance, TokenId> {
+pub struct TokenDetails<AccountId, Balance, Quantity> {
 	/// The creator of this class.
 	pub creator: AccountId,
 	/// Token metadata
@@ -132,7 +132,7 @@ pub struct TokenDetails<AccountId, Balance, TokenId> {
 	pub deposit: Balance,
 	/// Token's amount.
 	#[codec(compact)]
-	pub quantity: TokenId,
+	pub quantity: Quantity,
 	/// The number of other modules that currently depend on this token's existence. The account
 	/// cannot be burend until this is zero.
 	pub consumers: RefCount,
@@ -145,13 +145,13 @@ pub struct TokenDetails<AccountId, Balance, TokenId> {
 
 /// Account Token
 #[derive(Clone, Copy, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
-pub struct TokenAmount<TokenId> {
+pub struct TokenAmount<Quantity> {
 	/// account free token number.
 	#[codec(compact)]
-	pub free: TokenId,
+	pub free: Quantity,
 	/// account reserved token number.
 	#[codec(compact)]
-	pub reserved: TokenId,
+	pub reserved: Quantity,
 }
 
 #[frame_support::pallet]
@@ -170,11 +170,14 @@ pub mod pallet {
 		/// The overarching event type.
 		type Event: From<Event<Self, I>> + IsType<<Self as frame_system::Config>::Event>;
 
-		/// Identifier for the class of asset.
+		/// Identifier for nft class
 		type ClassId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
 
-		/// The type used to identify a unique asset within an asset class.
+		/// The type used to identify nft token
 		type TokenId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
+
+		/// Nft quantity
+		type Quantity: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
 
 		/// The currency mechanism, used for paying for reserves.
 		type Currency: ReservableCurrency<Self::AccountId>;
@@ -202,12 +205,8 @@ pub mod pallet {
 	/// Store class info.
 	#[pallet::storage]
 	#[pallet::getter(fn classes)]
-	pub type Classes<T: Config<I>, I: 'static = ()> = StorageMap<
-		_,
-		Twox64Concat,
-		T::ClassId,
-		ClassDetails<T::AccountId, BalanceOf<T, I>, T::TokenId>,
-	>;
+	pub type Classes<T: Config<I>, I: 'static = ()> =
+		StorageMap<_, Twox64Concat, T::ClassId, ClassDetailsOf<T, I>>;
 
 	/// Store token info.
 	#[pallet::storage]
@@ -218,7 +217,7 @@ pub mod pallet {
 		T::ClassId,
 		Twox64Concat,
 		T::TokenId,
-		TokenDetails<T::AccountId, BalanceOf<T, I>, T::TokenId>,
+		TokenDetailsOf<T, I>,
 		OptionQuery,
 	>;
 
@@ -231,7 +230,7 @@ pub mod pallet {
 		T::AccountId,
 		Twox64Concat,
 		(T::ClassId, T::TokenId),
-		TokenAmount<T::TokenId>,
+		TokenAmount<T::Quantity>,
 	>;
 
 	/// An index to query owners by token
@@ -262,11 +261,11 @@ pub mod pallet {
 		/// An asset class was created. \[ class_id, owner \]
 		CreatedClass(T::ClassId, T::AccountId),
 		/// An asset `instace` was minted. \[ class_id, token_id, quantity, owner, who \]
-		MintedToken(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AccountId),
+		MintedToken(T::ClassId, T::TokenId, T::Quantity, T::AccountId, T::AccountId),
 		/// An asset `instance` was burned. \[ class_id, token_id, quantity, owner \]
-		BurnedToken(T::ClassId, T::TokenId, T::TokenId, T::AccountId),
+		BurnedToken(T::ClassId, T::TokenId, T::Quantity, T::AccountId),
 		/// An asset `instace` was transferred. \[ class_id, token_id, quantity, from, to \]
-		TransferredToken(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AccountId),
+		TransferredToken(T::ClassId, T::TokenId, T::Quantity, T::AccountId, T::AccountId),
 	}
 
 	#[pallet::error]
@@ -380,7 +379,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			to: <T::Lookup as StaticLookup>::Source,
 			#[pallet::compact] class_id: T::ClassId,
-			#[pallet::compact] quantity: T::TokenId,
+			#[pallet::compact] quantity: T::Quantity,
 			metadata: Vec<u8>,
 			royalty_rate: Option<Perbill>,
 			royalty_beneficiary: Option<T::AccountId>,
@@ -411,7 +410,7 @@ pub mod pallet {
 		pub fn delegate_mint(
 			origin: OriginFor<T>,
 			#[pallet::compact] class_id: T::ClassId,
-			#[pallet::compact] quantity: T::TokenId,
+			#[pallet::compact] quantity: T::Quantity,
 			metadata: Vec<u8>,
 			royalty_rate: Option<Perbill>,
 			royalty_beneficiary: Option<T::AccountId>,
@@ -453,7 +452,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			#[pallet::compact] class_id: T::ClassId,
 			#[pallet::compact] token_id: T::TokenId,
-			#[pallet::compact] quantity: T::TokenId,
+			#[pallet::compact] quantity: T::Quantity,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
@@ -590,7 +589,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			#[pallet::compact] class_id: T::ClassId,
 			#[pallet::compact] token_id: T::TokenId,
-			#[pallet::compact] quantity: T::TokenId,
+			#[pallet::compact] quantity: T::Quantity,
 			to: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -607,7 +606,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	pub fn transfer_token(
 		class_id: T::ClassId,
 		token_id: T::TokenId,
-		quantity: T::TokenId,
+		quantity: T::Quantity,
 		from: &T::AccountId,
 		to: &T::AccountId,
 	) -> Result<bool, DispatchError> {
@@ -668,7 +667,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	pub fn ensure_transferable(
 		class_id: T::ClassId,
 		token_id: T::TokenId,
-		quantity: T::TokenId,
+		quantity: T::Quantity,
 		owner: &T::AccountId,
 	) -> DispatchResult {
 		let token_amount = Self::tokens_by_owner(owner, (class_id, token_id))
@@ -701,7 +700,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	pub fn reserve(
 		class_id: T::ClassId,
 		token_id: T::TokenId,
-		quantity: T::TokenId,
+		quantity: T::Quantity,
 		owner: &T::AccountId,
 	) -> DispatchResult {
 		TokensByOwner::<T, I>::try_mutate_exists(
@@ -722,7 +721,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	pub fn unreserve(
 		class_id: T::ClassId,
 		token_id: T::TokenId,
-		quantity: T::TokenId,
+		quantity: T::Quantity,
 		owner: &T::AccountId,
 	) -> DispatchResult {
 		TokensByOwner::<T, I>::try_mutate_exists(
@@ -743,7 +742,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	pub fn swap(
 		class_id: T::ClassId,
 		token_id: T::TokenId,
-		quantity: T::TokenId,
+		quantity: T::Quantity,
 		from: &T::AccountId,
 		to: &T::AccountId,
 		price: BalanceOf<T, I>,
@@ -788,7 +787,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		who: &T::AccountId,
 		to: &T::AccountId,
 		class_id: T::ClassId,
-		quantity: T::TokenId,
+		quantity: T::Quantity,
 		metadata: Vec<u8>,
 		royalty_rate: Option<Perbill>,
 		royalty_beneficiary: Option<T::AccountId>,

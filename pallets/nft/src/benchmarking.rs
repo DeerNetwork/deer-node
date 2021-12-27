@@ -36,8 +36,8 @@ fn new_class<T: Config<I>, I: 'static>() -> (T::ClassId, T::AccountId) {
 
 fn mint_token<T: Config<I>, I: 'static>(
 	class_id: T::ClassId,
-	quantity: T::TokenId,
-) -> (T::TokenId, T::TokenId, T::AccountId) {
+	quantity: T::Quantity,
+) -> (T::TokenId, T::Quantity, T::AccountId) {
 	let caller = Classes::<T, I>::get(T::ClassId::default()).unwrap().owner;
 	if caller != whitelisted_caller() {
 		whitelist_account!(caller);

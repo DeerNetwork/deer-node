@@ -23,7 +23,7 @@ fn rate(v: u32) -> Perbill {
 
 fn create_nft<T: Config<I>, I: 'static>(
 	owner: &T::AccountId,
-) -> (T::ClassId, T::TokenId, T::TokenId) {
+) -> (T::ClassId, T::TokenId, T::Quantity) {
 	let quantity = One::one();
 	let permission = ClassPermission(
 		Permission::Burnable | Permission::Transferable | Permission::DelegateMintable,

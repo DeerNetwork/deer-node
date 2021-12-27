@@ -150,7 +150,7 @@ pub mod v2 {
 				royalty_rate: p.royalty_rate,
 				royalty_beneficiary: p.royalty_beneficiary,
 			};
-			let mut token_amount: TokenAmount<T::TokenId> = Default::default();
+			let mut token_amount: TokenAmount<T::Quantity> = Default::default();
 			if p.reserved {
 				token_amount.reserved = One::one();
 			} else {
