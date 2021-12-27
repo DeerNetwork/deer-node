@@ -321,15 +321,22 @@ pub mod pallet {
 					let order = maybe_order.as_mut().ok_or(Error::<T, I>::OrderNotFound)?;
 					let order_quantity = order.quantity;
 
-					ensure!(quantity <= order_quantity, Error::<T, I>::InvalidQuantity);
+					ensure!(
+						quantity <= order_quantity && quantity >= One::one(),
+						Error::<T, I>::InvalidQuantity
+					);
+
 					if let Some(ref deadline) = order.deadline {
 						ensure!(
 							<frame_system::Pallet<T>>::block_number() <= *deadline,
 							Error::<T, I>::OrderExpired
 						);
 					}
+
+					let fee = Perbill::from_rational(quantity, order.total_quantity) * order.price;
+
 					ensure!(
-						T::Currency::free_balance(&who) > order.price,
+						T::Currency::free_balance(&who) >= fee,
 						Error::<T, I>::InsufficientFunds
 					);
 
@@ -342,7 +349,7 @@ pub mod pallet {
 						quantity,
 						&owner,
 						&who,
-						order.price,
+						fee,
 						T::TradeFeeTaxRatio::get(),
 					)?;
 

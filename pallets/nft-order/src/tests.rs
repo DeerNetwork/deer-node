@@ -101,7 +101,7 @@ fn deal_order_with_quantity() {
 		Balances::make_free_balance_be(&3, 100);
 		add_class(1);
 		assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 2, vec![], None, None));
-		assert_ok!(NFTOrder::sell(Origin::signed(1), 0, 0, 2, 10, None));
+		assert_ok!(NFTOrder::sell(Origin::signed(1), 0, 0, 2, 20, None));
 		assert_eq!(Balances::free_balance(&1), 87);
 		Balances::make_free_balance_be(&2, 100);
 		assert_ok!(NFTOrder::deal_order(Origin::signed(2), 1, 0, 1));
