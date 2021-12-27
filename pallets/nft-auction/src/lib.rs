@@ -32,15 +32,18 @@ pub type BalanceOf<T, I = ()> = <<T as pallet_nft::Config<I>>::Currency as Curre
 >>::Balance;
 pub type ClassIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::ClassId;
 pub type TokenIdOf<T, I = ()> = <T as pallet_nft::Config<I>>::TokenId;
+pub type QuantityOf<T, I = ()> = <T as pallet_nft::Config<I>>::Quantity;
 pub type DutchAuctionOf<T, I = ()> = DutchAuction<
 	ClassIdOf<T, I>,
 	TokenIdOf<T, I>,
+	QuantityOf<T, I>,
 	BalanceOf<T, I>,
 	<T as frame_system::Config>::BlockNumber,
 >;
 pub type EnglishAuctionOf<T, I = ()> = EnglishAuction<
 	ClassIdOf<T, I>,
 	TokenIdOf<T, I>,
+	QuantityOf<T, I>,
 	BalanceOf<T, I>,
 	<T as frame_system::Config>::BlockNumber,
 >;
@@ -51,7 +54,7 @@ pub type AuctionBidOf<T, I = ()> = AuctionBid<
 >;
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct DutchAuction<ClassId, TokenId, Balance, BlockNumber> {
+pub struct DutchAuction<ClassId, TokenId, Quantity, Balance, BlockNumber> {
 	/// Nft class id
 	#[codec(compact)]
 	pub class_id: ClassId,
@@ -60,7 +63,7 @@ pub struct DutchAuction<ClassId, TokenId, Balance, BlockNumber> {
 	pub token_id: TokenId,
 	/// Amount of token
 	#[codec(compact)]
-	pub quantity: TokenId,
+	pub quantity: Quantity,
 	/// The initial price of auction
 	#[codec(compact)]
 	pub min_price: Balance,
@@ -84,7 +87,7 @@ pub struct DutchAuction<ClassId, TokenId, Balance, BlockNumber> {
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct EnglishAuction<ClassId, TokenId, Balance, BlockNumber> {
+pub struct EnglishAuction<ClassId, TokenId, Quantity, Balance, BlockNumber> {
 	/// Nft class id
 	#[codec(compact)]
 	pub class_id: ClassId,
@@ -93,7 +96,7 @@ pub struct EnglishAuction<ClassId, TokenId, Balance, BlockNumber> {
 	pub token_id: TokenId,
 	/// Amount of token
 	#[codec(compact)]
-	pub quantity: TokenId,
+	pub quantity: Quantity,
 	/// The initial price of auction
 	#[codec(compact)]
 	pub init_price: Balance,
@@ -230,7 +233,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Created ductch auction \[class_id, token_id, quantity, who, auction_id\]
-		CreatedDutchAuction(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AuctionId),
+		CreatedDutchAuction(T::ClassId, T::TokenId, T::Quantity, T::AccountId, T::AuctionId),
 		/// Bid dutch auction \[who, auction_id\]
 		BidDutchAuction(T::AccountId, T::AuctionId),
 		/// Canceled dutch auction \[who, auction_id\]
@@ -238,7 +241,7 @@ pub mod pallet {
 		/// Redeemed dutch auction \[who, auction_id\]
 		RedeemedDutchAuction(T::AccountId, T::AuctionId),
 		/// Created ductch auction \[class_id, token_id, quantity, who, auction_id\]
-		CreatedEnglishAuction(T::ClassId, T::TokenId, T::TokenId, T::AccountId, T::AuctionId),
+		CreatedEnglishAuction(T::ClassId, T::TokenId, T::Quantity, T::AccountId, T::AuctionId),
 		/// Bid english auction \[who, auction_id\]
 		BidEnglishAuction(T::AccountId, T::AuctionId),
 		/// Canceled english auction \[who, auction_id\]
@@ -316,7 +319,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			#[pallet::compact] class_id: T::ClassId,
 			#[pallet::compact] token_id: T::TokenId,
-			#[pallet::compact] quantity: T::TokenId,
+			#[pallet::compact] quantity: T::Quantity,
 			#[pallet::compact] min_price: BalanceOf<T, I>,
 			#[pallet::compact] max_price: BalanceOf<T, I>,
 			#[pallet::compact] deadline: BlockNumberFor<T>,
@@ -484,7 +487,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			#[pallet::compact] class_id: T::ClassId,
 			#[pallet::compact] token_id: T::TokenId,
-			#[pallet::compact] quantity: T::TokenId,
+			#[pallet::compact] quantity: T::Quantity,
 			#[pallet::compact] init_price: BalanceOf<T, I>,
 			#[pallet::compact] min_raise_price: BalanceOf<T, I>,
 			#[pallet::compact] deadline: BlockNumberFor<T>,

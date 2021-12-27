@@ -23,7 +23,7 @@ fn rate(v: u32) -> Perbill {
 
 fn create_nft<T: Config<I>, I: 'static>(
 	owner: &T::AccountId,
-) -> (T::ClassId, T::TokenId, T::TokenId) {
+) -> (T::ClassId, T::TokenId, T::Quantity) {
 	let quantity = One::one();
 	let permission = ClassPermission(
 		Permission::Burnable | Permission::Transferable | Permission::DelegateMintable,
@@ -82,7 +82,7 @@ benchmarks_instance_pallet! {
 		let order_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
 	}: _(SystemOrigin::Signed(buyer.clone()), order_owner, order_id, quantity)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::DealedOrder(order_id, class_id, token_id, quantity, owner, buyer).into());
+		assert_last_event::<T, I>(Event::<T, I>::DealedOrder(order_id, owner, buyer).into());
 	}
 
 	remove_order {
@@ -94,7 +94,7 @@ benchmarks_instance_pallet! {
 		assert!(NFTOrder::<T, I>::sell(SystemOrigin::Signed(owner.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
 	}: _(SystemOrigin::Signed(owner.clone()), order_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RemovedOrder(order_id, class_id, token_id, quantity, owner).into());
+		assert_last_event::<T, I>(Event::<T, I>::RemovedOrder(order_id, owner).into());
 	}
 
 	buy {
@@ -124,7 +124,7 @@ benchmarks_instance_pallet! {
 		let offer_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(buyer.clone());
 	}: _(SystemOrigin::Signed(owner.clone()), offer_owner, offer_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::DealedOffer(offer_id, class_id, token_id, quantity, buyer, owner).into());
+		assert_last_event::<T, I>(Event::<T, I>::DealedOffer(offer_id, buyer, owner).into());
 	}
 
 	remove_offer {
@@ -139,7 +139,7 @@ benchmarks_instance_pallet! {
 		assert!(NFTOrder::<T, I>::buy(SystemOrigin::Signed(buyer.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
 	}: _(SystemOrigin::Signed(buyer.clone()), offer_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RemovedOffer(offer_id, class_id, token_id, quantity, buyer).into());
+		assert_last_event::<T, I>(Event::<T, I>::RemovedOffer(offer_id, buyer).into());
 	}
 }
 

@@ -1026,6 +1026,7 @@ impl pallet_nft::Config for Runtime {
 	type Event = Event;
 	type ClassId = u32;
 	type TokenId = u32;
+	type Quantity = u64;
 	type Currency = Balances;
 	type ClassDeposit = ClassDeposit;
 	type TokenDeposit = TokenDeposit;

@@ -82,6 +82,7 @@ impl Config for Test {
 	type Event = Event;
 	type ClassId = u32;
 	type TokenId = u32;
+	type Quantity = u32;
 	type Currency = Balances;
 	type ClassDeposit = ClassDeposit;
 	type TokenDeposit = TokenDeposit;
