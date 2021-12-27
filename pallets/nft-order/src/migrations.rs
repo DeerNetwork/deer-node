@@ -96,6 +96,7 @@ pub mod v1 {
 				class_id,
 				token_id,
 				quantity: One::one(),
+				total_quantity: One::one(),
 				price: old_order.price,
 				deposit: old_order.deposit,
 				deadline: old_order.deadline,

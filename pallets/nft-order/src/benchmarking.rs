@@ -80,7 +80,7 @@ benchmarks_instance_pallet! {
 		let order_id = NextOrderId::<T, I>::get();
 		assert!(NFTOrder::<T, I>::sell(SystemOrigin::Signed(owner.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
 		let order_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
-	}: _(SystemOrigin::Signed(buyer.clone()), order_owner, order_id)
+	}: _(SystemOrigin::Signed(buyer.clone()), order_owner, order_id, quantity)
 	verify {
 		assert_last_event::<T, I>(Event::<T, I>::DealedOrder(order_id, class_id, token_id, quantity, owner, buyer).into());
 	}

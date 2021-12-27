@@ -19,7 +19,7 @@ use frame_support::{
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AtLeast32BitUnsigned, CheckedAdd, One, StaticLookup},
+	traits::{AtLeast32BitUnsigned, CheckedAdd, One, Saturating, StaticLookup},
 	Perbill, RuntimeDebug,
 };
 use sp_std::prelude::*;
@@ -69,9 +69,12 @@ pub struct OrderDetails<ClassId, TokenId, Balance, BlockNumber> {
 	/// Nft token id
 	#[codec(compact)]
 	pub token_id: TokenId,
-	/// Amount of token
+	/// Amount of tokens in sale
 	#[codec(compact)]
 	pub quantity: TokenId,
+	/// Total amount of tokens
+	#[codec(compact)]
+	pub total_quantity: TokenId,
 	/// Price of this order.
 	pub price: Balance,
 	/// The balances to create an order
@@ -89,7 +92,7 @@ pub struct OfferDetails<ClassId, TokenId, Balance, BlockNumber> {
 	/// Nft token id
 	#[codec(compact)]
 	pub token_id: TokenId,
-	/// Amount of token
+	/// Amount of tokens
 	#[codec(compact)]
 	pub quantity: TokenId,
 	/// Price of this order.
@@ -194,6 +197,8 @@ pub mod pallet {
 	pub enum Error<T, I = ()> {
 		/// Invalid deaeline
 		InvalidDeadline,
+		/// Invalid quantity
+		InvalidQuantity,
 		/// Order not found
 		OrderNotFound,
 		/// A sell order already expired
@@ -283,6 +288,7 @@ pub mod pallet {
 					class_id,
 					token_id,
 					quantity,
+					total_quantity: quantity,
 					deposit: T::OrderDeposit::get(),
 					price,
 					deadline,
@@ -303,6 +309,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			order_owner: <T::Lookup as StaticLookup>::Source,
 			#[pallet::compact] order_id: T::OrderId,
+			#[pallet::compact] quantity: T::TokenId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let owner = T::Lookup::lookup(order_owner)?;
@@ -312,7 +319,9 @@ pub mod pallet {
 				order_id,
 				|maybe_order| -> DispatchResult {
 					let order = maybe_order.as_mut().ok_or(Error::<T, I>::OrderNotFound)?;
+					let order_quantity = order.quantity;
 
+					ensure!(quantity <= order_quantity, Error::<T, I>::InvalidQuantity);
 					if let Some(ref deadline) = order.deadline {
 						ensure!(
 							<frame_system::Pallet<T>>::block_number() <= *deadline,
@@ -326,7 +335,6 @@ pub mod pallet {
 
 					let class_id = order.class_id;
 					let token_id = order.token_id;
-					let quantity = order.quantity;
 					pallet_nft::Pallet::<T, I>::unreserve(class_id, token_id, quantity, &owner)?;
 					pallet_nft::Pallet::<T, I>::swap(
 						class_id,
@@ -338,9 +346,12 @@ pub mod pallet {
 						T::TradeFeeTaxRatio::get(),
 					)?;
 
-					T::Currency::unreserve(&owner, order.deposit);
-
-					*maybe_order = None;
+					if quantity == order_quantity {
+						T::Currency::unreserve(&owner, order.deposit);
+						*maybe_order = None;
+					} else {
+						order.quantity = order.quantity.saturating_sub(quantity);
+					}
 
 					Self::deposit_event(Event::DealedOrder(
 						order_id, class_id, token_id, quantity, owner, who,

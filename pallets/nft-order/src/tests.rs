@@ -74,7 +74,7 @@ fn deal_order_should_work() {
 		assert_eq!(Balances::free_balance(&1), 87);
 		Balances::make_free_balance_be(&2, 100);
 		let total = Balances::total_issuance();
-		assert_ok!(NFTOrder::deal_order(Origin::signed(2), 1, 0));
+		assert_ok!(NFTOrder::deal_order(Origin::signed(2), 1, 0, 1));
 		assert!(NFTOrder::orders(1, 0).is_none());
 		assert_eq!(Balances::total_issuance(), total.saturating_sub(1));
 		assert_eq!(Balances::free_balance(&1), 106);
@@ -84,14 +84,35 @@ fn deal_order_should_work() {
 		assert_eq!(token_info(2, 0, 0), (1, 0));
 
 		// should fail when token is not selling
-		assert_err!(NFTOrder::deal_order(Origin::signed(2), 1, 1), Error::<Test>::OrderNotFound);
+		assert_err!(NFTOrder::deal_order(Origin::signed(2), 1, 1, 1), Error::<Test>::OrderNotFound);
 
 		// should fail when dealine is exceed
 		add_token(1, 0);
 		assert_ok!(NFTOrder::sell(Origin::signed(1), 0, 1, 1, 10, Some(2)));
 		run_to_block(3);
-		assert_err!(NFTOrder::deal_order(Origin::signed(2), 1, 1), Error::<Test>::OrderExpired);
+		assert_err!(NFTOrder::deal_order(Origin::signed(2), 1, 1, 1), Error::<Test>::OrderExpired);
 	});
+}
+
+#[test]
+fn deal_order_with_quantity() {
+	new_test_ext().execute_with(|| {
+		Balances::make_free_balance_be(&1, 100);
+		Balances::make_free_balance_be(&3, 100);
+		add_class(1);
+		assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 2, vec![], None, None));
+		assert_ok!(NFTOrder::sell(Origin::signed(1), 0, 0, 2, 10, None));
+		assert_eq!(Balances::free_balance(&1), 87);
+		Balances::make_free_balance_be(&2, 100);
+		assert_ok!(NFTOrder::deal_order(Origin::signed(2), 1, 0, 1));
+		assert_eq!(Balances::free_balance(&1), 96);
+		assert_eq!(token_info(1, 0, 0), (0, 1));
+		assert_eq!(token_info(2, 0, 0), (1, 0));
+		assert_ok!(NFTOrder::deal_order(Origin::signed(2), 1, 0, 1));
+		assert_eq!(Balances::free_balance(&1), 115);
+		assert_eq!(token_info(2, 0, 0), (2, 0));
+		assert!(NFTOrder::orders(1, 0).is_none());
+	})
 }
 
 #[test]
@@ -104,7 +125,7 @@ fn deal_order_with_royalty_beneficiary() {
 		assert_ok!(NFTOrder::sell(Origin::signed(1), 0, 0, 1, 10, None));
 		assert_eq!(Balances::free_balance(&1), 87);
 		Balances::make_free_balance_be(&2, 100);
-		assert_ok!(NFTOrder::deal_order(Origin::signed(2), 1, 0));
+		assert_ok!(NFTOrder::deal_order(Origin::signed(2), 1, 0, 1));
 		assert_eq!(Balances::free_balance(&1), 105);
 		assert_eq!(Balances::free_balance(&2), 90);
 		assert_eq!(Balances::free_balance(&3), 101);
@@ -120,7 +141,7 @@ fn deal_order_with_royalty_beneficiary_no_account() {
 		assert_ok!(NFTOrder::sell(Origin::signed(1), 0, 0, 1, 10, None));
 		assert_eq!(Balances::free_balance(&1), 87);
 		Balances::make_free_balance_be(&2, 100);
-		assert_ok!(NFTOrder::deal_order(Origin::signed(2), 1, 0));
+		assert_ok!(NFTOrder::deal_order(Origin::signed(2), 1, 0, 1));
 		assert_eq!(Balances::free_balance(&1), 106);
 		assert_eq!(Balances::free_balance(&2), 90);
 		assert_eq!(Balances::free_balance(&3), 0);
@@ -136,7 +157,7 @@ fn deal_order_with_insufficient_funds() {
 		assert_ok!(NFTOrder::sell(Origin::signed(1), 0, 0, 1, 10, None));
 		Balances::make_free_balance_be(&2, 9);
 		assert_err!(
-			NFTOrder::deal_order(Origin::signed(2), 1, 0),
+			NFTOrder::deal_order(Origin::signed(2), 1, 0, 1),
 			Error::<Test>::InsufficientFunds
 		);
 	})
