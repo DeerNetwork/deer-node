@@ -498,7 +498,6 @@ pub mod pallet {
 
 					let class_id = offer.class_id;
 					let token_id = offer.token_id;
-					let quantity = offer.quantity;
 
 					pallet_nft::Pallet::<T, I>::dec_consumers(class_id, token_id)?;
 
