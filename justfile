@@ -45,7 +45,7 @@ run +args='--dev --tmp':
     --rpc-cors all \
     --unsafe-ws-external
 
-try-runtime block uri *args:
+try-runtime uri block *args:
     cargo run \
     --features=try-runtime \
     try-runtime \
@@ -54,3 +54,7 @@ try-runtime block uri *args:
     live \
     -a {{block}} \
     -u {{uri}}
+
+clean:
+    cd substrate && cargo clean
+    cargo clean 
