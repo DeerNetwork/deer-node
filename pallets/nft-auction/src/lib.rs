@@ -651,6 +651,7 @@ pub mod pallet {
 				&bid.account,
 				bid.price,
 				T::AuctionFeeTaxRatio::get(),
+				pallet_nft::TransferReason::EnglishAuction,
 			)?;
 
 			Self::delete_english_auction(&auction_owner, auction_id)?;
@@ -723,6 +724,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			&bid.account,
 			bid.price,
 			T::AuctionFeeTaxRatio::get(),
+			pallet_nft::TransferReason::DutchAuction,
 		)?;
 		Self::delete_dutch_auction(&auction_owner, auction_id)?;
 		Self::deposit_event(Event::RedeemedDutchAuction {

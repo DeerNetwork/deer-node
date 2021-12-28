@@ -54,6 +54,16 @@ impl Default for Releases {
 	}
 }
 
+/// nft token transfer reason
+#[derive(PartialEq, Eq, Clone, Copy, Encode, Decode, RuntimeDebug, TypeInfo)]
+pub enum TransferReason {
+	Direct,
+	Order,
+	Offer,
+	EnglishAuction,
+	DutchAuction,
+}
+
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, BitFlags, RuntimeDebug, TypeInfo)]
 pub enum Permission {
@@ -282,6 +292,7 @@ pub mod pallet {
 			quantity: T::Quantity,
 			from: T::AccountId,
 			to: T::AccountId,
+			reason: TransferReason,
 		},
 	}
 
@@ -613,7 +624,7 @@ pub mod pallet {
 			let to = T::Lookup::lookup(to)?;
 			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
 
-			Self::transfer_token(class_id, token_id, quantity, &who, &to)?;
+			Self::transfer_token(class_id, token_id, quantity, &who, &to, TransferReason::Direct)?;
 			Ok(())
 		}
 	}
@@ -626,6 +637,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		quantity: T::Quantity,
 		from: &T::AccountId,
 		to: &T::AccountId,
+		reason: TransferReason,
 	) -> Result<bool, DispatchError> {
 		if from == to || quantity.is_zero() {
 			return Ok(false)
@@ -674,6 +686,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 					quantity,
 					from: from.clone(),
 					to: to.clone(),
+					reason,
 				});
 
 				Ok(true)
@@ -764,9 +777,10 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		to: &T::AccountId,
 		price: BalanceOf<T, I>,
 		tax_ratio: Perbill,
+		reason: TransferReason,
 	) -> DispatchResult {
 		let token = Tokens::<T, I>::get(class_id, token_id).ok_or(Error::<T, I>::TokenNotFound)?;
-		Self::transfer_token(class_id, token_id, quantity, from, to)?;
+		Self::transfer_token(class_id, token_id, quantity, from, to, reason)?;
 		let mut royalty_fee = token.royalty_rate * price;
 		if royalty_fee < T::Currency::minimum_balance() &&
 			T::Currency::free_balance(&token.royalty_beneficiary).is_zero()
