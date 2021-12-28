@@ -174,11 +174,11 @@ mod sign {
 
 benchmarks! {
 	set_enclave {
-		let enclave = get_enclave();
-		let expire = 100u32.into();
-	}: _(SystemOrigin::Root, enclave.clone(), expire)
+		let enclave_id = get_enclave();
+		let expire_at = 100u32.into();
+	}: _(SystemOrigin::Root, enclave_id.clone(), expire_at)
 	verify {
-		assert_last_event::<T>(Event::<T>::SetEnclave(enclave, expire).into());
+		assert_last_event::<T>(Event::<T>::SetEnclave { enclave_id, expire_at }.into());
 	}
 
 	stash {
@@ -188,7 +188,7 @@ benchmarks! {
 		let node_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(node.clone());
 	}: _(SystemOrigin::Signed(stasher.clone()), node_lookup)
 	verify {
-		assert_last_event::<T>(Event::<T>::Stashed(node).into());
+		assert_last_event::<T>(Event::<T>::Stashed { node }.into());
 	}
 
 	withdraw {
@@ -198,15 +198,15 @@ benchmarks! {
 		whitelist_account!(node);
 		let node_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(node.clone());
 		assert_ok!(FileStorage::<T>::stash(SystemOrigin::Signed(stasher.clone()).into(), node_lookup));
-		let value = T::Currency::minimum_balance().saturating_mul(10000u32.saturated_into());
+		let amount = T::Currency::minimum_balance().saturating_mul(10000u32.saturated_into());
 		Stashs::<T>::mutate(&node, |maybe_stash| {
 			if let Some(stash_info) = maybe_stash {
-				stash_info.deposit = stash_info.deposit.saturating_add(value);
+				stash_info.deposit = stash_info.deposit.saturating_add(amount);
 			}
 		});
 	}: _(SystemOrigin::Signed(node.clone()))
 	verify {
-		assert_last_event::<T>(Event::<T>::Withdrawn(node, stasher, value).into());
+		assert_last_event::<T>(Event::<T>::Withdrawn { node, stasher, amount }.into());
 	}
 
 	register {
@@ -225,7 +225,7 @@ benchmarks! {
 		let sig = hex!("90639853f8e815ede625c0b786c8453230790193aa5b29f5dca76e48845344503c8373a5cd9536d02504e0d74dfaef791af7f65e081a7be827f6d5e492424ca4").into();
 	}: _(SystemOrigin::Signed(node.clone()), machine_id.clone(), ias_cert, ias_sig, ias_body, sig)
 	verify {
-		assert_last_event::<T>(Event::<T>::NodeRegisted(node, machine_id).into());
+		assert_last_event::<T>(Event::<T>::NodeRegisted { node, machine_id }.into());
 	}
 
 	report {
@@ -288,28 +288,28 @@ benchmarks! {
 		);
 	}: _(SystemOrigin::Signed(node.clone()), rid, power, sig, add_files, del_files, settle_files)
 	verify {
-		assert_last_event::<T>(Event::<T>::NodeReported(node, machine_id).into());
+		assert_last_event::<T>(Event::<T>::NodeReported { node, machine_id }.into());
 	}
 
 
 	store {
 		let cid = str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA");
-		let user = create_funded_user::<T>("user", 10000);
+		let caller = create_funded_user::<T>("caller", 10000);
 		let fee = T::Currency::minimum_balance().saturating_mul(2000u32.saturated_into());
-	}: _(SystemOrigin::Signed(user.clone()), cid.clone(), 100u64, fee)
+	}: _(SystemOrigin::Signed(caller.clone()), cid.clone(), 100u64, fee)
 	verify {
-		assert_last_event::<T>(Event::<T>::StoreFileSubmitted(cid, user, fee).into());
+		assert_last_event::<T>(Event::<T>::StoreFileSubmitted { cid, caller, fee }.into());
 	}
 
 	force_delete {
 		let cid = str2bytes("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeeeA");
-		let user = create_funded_user::<T>("user", 10000);
+		let caller = create_funded_user::<T>("caller", 10000);
 		let fee = T::Currency::minimum_balance().saturating_mul(2000u32.saturated_into());
-		assert_ok!(FileStorage::<T>::store(SystemOrigin::Signed(user.clone()).into(), cid.clone(), 100u64, fee));
+		assert_ok!(FileStorage::<T>::store(SystemOrigin::Signed(caller.clone()).into(), cid.clone(), 100u64, fee));
 		System::<T>::set_block_number(50000u32.into());
 	}: _(SystemOrigin::Root, cid.clone())
 	verify {
-		assert_last_event::<T>(Event::<T>::FileForceDeleted(cid).into());
+		assert_last_event::<T>(Event::<T>::FileForceDeleted { cid }.into());
 	}
 }
 

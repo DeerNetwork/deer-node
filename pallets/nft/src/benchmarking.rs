@@ -74,7 +74,7 @@ benchmarks_instance_pallet! {
 		let class_id = NextClassId::<T, I>::get();
 	}: _(SystemOrigin::Signed(caller.clone()), vec![0, 0, 0], rate(10), permission)
 	verify {
-		assert_last_event::<T, I>(Event::CreatedClass(class_id, caller).into());
+		assert_last_event::<T, I>(Event::CreatedClass { class_id, owner: caller }.into());
 	}
 
 	mint {
@@ -86,7 +86,7 @@ benchmarks_instance_pallet! {
 		whitelist_account!(beneficiary);
 	}: _(SystemOrigin::Signed(caller.clone()), to, class_id, quantity, vec![0, 0, 0], Some(rate(10)), Some(beneficiary))
 	verify {
-		assert_last_event::<T, I>(Event::MintedToken(class_id, token_id, quantity, caller.clone(), caller).into());
+		assert_last_event::<T, I>(Event::MintedToken { class_id, token_id, quantity, owner: caller.clone(), caller }.into());
 	}
 
 	delegate_mint {
@@ -100,7 +100,7 @@ benchmarks_instance_pallet! {
 		whitelist_account!(beneficiary);
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, quantity, vec![0, 0, 0], Some(rate(10)), Some(beneficiary))
 	verify {
-		assert_last_event::<T, I>(Event::MintedToken(class_id, token_id, quantity, caller.clone(), caller).into());
+		assert_last_event::<T, I>(Event::MintedToken { class_id, token_id, quantity, owner: caller.clone(), caller }.into());
 	}
 
 	burn {
@@ -108,7 +108,7 @@ benchmarks_instance_pallet! {
 		let (token_id, quantity, ..) = mint_token::<T, I>(class_id, 1u32.into());
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity)
 	verify {
-		assert_last_event::<T, I>(Event::BurnedToken(class_id, token_id, quantity, caller).into());
+		assert_last_event::<T, I>(Event::BurnedToken{ class_id, token_id, quantity, owner: caller }.into());
 	}
 
 	update_token_royalty {
@@ -132,7 +132,7 @@ benchmarks_instance_pallet! {
 		let target_lookup = T::Lookup::unlookup(target.clone());
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity, target_lookup)
 	verify {
-		assert_last_event::<T, I>(Event::TransferredToken(class_id, token_id, quantity, caller, target).into());
+		assert_last_event::<T, I>(Event::TransferredToken { class_id, token_id, quantity, from: caller, to: target }.into());
 	}
 }
 

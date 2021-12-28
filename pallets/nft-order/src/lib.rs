@@ -179,18 +179,30 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
-		/// Create sell order, \[ order_id, class_id, token_id, quantity, seller \]
-		CreatedOrder(T::OrderId, T::ClassId, T::TokenId, T::Quantity, T::AccountId),
-		/// Make a deal with sell order, \[ order_id, seller, buyer \]
-		DealedOrder(T::OrderId, T::AccountId, T::AccountId),
-		/// Remove an sell order , \[ order_id, seller \]
-		RemovedOrder(T::OrderId, T::AccountId),
-		/// Create buy offer, \[ offer_id, class_id, token_id, quantity, buyer \]
-		CreatedOffer(T::OrderId, T::ClassId, T::TokenId, T::Quantity, T::AccountId),
-		/// Make a deal with buy offer, \[ offer_id, buyer, seller \]
-		DealedOffer(T::OrderId, T::AccountId, T::AccountId),
-		/// Remove an buy offer , \[ offer_id, buyer \]
-		RemovedOffer(T::OrderId, T::AccountId),
+		/// Create sell order.
+		CreatedOrder {
+			order_id: T::OrderId,
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+			seller: T::AccountId,
+		},
+		/// Make a deal with sell order.
+		DealedOrder { order_id: T::OrderId, seller: T::AccountId, buyer: T::AccountId },
+		/// Remove an sell order.
+		RemovedOrder { order_id: T::OrderId, seller: T::AccountId },
+		/// Create buy offer.
+		CreatedOffer {
+			offer_id: T::OrderId,
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+			buyer: T::AccountId,
+		},
+		/// Make a deal with buy offer.
+		DealedOffer { offer_id: T::OrderId, buyer: T::AccountId, seller: T::AccountId },
+		/// Remove an buy offer.
+		RemovedOffer { offer_id: T::OrderId, buyer: T::AccountId },
 	}
 
 	// Errors inform users that something went wrong.
@@ -296,9 +308,13 @@ pub mod pallet {
 				};
 				Orders::<T, I>::insert(who.clone(), order_id, order);
 
-				Self::deposit_event(Event::CreatedOrder(
-					order_id, class_id, token_id, quantity, who,
-				));
+				Self::deposit_event(Event::CreatedOrder {
+					order_id,
+					class_id,
+					token_id,
+					quantity,
+					seller: who,
+				});
 				Ok(())
 			})
 		}
@@ -313,10 +329,10 @@ pub mod pallet {
 			#[pallet::compact] quantity: T::Quantity,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let owner = T::Lookup::lookup(order_owner)?;
+			let seller = T::Lookup::lookup(order_owner)?;
 
 			Orders::<T, I>::try_mutate_exists(
-				owner.clone(),
+				seller.clone(),
 				order_id,
 				|maybe_order| -> DispatchResult {
 					let order = maybe_order.as_mut().ok_or(Error::<T, I>::OrderNotFound)?;
@@ -343,25 +359,25 @@ pub mod pallet {
 
 					let class_id = order.class_id;
 					let token_id = order.token_id;
-					pallet_nft::Pallet::<T, I>::unreserve(class_id, token_id, quantity, &owner)?;
+					pallet_nft::Pallet::<T, I>::unreserve(class_id, token_id, quantity, &seller)?;
 					pallet_nft::Pallet::<T, I>::swap(
 						class_id,
 						token_id,
 						quantity,
-						&owner,
+						&seller,
 						&who,
 						fee,
 						T::TradeFeeTaxRatio::get(),
 					)?;
 
 					if quantity == order_quantity {
-						T::Currency::unreserve(&owner, order.deposit);
+						T::Currency::unreserve(&seller, order.deposit);
 						*maybe_order = None;
 					} else {
 						order.quantity = order.quantity.saturating_sub(quantity);
 					}
 
-					Self::deposit_event(Event::DealedOrder(order_id, owner, who));
+					Self::deposit_event(Event::DealedOrder { order_id, seller, buyer: who });
 					Ok(())
 				},
 			)
@@ -390,7 +406,7 @@ pub mod pallet {
 
 					*maybe_order = None;
 
-					Self::deposit_event(Event::RemovedOrder(order_id, who));
+					Self::deposit_event(Event::RemovedOrder { order_id, seller: who });
 					Ok(())
 				},
 			)
@@ -425,9 +441,13 @@ pub mod pallet {
 				let offer = OfferDetails { class_id, token_id, quantity, price, deadline };
 				Offers::<T, I>::insert(who.clone(), offer_id, offer);
 
-				Self::deposit_event(Event::CreatedOffer(
-					offer_id, class_id, token_id, quantity, who,
-				));
+				Self::deposit_event(Event::CreatedOffer {
+					offer_id,
+					class_id,
+					token_id,
+					quantity,
+					buyer: who,
+				});
 				Ok(())
 			})
 		}
@@ -476,7 +496,7 @@ pub mod pallet {
 
 					*maybe_offer = None;
 
-					Self::deposit_event(Event::DealedOffer(offer_id, buyer, owner));
+					Self::deposit_event(Event::DealedOffer { offer_id, buyer, seller: owner });
 					Ok(())
 				},
 			)
@@ -505,7 +525,7 @@ pub mod pallet {
 
 					*maybe_offer = None;
 
-					Self::deposit_event(Event::RemovedOffer(offer_id, who));
+					Self::deposit_event(Event::RemovedOffer { offer_id, buyer: who });
 					Ok(())
 				},
 			)

@@ -307,26 +307,26 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Add or change enclave, \[enclave_id, expire_at\]
-		SetEnclave(EnclaveId, BlockNumberFor<T>),
-		/// A account have been stashed, \[node\]
-		Stashed(T::AccountId),
-		/// A account have withdrawn some founds, \[node, beneficary, amount\]
-		Withdrawn(T::AccountId, T::AccountId, BalanceOf<T>),
-		/// A node was registerd, \[node, machine_id\]
-		NodeRegisted(T::AccountId, MachineId),
-		/// A node reported its work, \[node, machine_id\]
-		NodeReported(T::AccountId, MachineId),
-		/// A file have summitted, \[file_id, account, fee\]
-		StoreFileSubmitted(FileId, T::AccountId, BalanceOf<T>),
-		/// More founds given to a file, \[file_id, account, fee\]
-		StoreFileCharged(FileId, T::AccountId, BalanceOf<T>),
-		/// A file have been removed, \[file_id\]
-		StoreFileRemoved(FileId),
-		/// A file was renewed and can accepte more replicas, \[file_id, replicas\]
-		StoreFileSettledIncomplete(FileId, u32),
-		/// A file was deleted by admin, \[file_id\]
-		FileForceDeleted(FileId),
+		/// Add or change enclave.
+		SetEnclave { enclave_id: EnclaveId, expire_at: BlockNumberFor<T> },
+		/// A account have been stashed.
+		Stashed { node: T::AccountId },
+		/// A account have withdrawn some founds.
+		Withdrawn { node: T::AccountId, stasher: T::AccountId, amount: BalanceOf<T> },
+		/// A node was registerd.
+		NodeRegisted { node: T::AccountId, machine_id: MachineId },
+		/// A node reported its work.
+		NodeReported { node: T::AccountId, machine_id: MachineId },
+		/// A file have summitted.
+		StoreFileSubmitted { cid: FileId, caller: T::AccountId, fee: BalanceOf<T> },
+		/// More founds given to a file.
+		StoreFileAddedFounds { cid: FileId, caller: T::AccountId, fee: BalanceOf<T> },
+		/// A file have been removed.
+		StoreFileRemoved { cid: FileId },
+		/// A file was renewed and can accepte more replicas.
+		StoreFileSettledIncomplete { cid: FileId, replicas: u32 },
+		/// A file was deleted by admin.
+		FileForceDeleted { cid: FileId },
 	}
 
 	#[pallet::error]
@@ -413,15 +413,15 @@ pub mod pallet {
 		#[pallet::weight((T::WeightInfo::set_enclave(), DispatchClass::Operational))]
 		pub fn set_enclave(
 			origin: OriginFor<T>,
-			enclave: EnclaveId,
-			expire: T::BlockNumber,
+			enclave_id: EnclaveId,
+			expire_at: T::BlockNumber,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			if let Some(old_expire) = Enclaves::<T>::get(&enclave) {
-				ensure!(expire < old_expire, Error::<T>::InvalidEnclaveExpire);
+			if let Some(old_expire_at) = Enclaves::<T>::get(&enclave_id) {
+				ensure!(expire_at < old_expire_at, Error::<T>::InvalidEnclaveExpire);
 			}
-			Enclaves::<T>::insert(&enclave, &expire);
-			Self::deposit_event(Event::<T>::SetEnclave(enclave, expire));
+			Enclaves::<T>::insert(&enclave_id, &expire_at);
+			Self::deposit_event(Event::<T>::SetEnclave { enclave_id, expire_at });
 
 			Ok(())
 		}
@@ -434,9 +434,9 @@ pub mod pallet {
 			node: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
 			let stasher = ensure_signed(origin)?;
-			let storage_node = T::Lookup::lookup(node)?;
+			let node = T::Lookup::lookup(node)?;
 			let stash_balance = T::StashBalance::get();
-			if let Some(mut stash_info) = Stashs::<T>::get(&storage_node) {
+			if let Some(mut stash_info) = Stashs::<T>::get(&node) {
 				ensure!(&stash_info.stasher == &stasher, Error::<T>::InvalidStashPair);
 				if stash_info.deposit < stash_balance {
 					let lack = stash_balance.saturating_sub(stash_info.deposit);
@@ -447,7 +447,7 @@ pub mod pallet {
 						ExistenceRequirement::KeepAlive,
 					)?;
 					stash_info.deposit = stash_balance;
-					Stashs::<T>::insert(storage_node, stash_info);
+					Stashs::<T>::insert(node, stash_info);
 				}
 			} else {
 				T::Currency::transfer(
@@ -457,10 +457,10 @@ pub mod pallet {
 					ExistenceRequirement::KeepAlive,
 				)?;
 				Stashs::<T>::insert(
-					&storage_node,
+					&node,
 					StashInfo { stasher, deposit: stash_balance, machine_id: None },
 				);
-				Self::deposit_event(Event::<T>::Stashed(storage_node));
+				Self::deposit_event(Event::<T>::Stashed { node });
 			}
 			Ok(())
 		}
@@ -468,22 +468,22 @@ pub mod pallet {
 		/// Withdraw the mine reward, node's despoist should not below T::StashBalance
 		#[pallet::weight(T::WeightInfo::withdraw())]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
-			let storage_node = ensure_signed(origin)?;
-			let mut stash_info = Stashs::<T>::get(&storage_node).ok_or(Error::<T>::UnstashNode)?;
+			let node = ensure_signed(origin)?;
+			let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::UnstashNode)?;
 			let stash_deposit: BalanceOf<T> = stash_info.deposit;
 			let stash_balance = T::StashBalance::get();
-			let profit = stash_deposit.saturating_sub(stash_balance);
-			ensure!(!profit.is_zero(), Error::<T>::NoEnoughToWithdraw);
+			let amount = stash_deposit.saturating_sub(stash_balance);
+			ensure!(!amount.is_zero(), Error::<T>::NoEnoughToWithdraw);
 			stash_info.deposit = stash_balance;
 			let stasher = stash_info.stasher.clone();
 			T::Currency::transfer(
 				&Self::account_id(),
 				&stasher,
-				profit,
+				amount,
 				ExistenceRequirement::KeepAlive,
 			)?;
-			Stashs::<T>::insert(storage_node.clone(), stash_info);
-			Self::deposit_event(Event::<T>::Withdrawn(storage_node, stasher, profit));
+			Stashs::<T>::insert(node.clone(), stash_info);
+			Self::deposit_event(Event::<T>::Withdrawn { node, stasher, amount });
 			Ok(())
 		}
 
@@ -568,7 +568,7 @@ pub mod pallet {
 				},
 			}
 
-			Self::deposit_event(Event::<T>::NodeRegisted(node, machine_id));
+			Self::deposit_event(Event::<T>::NodeRegisted { node, machine_id });
 			Ok(())
 		}
 
@@ -726,7 +726,7 @@ pub mod pallet {
 			RoundsSummary::<T>::insert(current_round, summary);
 			Nodes::<T>::insert(reporter.clone(), node_info);
 			Stashs::<T>::insert(reporter.clone(), stash_info);
-			Self::deposit_event(Event::<T>::NodeReported(reporter, machine_id));
+			Self::deposit_event(Event::<T>::NodeReported { node: reporter, machine_id });
 			Ok(())
 		}
 
@@ -756,7 +756,7 @@ pub mod pallet {
 				)?;
 				file.reserved = new_reserved;
 				StoreFiles::<T>::insert(cid.clone(), file);
-				Self::deposit_event(Event::<T>::StoreFileCharged(cid, who, fee));
+				Self::deposit_event(Event::<T>::StoreFileAddedFounds { cid, caller: who, fee });
 			} else {
 				let min_fee = Self::store_file_fee(file_size);
 				ensure!(fee >= min_fee, Error::<T>::NotEnoughFee);
@@ -776,7 +776,7 @@ pub mod pallet {
 						added_at: Self::now_bn(),
 					},
 				);
-				Self::deposit_event(Event::<T>::StoreFileSubmitted(cid, who, fee));
+				Self::deposit_event(Event::<T>::StoreFileSubmitted { cid, caller: who, fee });
 			}
 			Ok(())
 		}
@@ -803,7 +803,7 @@ pub mod pallet {
 					*v = v.saturating_add(file.base_fee).saturating_add(file.reserved)
 				});
 				StoreFiles::<T>::remove(&cid);
-				Self::deposit_event(Event::<T>::FileForceDeleted(cid));
+				Self::deposit_event(Event::<T>::FileForceDeleted { cid });
 			}
 			Ok(())
 		}
@@ -1041,10 +1041,10 @@ impl<T: Config> Pallet<T> {
 				}
 			}
 			if maybe_file_size.is_none() && nodes.len() < T::EffectiveFileReplicas::get() as usize {
-				Self::deposit_event(Event::<T>::StoreFileSettledIncomplete(
-					cid.clone(),
-					nodes.len() as u32,
-				));
+				Self::deposit_event(Event::<T>::StoreFileSettledIncomplete {
+					cid: cid.clone(),
+					replicas: nodes.len() as u32,
+				});
 			}
 			FileOrders::<T>::insert(
 				cid,
@@ -1122,7 +1122,7 @@ impl<T: Config> Pallet<T> {
 	fn clear_store_file(cid: &FileId) {
 		StoreFiles::<T>::remove(cid);
 		FileOrders::<T>::remove(cid);
-		Self::deposit_event(Event::<T>::StoreFileRemoved(cid.clone()));
+		Self::deposit_event(Event::<T>::StoreFileRemoved { cid: cid.clone() });
 	}
 
 	fn store_file_fee(file_size: u64) -> BalanceOf<T> {

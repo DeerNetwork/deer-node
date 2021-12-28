@@ -73,7 +73,7 @@ benchmarks_instance_pallet! {
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire, None)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CreatedDutchAuction(class_id, token_id, quantity, caller, auction_id).into());
+		assert_last_event::<T, I>(Event::<T, I>::CreatedDutchAuction { class_id, token_id, quantity, owner: caller, auction_id }.into());
 	}
 
 	bid_dutch {
@@ -92,9 +92,9 @@ benchmarks_instance_pallet! {
 		let caller: T::AccountId = account("bid", 0, SEED);
 		whitelist_account!(caller);
 		T::Currency::make_free_balance_be(&caller, value);
-	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id, None)
+	}: _(SystemOrigin::Signed(caller.clone()), auction_owner.clone(), auction_id, None)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::BidDutchAuction(caller, auction_id).into());
+		assert_last_event::<T, I>(Event::<T, I>::BidDutchAuction { bidder: caller, owner, auction_id }.into());
 	}
 
 	redeem_dutch {
@@ -119,7 +119,7 @@ benchmarks_instance_pallet! {
 
 	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RedeemedDutchAuction(caller, auction_id).into());
+		assert_last_event::<T, I>(Event::<T, I>::RedeemedDutchAuction { bidder: caller, owner, auction_id }.into());
 	}
 
 	cancel_dutch {
@@ -138,7 +138,7 @@ benchmarks_instance_pallet! {
 		let caller = owner.clone();
 	}: _(SystemOrigin::Signed(caller.clone()), auction_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CanceledDutchAuction(caller, auction_id).into());
+		assert_last_event::<T, I>(Event::<T, I>::CanceledDutchAuction { owner: caller, auction_id }.into());
 	}
 
 
@@ -153,7 +153,7 @@ benchmarks_instance_pallet! {
 		let expire = T::MinDeadline::get().saturating_mul(2u32.into());
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire, None)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CreatedEnglishAuction(class_id, token_id, quantity, caller, auction_id).into());
+		assert_last_event::<T, I>(Event::<T, I>::CreatedEnglishAuction { class_id, token_id, quantity, owner: caller, auction_id }.into());
 	}
 
 	bid_english {
@@ -172,9 +172,9 @@ benchmarks_instance_pallet! {
 		let caller: T::AccountId = account("bid", 0, SEED);
 		whitelist_account!(caller);
 		T::Currency::make_free_balance_be(&caller, value);
-	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id, get_dollars::<T, I>(20))
+	}: _(SystemOrigin::Signed(caller.clone()), auction_owner.clone(), auction_id, get_dollars::<T, I>(20))
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::BidEnglishAuction(caller, auction_id).into());
+		assert_last_event::<T, I>(Event::<T, I>::BidEnglishAuction { bidder: caller, owner, auction_id }.into());
 	}
 
 	redeem_english {
@@ -199,7 +199,7 @@ benchmarks_instance_pallet! {
 
 	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RedeemedEnglishAuction(caller, auction_id).into());
+		assert_last_event::<T, I>(Event::<T, I>::RedeemedEnglishAuction { bidder: caller, owner, auction_id }.into());
 	}
 
 	cancel_english {
@@ -218,7 +218,7 @@ benchmarks_instance_pallet! {
 		let caller = owner.clone();
 	}: _(SystemOrigin::Signed(caller.clone()), auction_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CanceledEnglishAuction(caller, auction_id).into());
+		assert_last_event::<T, I>(Event::<T, I>::CanceledEnglishAuction { owner: caller, auction_id }.into());
 	}
 }
 

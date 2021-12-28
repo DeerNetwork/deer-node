@@ -56,13 +56,13 @@ fn transfer_native() {
 			dest_chain,
 		));
 
-		expect_event(bridge::Event::FungibleTransfer(
-			dest_chain,
-			1,
+		expect_event(bridge::Event::FungibleTransfer {
+			dest_id: dest_chain,
+			nonce: 1,
 			resource_id,
-			amount.into(),
-			recipient,
-		));
+			amount: amount.into(),
+			to: recipient,
+		});
 	})
 }
 
@@ -186,12 +186,24 @@ fn create_successful_transfer_proposal() {
 		assert_eq!(Balances::free_balance(Bridge::account_id()), ENDOWED_BALANCE - 10);
 
 		assert_events(vec![
-			Event::Bridge(bridge::Event::VoteFor(src_id, prop_id, RELAYER_A)),
-			Event::Bridge(bridge::Event::VoteAgainst(src_id, prop_id, RELAYER_B)),
-			Event::Bridge(bridge::Event::VoteFor(src_id, prop_id, RELAYER_C)),
-			Event::Bridge(bridge::Event::ProposalApproved(src_id, prop_id)),
+			Event::Bridge(bridge::Event::VoteFor {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_A,
+			}),
+			Event::Bridge(bridge::Event::VoteAgainst {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_B,
+			}),
+			Event::Bridge(bridge::Event::VoteFor {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_C,
+			}),
+			Event::Bridge(bridge::Event::ProposalApproved { chain_id: src_id, nonce: prop_id }),
 			Event::Balances(balances::Event::Transfer(Bridge::account_id(), RELAYER_A, 10)),
-			Event::Bridge(bridge::Event::ProposalSucceeded(src_id, prop_id)),
+			Event::Bridge(bridge::Event::ProposalSucceeded { chain_id: src_id, nonce: prop_id }),
 		]);
 	})
 }
