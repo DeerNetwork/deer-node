@@ -368,6 +368,7 @@ pub mod pallet {
 						&who,
 						fee,
 						T::TradeFeeTaxRatio::get(),
+						pallet_nft::TransferReason::Order,
 					)?;
 
 					if quantity == order_quantity {
@@ -492,6 +493,7 @@ pub mod pallet {
 						&buyer,
 						offer.price,
 						T::TradeFeeTaxRatio::get(),
+						pallet_nft::TransferReason::Offer,
 					)?;
 
 					*maybe_offer = None;
