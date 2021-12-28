@@ -241,11 +241,21 @@ pub mod pallet {
 			auction_id: T::AuctionId,
 		},
 		/// Bid dutch auction.
-		BidDutchAuction { bidder: T::AccountId, owner: T::AccountId, auction_id: T::AuctionId },
+		BidDutchAuction {
+			bidder: T::AccountId,
+			owner: T::AccountId,
+			auction_id: T::AuctionId,
+			price: BalanceOf<T, I>,
+		},
 		/// Canceled dutch auction.
 		CanceledDutchAuction { owner: T::AccountId, auction_id: T::AuctionId },
 		/// Redeemed dutch auction.
-		RedeemedDutchAuction { bidder: T::AccountId, owner: T::AccountId, auction_id: T::AuctionId },
+		RedeemedDutchAuction {
+			bidder: T::AccountId,
+			owner: T::AccountId,
+			auction_id: T::AuctionId,
+			price: BalanceOf<T, I>,
+		},
 		/// Created ductch auction.
 		CreatedEnglishAuction {
 			class_id: T::ClassId,
@@ -255,7 +265,12 @@ pub mod pallet {
 			auction_id: T::AuctionId,
 		},
 		/// Bid english auction.
-		BidEnglishAuction { bidder: T::AccountId, owner: T::AccountId, auction_id: T::AuctionId },
+		BidEnglishAuction {
+			bidder: T::AccountId,
+			owner: T::AccountId,
+			auction_id: T::AuctionId,
+			price: BalanceOf<T, I>,
+		},
 		/// Canceled english auction.
 		CanceledEnglishAuction { owner: T::AccountId, auction_id: T::AuctionId },
 		/// Redeemed english auction.
@@ -263,6 +278,7 @@ pub mod pallet {
 			bidder: T::AccountId,
 			owner: T::AccountId,
 			auction_id: T::AuctionId,
+			price: BalanceOf<T, I>,
 		},
 	}
 
@@ -423,6 +439,7 @@ pub mod pallet {
 							bidder: who,
 							owner: auction_owner.clone(),
 							auction_id,
+							price: new_price,
 						});
 					}
 				},
@@ -453,6 +470,7 @@ pub mod pallet {
 							bidder: who,
 							owner: auction_owner.clone(),
 							auction_id,
+							price: bid_price,
 						});
 					}
 				},
@@ -590,6 +608,7 @@ pub mod pallet {
 						bidder: who,
 						owner: auction_owner.clone(),
 						auction_id,
+						price,
 					});
 				},
 				Some(bid) => {
@@ -612,6 +631,7 @@ pub mod pallet {
 						bidder: who,
 						owner: auction_owner.clone(),
 						auction_id,
+						price,
 					});
 				},
 			}
@@ -659,6 +679,7 @@ pub mod pallet {
 				bidder: bid.account,
 				owner: auction_owner.clone(),
 				auction_id,
+				price: bid.price,
 			});
 			Ok(())
 		}
@@ -731,6 +752,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			bidder: bid.account.clone(),
 			owner: auction_owner.clone(),
 			auction_id,
+			price: bid.price,
 		});
 		Ok(())
 	}

@@ -82,7 +82,7 @@ benchmarks_instance_pallet! {
 		let order_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
 	}: _(SystemOrigin::Signed(buyer.clone()), order_owner, order_id, quantity)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::DealedOrder { order_id, seller: owner, buyer }.into());
+		assert_last_event::<T, I>(Event::<T, I>::DealedOrder { order_id, seller: owner, buyer, quantity, fee: 10u32.into() }.into());
 	}
 
 	remove_order {
@@ -124,7 +124,7 @@ benchmarks_instance_pallet! {
 		let offer_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(buyer.clone());
 	}: _(SystemOrigin::Signed(owner.clone()), offer_owner, offer_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::DealedOffer { offer_id, buyer, seller: owner }.into());
+		assert_last_event::<T, I>(Event::<T, I>::DealedOffer { offer_id, buyer, seller: owner, quantity, fee: 10u32.into() }.into());
 	}
 
 	remove_offer {

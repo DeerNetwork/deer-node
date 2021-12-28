@@ -7,7 +7,7 @@ use frame_benchmarking::{
 use frame_support::assert_ok;
 use frame_system::{Pallet as System, RawOrigin as SystemOrigin};
 use sp_runtime::{
-	traits::{One, Saturating, StaticLookup},
+	traits::{One, SaturatedConversion, Saturating, StaticLookup},
 	Perbill,
 };
 use sp_std::prelude::*;
@@ -94,7 +94,7 @@ benchmarks_instance_pallet! {
 		T::Currency::make_free_balance_be(&caller, value);
 	}: _(SystemOrigin::Signed(caller.clone()), auction_owner.clone(), auction_id, None)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::BidDutchAuction { bidder: caller, owner, auction_id }.into());
+		assert_last_event::<T, I>(Event::<T, I>::BidDutchAuction { bidder: caller, owner, auction_id, price: 49997916680000u64.saturated_into() }.into());
 	}
 
 	redeem_dutch {
@@ -119,7 +119,7 @@ benchmarks_instance_pallet! {
 
 	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RedeemedDutchAuction { bidder: caller, owner, auction_id }.into());
+		assert_last_event::<T, I>(Event::<T, I>::RedeemedDutchAuction { bidder: caller, owner, auction_id, price: 49997916680000u64.saturated_into() }.into());
 	}
 
 	cancel_dutch {
@@ -174,7 +174,7 @@ benchmarks_instance_pallet! {
 		T::Currency::make_free_balance_be(&caller, value);
 	}: _(SystemOrigin::Signed(caller.clone()), auction_owner.clone(), auction_id, get_dollars::<T, I>(20))
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::BidEnglishAuction { bidder: caller, owner, auction_id }.into());
+		assert_last_event::<T, I>(Event::<T, I>::BidEnglishAuction { bidder: caller, owner, auction_id, price: 20000000000000u64.saturated_into() }.into());
 	}
 
 	redeem_english {
@@ -199,7 +199,7 @@ benchmarks_instance_pallet! {
 
 	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RedeemedEnglishAuction { bidder: caller, owner, auction_id }.into());
+		assert_last_event::<T, I>(Event::<T, I>::RedeemedEnglishAuction { bidder: caller, owner, auction_id, price: 20000000000000u64.saturated_into() }.into());
 	}
 
 	cancel_english {

@@ -188,7 +188,13 @@ pub mod pallet {
 			seller: T::AccountId,
 		},
 		/// Make a deal with sell order.
-		DealedOrder { order_id: T::OrderId, seller: T::AccountId, buyer: T::AccountId },
+		DealedOrder {
+			order_id: T::OrderId,
+			seller: T::AccountId,
+			buyer: T::AccountId,
+			quantity: T::Quantity,
+			fee: BalanceOf<T, I>,
+		},
 		/// Remove an sell order.
 		RemovedOrder { order_id: T::OrderId, seller: T::AccountId },
 		/// Create buy offer.
@@ -200,7 +206,13 @@ pub mod pallet {
 			buyer: T::AccountId,
 		},
 		/// Make a deal with buy offer.
-		DealedOffer { offer_id: T::OrderId, buyer: T::AccountId, seller: T::AccountId },
+		DealedOffer {
+			offer_id: T::OrderId,
+			buyer: T::AccountId,
+			seller: T::AccountId,
+			quantity: T::Quantity,
+			fee: BalanceOf<T, I>,
+		},
 		/// Remove an buy offer.
 		RemovedOffer { offer_id: T::OrderId, buyer: T::AccountId },
 	}
@@ -378,7 +390,13 @@ pub mod pallet {
 						order.quantity = order.quantity.saturating_sub(quantity);
 					}
 
-					Self::deposit_event(Event::DealedOrder { order_id, seller, buyer: who });
+					Self::deposit_event(Event::DealedOrder {
+						order_id,
+						seller,
+						buyer: who,
+						quantity,
+						fee,
+					});
 					Ok(())
 				},
 			)
@@ -496,9 +514,15 @@ pub mod pallet {
 						pallet_nft::TransferReason::Offer,
 					)?;
 
-					*maybe_offer = None;
+					Self::deposit_event(Event::DealedOffer {
+						offer_id,
+						buyer,
+						seller: owner,
+						quantity,
+						fee: offer.price,
+					});
 
-					Self::deposit_event(Event::DealedOffer { offer_id, buyer, seller: owner });
+					*maybe_offer = None;
 					Ok(())
 				},
 			)
