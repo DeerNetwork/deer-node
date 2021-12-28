@@ -6,8 +6,8 @@ use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Currency, Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		OnUnbalanced, U128CurrencyToVote,
+		Currency, EqualPrivilegeOnly, Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem,
+		LockIdentifier, OnUnbalanced, U128CurrencyToVote,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -204,6 +204,7 @@ impl pallet_randomness_collective_flip::Config for Runtime {}
 impl pallet_utility::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type PalletsOrigin = OriginCaller;
 	type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
 }
 
@@ -321,6 +322,7 @@ impl pallet_scheduler::Config for Runtime {
 	type ScheduleOrigin = EnsureRoot<AccountId>;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
+	type OriginPrivilegeCmp = EqualPrivilegeOnly;
 }
 
 parameter_types! {
@@ -1147,45 +1149,45 @@ construct_runtime!(
 		NodeBlock = node_primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>} = 0,
-		Utility: pallet_utility::{Pallet, Call, Event} = 1,
-		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 2,
-		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 3,
-		Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent} = 4,
-		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 5,
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 7,
-		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 8,
-		Staking: pallet_staking::{Pallet, Call, Config<T>, Storage, Event<T>} = 9,
-		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 10,
-		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 11,
-		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 12,
-		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 13,
-		Elections: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 14,
-		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 15,
-		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 16,
-		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 17,
-		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>} = 18,
-		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 19,
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 20,
-		Offences: pallet_offences::{Pallet, Storage, Event} = 21,
-		Historical: pallet_session_historical::{Pallet} = 22,
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage} = 23,
-		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>} = 24,
-		Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>} = 25,
-		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 26,
-		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 27,
-		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>} = 28,
-		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 29,
-		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 30,
-		NFT: pallet_nft::{Pallet, Call, Storage, Event<T>} = 31,
-		NFTOrder: pallet_nft_order::{Pallet, Call, Storage, Event<T>} = 32,
-		NFTAuction: pallet_nft_auction::{Pallet, Call, Storage, Event<T>} = 35,
-		FileStorage: pallet_storage::{Pallet, Call, Storage, Event<T>, Config<T>} = 33,
-		TransactionStorage: pallet_transaction_storage::{Pallet, Call, Storage, Inherent, Config<T>, Event<T>} = 34,
-		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 36,
-		Bridge: pallet_bridge::{Pallet, Call, Storage, Event<T>} = 37,
-		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Storage, Event<T>} = 38,
+		System: frame_system = 0,
+		Utility: pallet_utility = 1,
+		Babe: pallet_babe = 2,
+		Timestamp: pallet_timestamp = 3,
+		Authorship: pallet_authorship = 4,
+		Indices: pallet_indices = 5,
+		Balances: pallet_balances = 6,
+		TransactionPayment: pallet_transaction_payment = 7,
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase = 8,
+		Staking: pallet_staking = 9,
+		Session: pallet_session = 10,
+		Democracy: pallet_democracy = 11,
+		Council: pallet_collective::<Instance1> = 12,
+		TechnicalCommittee: pallet_collective::<Instance2> = 13,
+		Elections: pallet_elections_phragmen = 14,
+		TechnicalMembership: pallet_membership::<Instance1> = 15,
+		Grandpa: pallet_grandpa = 16,
+		Treasury: pallet_treasury = 17,
+		Sudo: pallet_sudo = 18,
+		ImOnline: pallet_im_online = 19,
+		AuthorityDiscovery: pallet_authority_discovery = 20,
+		Offences: pallet_offences = 21,
+		Historical: pallet_session_historical = 22,
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip = 23,
+		Identity: pallet_identity = 24,
+		Vesting: pallet_vesting = 25,
+		Scheduler: pallet_scheduler = 26,
+		Proxy: pallet_proxy = 27,
+		Multisig: pallet_multisig = 28,
+		Bounties: pallet_bounties = 29,
+		Tips: pallet_tips = 30,
+		NFT: pallet_nft = 31,
+		NFTOrder: pallet_nft_order = 32,
+		NFTAuction: pallet_nft_auction = 35,
+		FileStorage: pallet_storage = 33,
+		TransactionStorage: pallet_transaction_storage = 34,
+		BagsList: pallet_bags_list = 36,
+		Bridge: pallet_bridge = 37,
+		BridgeTransfer: pallet_bridge_transfer = 38,
 	}
 );
 
@@ -1226,7 +1228,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(),
+	pallet_bags_list::migrations::CheckCounterPrefix<Runtime>,
 >;
 
 impl_runtime_apis! {
@@ -1430,7 +1432,7 @@ impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkList>,
 			Vec<frame_support::traits::StorageInfo>,
 		) {
-			use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
+			use frame_benchmarking::{list_benchmark, baseline, Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency
@@ -1439,9 +1441,11 @@ impl_runtime_apis! {
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use baseline::Pallet as BaselineBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
 
+			list_benchmark!(list, extra, frame_benchmarking, BaselineBench::<Runtime>);
 			// list_benchmark!(list, extra, pallet_babe, Babe);
 			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 			list_benchmark!(list, extra, pallet_balances, Balances);
@@ -1484,7 +1488,7 @@ impl_runtime_apis! {
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
+			use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
 
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency
 			// issues. To get around that, we separated the Session benchmarks into its own crate,
@@ -1492,10 +1496,12 @@ impl_runtime_apis! {
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use baseline::Pallet as BaselineBench;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
+			impl baseline::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1519,6 +1525,7 @@ impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 
+			add_benchmark!(params, batches, frame_benchmarking, BaselineBench::<Runtime>);
 			// add_benchmark!(params, batches, pallet_babe, Babe);
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bags_list, BagsList);

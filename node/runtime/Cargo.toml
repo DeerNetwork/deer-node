@@ -40,6 +40,7 @@ sp-transaction-pool = { path = "../../substrate/primitives/transaction-pool", de
 sp-version = { path = "../../substrate/primitives/version", default-features = false }
 sp-npos-elections = { default-features = false, path = "../../substrate/primitives/npos-elections" }
 sp-io = { default-features = false, path = "../../substrate/primitives/io" }
+sp-sandbox = { default-features = false, path = "../../substrate/primitives/sandbox" }
 
 # frame dependencies
 frame-executive = { path = "../../substrate/frame/executive", default-features = false }
@@ -131,6 +132,7 @@ std = [
     "sp-core/std",
     "pallet-randomness-collective-flip/std",
     "sp-std/std",
+	"sp-sandbox/std",
 	"pallet-session/std",
     "sp-api/std",
     "sp-runtime/std",
@@ -167,7 +169,7 @@ std = [
 ]
 
 runtime-benchmarks = [
-    "frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
     "frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
@@ -244,3 +246,8 @@ try-runtime = [
     # "pallet-bridge/try-runtime",
     # "pallet-bridge-transfer/try-runtime",
 ]
+# Force `sp-sandbox` to call into the host resident executor. One still need to make sure
+# that `sc-executor` gets the `wasmer-sandbox` feature which happens automatically when
+# specified on the command line.
+# Don't use that on a production chain.
+wasmer-sandbox = ["sp-sandbox/wasmer-sandbox"]
