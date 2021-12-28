@@ -258,14 +258,31 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
-		/// An asset class was created. \[ class_id, owner \]
-		CreatedClass(T::ClassId, T::AccountId),
-		/// An asset `instace` was minted. \[ class_id, token_id, quantity, owner, who \]
-		MintedToken(T::ClassId, T::TokenId, T::Quantity, T::AccountId, T::AccountId),
-		/// An asset `instance` was burned. \[ class_id, token_id, quantity, owner \]
-		BurnedToken(T::ClassId, T::TokenId, T::Quantity, T::AccountId),
-		/// An asset `instace` was transferred. \[ class_id, token_id, quantity, from, to \]
-		TransferredToken(T::ClassId, T::TokenId, T::Quantity, T::AccountId, T::AccountId),
+		/// An nft class was created.
+		CreatedClass { class_id: T::ClassId, owner: T::AccountId },
+		/// A nft token was minted.
+		MintedToken {
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+			owner: T::AccountId,
+			caller: T::AccountId,
+		},
+		/// An nft token was burned.
+		BurnedToken {
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+			owner: T::AccountId,
+		},
+		/// An nft token was transferred.
+		TransferredToken {
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+			from: T::AccountId,
+			to: T::AccountId,
+		},
 	}
 
 	#[pallet::error]
@@ -368,7 +385,7 @@ pub mod pallet {
 			};
 
 			Classes::<T, I>::insert(class_id, class_details);
-			Self::deposit_event(Event::CreatedClass(class_id, owner));
+			Self::deposit_event(Event::CreatedClass { class_id, owner });
 			Ok(().into())
 		}
 
@@ -518,7 +535,7 @@ pub mod pallet {
 					},
 				)?;
 
-				Self::deposit_event(Event::BurnedToken(class_id, token_id, quantity, owner));
+				Self::deposit_event(Event::BurnedToken { class_id, token_id, quantity, owner });
 				Ok(().into())
 			})
 		}
@@ -651,13 +668,13 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 					*maybe_from_amount = Some(from_amount);
 				}
 
-				Self::deposit_event(Event::TransferredToken(
+				Self::deposit_event(Event::TransferredToken {
 					class_id,
 					token_id,
 					quantity,
-					from.clone(),
-					to.clone(),
-				));
+					from: from.clone(),
+					to: to.clone(),
+				});
 
 				Ok(true)
 			},
@@ -833,13 +850,13 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			);
 			OwnersByToken::<T, I>::insert((class_id, token_id), &to, ());
 
-			Self::deposit_event(Event::MintedToken(
+			Self::deposit_event(Event::MintedToken {
 				class_id,
 				token_id,
 				quantity,
-				to.clone(),
-				who.clone(),
-			));
+				owner: to.clone(),
+				caller: who.clone(),
+			});
 
 			Ok(())
 		})

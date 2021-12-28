@@ -105,7 +105,7 @@ fn whitelist_chain() {
 			Error::<Test>::InvalidChainId
 		);
 
-		assert_events(vec![Event::Bridge(PalletEvent::ChainWhitelisted(0))]);
+		assert_events(vec![Event::Bridge(PalletEvent::ChainWhitelisted { chain_id: 0 })]);
 	})
 }
 
@@ -121,8 +121,8 @@ fn set_get_threshold() {
 		assert_eq!(<RelayerThreshold<Test>>::get(), 5);
 
 		assert_events(vec![
-			Event::Bridge(PalletEvent::RelayerThresholdChanged(TEST_THRESHOLD)),
-			Event::Bridge(PalletEvent::RelayerThresholdChanged(5)),
+			Event::Bridge(PalletEvent::RelayerThresholdChanged { threshold: TEST_THRESHOLD }),
+			Event::Bridge(PalletEvent::RelayerThresholdChanged { threshold: 5 }),
 		]);
 	})
 }
@@ -134,7 +134,7 @@ fn asset_transfer_success() {
 		let to = vec![2];
 		let resource_id = [1; 32];
 		let metadata = vec![];
-		let amount = 100;
+		let amount: u32 = 100;
 		let token_id = vec![1, 2, 3, 4];
 
 		assert_ok!(Bridge::set_threshold(Origin::root(), TEST_THRESHOLD,));
@@ -147,14 +147,14 @@ fn asset_transfer_success() {
 			amount.into()
 		));
 		assert_events(vec![
-			Event::Bridge(PalletEvent::ChainWhitelisted(dest_id.clone())),
-			Event::Bridge(PalletEvent::FungibleTransfer(
-				dest_id.clone(),
-				1,
-				resource_id.clone(),
-				amount.into(),
-				to.clone(),
-			)),
+			Event::Bridge(PalletEvent::ChainWhitelisted { chain_id: dest_id.clone() }),
+			Event::Bridge(PalletEvent::FungibleTransfer {
+				dest_id: dest_id.clone(),
+				nonce: 1,
+				resource_id: resource_id.clone(),
+				amount: amount.into(),
+				to: to.clone(),
+			}),
 		]);
 
 		assert_ok!(Bridge::transfer_nonfungible(
@@ -164,26 +164,26 @@ fn asset_transfer_success() {
 			to.clone(),
 			metadata.clone()
 		));
-		assert_events(vec![Event::Bridge(PalletEvent::NonFungibleTransfer(
-			dest_id.clone(),
-			2,
-			resource_id.clone(),
+		assert_events(vec![Event::Bridge(PalletEvent::NonFungibleTransfer {
+			dest_id: dest_id.clone(),
+			nonce: 2,
+			resource_id: resource_id.clone(),
 			token_id,
-			to.clone(),
-			metadata.clone(),
-		))]);
+			to: to.clone(),
+			metadata: metadata.clone(),
+		})]);
 
 		assert_ok!(Bridge::transfer_generic(
 			dest_id.clone(),
 			resource_id.clone(),
 			metadata.clone()
 		));
-		assert_events(vec![Event::Bridge(PalletEvent::GenericTransfer(
-			dest_id.clone(),
-			3,
+		assert_events(vec![Event::Bridge(PalletEvent::GenericTransfer {
+			dest_id: dest_id.clone(),
+			nonce: 3,
 			resource_id,
 			metadata,
-		))]);
+		})]);
 	})
 }
 
@@ -195,7 +195,9 @@ fn asset_transfer_invalid_chain() {
 		let resource_id = [4; 32];
 
 		assert_ok!(Bridge::whitelist_chain(Origin::root(), chain_id.clone()));
-		assert_events(vec![Event::Bridge(PalletEvent::ChainWhitelisted(chain_id.clone()))]);
+		assert_events(vec![Event::Bridge(PalletEvent::ChainWhitelisted {
+			chain_id: chain_id.clone(),
+		})]);
 
 		assert_noop!(
 			Bridge::transfer_fungible(bad_dest_id, resource_id.clone(), vec![], U256::zero()),
@@ -241,10 +243,10 @@ fn add_remove_relayer() {
 		assert_eq!(Bridge::relayer_count(), 2);
 
 		assert_events(vec![
-			Event::Bridge(PalletEvent::RelayerAdded(RELAYER_A)),
-			Event::Bridge(PalletEvent::RelayerAdded(RELAYER_B)),
-			Event::Bridge(PalletEvent::RelayerAdded(RELAYER_C)),
-			Event::Bridge(PalletEvent::RelayerRemoved(RELAYER_B)),
+			Event::Bridge(PalletEvent::RelayerAdded { relayer: RELAYER_A }),
+			Event::Bridge(PalletEvent::RelayerAdded { relayer: RELAYER_B }),
+			Event::Bridge(PalletEvent::RelayerAdded { relayer: RELAYER_C }),
+			Event::Bridge(PalletEvent::RelayerRemoved { relayer: RELAYER_B }),
 		]);
 	})
 }
@@ -314,11 +316,23 @@ fn create_sucessful_proposal() {
 		assert_eq!(prop, expected);
 
 		assert_events(vec![
-			Event::Bridge(PalletEvent::VoteFor(src_id, prop_id, RELAYER_A)),
-			Event::Bridge(PalletEvent::VoteAgainst(src_id, prop_id, RELAYER_B)),
-			Event::Bridge(PalletEvent::VoteFor(src_id, prop_id, RELAYER_C)),
-			Event::Bridge(PalletEvent::ProposalApproved(src_id, prop_id)),
-			Event::Bridge(PalletEvent::ProposalSucceeded(src_id, prop_id)),
+			Event::Bridge(PalletEvent::VoteFor {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_A,
+			}),
+			Event::Bridge(PalletEvent::VoteAgainst {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_B,
+			}),
+			Event::Bridge(PalletEvent::VoteFor {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_C,
+			}),
+			Event::Bridge(PalletEvent::ProposalApproved { chain_id: src_id, nonce: prop_id }),
+			Event::Bridge(PalletEvent::ProposalSucceeded { chain_id: src_id, nonce: prop_id }),
 		]);
 	})
 }
@@ -387,10 +401,22 @@ fn create_unsucessful_proposal() {
 		assert_eq!(Balances::free_balance(Bridge::account_id()), ENDOWED_BALANCE);
 
 		assert_events(vec![
-			Event::Bridge(PalletEvent::VoteFor(src_id, prop_id, RELAYER_A)),
-			Event::Bridge(PalletEvent::VoteAgainst(src_id, prop_id, RELAYER_B)),
-			Event::Bridge(PalletEvent::VoteAgainst(src_id, prop_id, RELAYER_C)),
-			Event::Bridge(PalletEvent::ProposalRejected(src_id, prop_id)),
+			Event::Bridge(PalletEvent::VoteFor {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_A,
+			}),
+			Event::Bridge(PalletEvent::VoteAgainst {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_B,
+			}),
+			Event::Bridge(PalletEvent::VoteAgainst {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_C,
+			}),
+			Event::Bridge(PalletEvent::ProposalRejected { chain_id: src_id, nonce: prop_id }),
 		]);
 	})
 }
@@ -445,10 +471,14 @@ fn execute_after_threshold_change() {
 		assert_eq!(Balances::free_balance(Bridge::account_id()), ENDOWED_BALANCE);
 
 		assert_events(vec![
-			Event::Bridge(PalletEvent::VoteFor(src_id, prop_id, RELAYER_A)),
-			Event::Bridge(PalletEvent::RelayerThresholdChanged(1)),
-			Event::Bridge(PalletEvent::ProposalApproved(src_id, prop_id)),
-			Event::Bridge(PalletEvent::ProposalSucceeded(src_id, prop_id)),
+			Event::Bridge(PalletEvent::VoteFor {
+				chain_id: src_id,
+				nonce: prop_id,
+				voter: RELAYER_A,
+			}),
+			Event::Bridge(PalletEvent::RelayerThresholdChanged { threshold: 1 }),
+			Event::Bridge(PalletEvent::ProposalApproved { chain_id: src_id, nonce: prop_id }),
+			Event::Bridge(PalletEvent::ProposalSucceeded { chain_id: src_id, nonce: prop_id }),
 		]);
 	})
 }
@@ -523,6 +553,10 @@ fn proposal_expires() {
 		};
 		assert_eq!(prop, expected);
 
-		assert_events(vec![Event::Bridge(PalletEvent::VoteFor(src_id, prop_id, RELAYER_A))]);
+		assert_events(vec![Event::Bridge(PalletEvent::VoteFor {
+			chain_id: src_id,
+			nonce: prop_id,
+			voter: RELAYER_A,
+		})]);
 	})
 }

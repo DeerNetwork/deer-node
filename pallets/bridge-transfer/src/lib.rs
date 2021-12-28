@@ -67,8 +67,8 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// [chainId, min_fee, fee_scale]
-		FeeUpdated(bridge::BridgeChainId, BalanceOf<T>, u32),
+		/// Bridge fee updated.
+		FeeUpdated { chain_id: bridge::BridgeChainId, min_fee: BalanceOf<T>, fee_scale: u32 },
 	}
 
 	#[pallet::error]
@@ -99,7 +99,7 @@ pub mod pallet {
 			T::BridgeCommitteeOrigin::ensure_origin(origin)?;
 			ensure!(fee_scale <= 1000u32, Error::<T>::InvalidFeeOption);
 			BridgeFee::<T>::insert(dest_id, (min_fee, fee_scale));
-			Self::deposit_event(Event::FeeUpdated(dest_id, min_fee, fee_scale));
+			Self::deposit_event(Event::FeeUpdated { chain_id: dest_id, min_fee, fee_scale });
 			Ok(())
 		}
 

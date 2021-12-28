@@ -137,34 +137,50 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Vote threshold has changed (new_threshold)
-		RelayerThresholdChanged(u32),
-		/// Chain now available for transfers (chain_id)
-		ChainWhitelisted(BridgeChainId),
-		/// Relayer added to set
-		RelayerAdded(T::AccountId),
-		/// Relayer removed from set
-		RelayerRemoved(T::AccountId),
-		/// FungibleTransfer is for relaying fungibles (dest_id, nonce, resource_id, amount,
-		/// recipient)
-		FungibleTransfer(BridgeChainId, DepositNonce, ResourceId, U256, Vec<u8>),
-		/// NonFungibleTransfer is for relaying NFTs (dest_id, nonce, resource_id, token_id,
-		/// recipient, metadata)
-		NonFungibleTransfer(BridgeChainId, DepositNonce, ResourceId, Vec<u8>, Vec<u8>, Vec<u8>),
-		/// GenericTransfer is for a generic data payload (dest_id, nonce, resource_id, metadata)
-		GenericTransfer(BridgeChainId, DepositNonce, ResourceId, Vec<u8>),
-		/// Vote submitted in favour of proposal
-		VoteFor(BridgeChainId, DepositNonce, T::AccountId),
-		/// Vot submitted against proposal
-		VoteAgainst(BridgeChainId, DepositNonce, T::AccountId),
-		/// Voting successful for a proposal
-		ProposalApproved(BridgeChainId, DepositNonce),
-		/// Voting rejected a proposal
-		ProposalRejected(BridgeChainId, DepositNonce),
-		/// Execution of call succeeded
-		ProposalSucceeded(BridgeChainId, DepositNonce),
-		/// Execution of call failed
-		ProposalFailed(BridgeChainId, DepositNonce),
+		/// Vote threshold has changed.
+		RelayerThresholdChanged { threshold: u32 },
+		/// Chain now available for transfers.
+		ChainWhitelisted { chain_id: BridgeChainId },
+		/// Relayer added to set.
+		RelayerAdded { relayer: T::AccountId },
+		/// Relayer removed from set.
+		RelayerRemoved { relayer: T::AccountId },
+		/// FungibleTransfer is for relaying fungibles.
+		FungibleTransfer {
+			dest_id: BridgeChainId,
+			nonce: DepositNonce,
+			resource_id: ResourceId,
+			amount: U256,
+			to: Vec<u8>,
+		},
+		/// NonFungibleTransfer is for relaying NFTs.
+		NonFungibleTransfer {
+			dest_id: BridgeChainId,
+			nonce: DepositNonce,
+			resource_id: ResourceId,
+			token_id: Vec<u8>,
+			to: Vec<u8>,
+			metadata: Vec<u8>,
+		},
+		/// GenericTransfer is for a generic data payload.
+		GenericTransfer {
+			dest_id: BridgeChainId,
+			nonce: DepositNonce,
+			resource_id: ResourceId,
+			metadata: Vec<u8>,
+		},
+		/// Vote submitted in favour of proposal.
+		VoteFor { chain_id: BridgeChainId, nonce: DepositNonce, voter: T::AccountId },
+		/// Vot submitted against proposal.
+		VoteAgainst { chain_id: BridgeChainId, nonce: DepositNonce, voter: T::AccountId },
+		/// Voting successful for a proposal.
+		ProposalApproved { chain_id: BridgeChainId, nonce: DepositNonce },
+		/// Voting rejected a proposal.
+		ProposalRejected { chain_id: BridgeChainId, nonce: DepositNonce },
+		/// Execution of call succeeded.
+		ProposalSucceeded { chain_id: BridgeChainId, nonce: DepositNonce },
+		/// Execution of call failed.
+		ProposalFailed { chain_id: BridgeChainId, nonce: DepositNonce },
 	}
 
 	#[pallet::error]
@@ -437,7 +453,7 @@ pub mod pallet {
 		pub fn set_relayer_threshold(threshold: u32) -> DispatchResult {
 			ensure!(threshold > 0, Error::<T>::InvalidThreshold);
 			RelayerThreshold::<T>::put(threshold);
-			Self::deposit_event(Event::RelayerThresholdChanged(threshold));
+			Self::deposit_event(Event::RelayerThresholdChanged { threshold });
 			Ok(())
 		}
 
@@ -460,7 +476,7 @@ pub mod pallet {
 			// Cannot whitelist with an existing entry
 			ensure!(!Self::chain_whitelisted(id), Error::<T>::ChainAlreadyWhitelisted);
 			ChainNonces::<T>::insert(&id, 0);
-			Self::deposit_event(Event::ChainWhitelisted(id));
+			Self::deposit_event(Event::ChainWhitelisted { chain_id: id });
 			Ok(())
 		}
 
@@ -470,7 +486,7 @@ pub mod pallet {
 			Relayers::<T>::insert(&relayer, true);
 			RelayerCount::<T>::mutate(|i| *i += 1);
 
-			Self::deposit_event(Event::RelayerAdded(relayer));
+			Self::deposit_event(Event::RelayerAdded { relayer });
 			Ok(())
 		}
 
@@ -479,7 +495,7 @@ pub mod pallet {
 			ensure!(Self::is_relayer(&relayer), Error::<T>::RelayerInvalid);
 			Relayers::<T>::remove(&relayer);
 			RelayerCount::<T>::mutate(|i| *i -= 1);
-			Self::deposit_event(Event::RelayerRemoved(relayer));
+			Self::deposit_event(Event::RelayerRemoved { relayer });
 			Ok(())
 		}
 
@@ -507,10 +523,10 @@ pub mod pallet {
 
 			if in_favour {
 				votes.votes_for.push(who.clone());
-				Self::deposit_event(Event::VoteFor(src_id, nonce, who));
+				Self::deposit_event(Event::VoteFor { chain_id: src_id, nonce, voter: who });
 			} else {
 				votes.votes_against.push(who.clone());
-				Self::deposit_event(Event::VoteAgainst(src_id, nonce, who));
+				Self::deposit_event(Event::VoteAgainst { chain_id: src_id, nonce, voter: who });
 			}
 
 			Votes::<T>::insert(src_id, (nonce, prop), votes);
@@ -573,17 +589,17 @@ pub mod pallet {
 			nonce: DepositNonce,
 			call: Box<T::Proposal>,
 		) -> DispatchResult {
-			Self::deposit_event(Event::ProposalApproved(src_id, nonce));
+			Self::deposit_event(Event::ProposalApproved { chain_id: src_id, nonce });
 			call.dispatch(frame_system::RawOrigin::Signed(Self::account_id()).into())
 				.map(|_| ())
 				.map_err(|e| e.error)?;
-			Self::deposit_event(Event::ProposalSucceeded(src_id, nonce));
+			Self::deposit_event(Event::ProposalSucceeded { chain_id: src_id, nonce });
 			Ok(())
 		}
 
 		/// Cancels a proposal.
 		fn cancel_execution(src_id: BridgeChainId, nonce: DepositNonce) -> DispatchResult {
-			Self::deposit_event(Event::ProposalRejected(src_id, nonce));
+			Self::deposit_event(Event::ProposalRejected { chain_id: src_id, nonce });
 			Ok(())
 		}
 
@@ -604,7 +620,13 @@ pub mod pallet {
 				amount,
 				to.clone(),
 			));
-			Self::deposit_event(Event::FungibleTransfer(dest_id, nonce, resource_id, amount, to));
+			Self::deposit_event(Event::FungibleTransfer {
+				dest_id,
+				nonce,
+				resource_id,
+				amount,
+				to,
+			});
 			Ok(())
 		}
 
@@ -627,14 +649,14 @@ pub mod pallet {
 				to.clone(),
 				metadata.clone(),
 			));
-			Self::deposit_event(Event::NonFungibleTransfer(
+			Self::deposit_event(Event::NonFungibleTransfer {
 				dest_id,
 				nonce,
 				resource_id,
 				token_id,
 				to,
 				metadata,
-			));
+			});
 			Ok(())
 		}
 
@@ -653,7 +675,7 @@ pub mod pallet {
 				resource_id,
 				metadata.clone(),
 			));
-			Self::deposit_event(Event::GenericTransfer(dest_id, nonce, resource_id, metadata));
+			Self::deposit_event(Event::GenericTransfer { dest_id, nonce, resource_id, metadata });
 			Ok(())
 		}
 	}

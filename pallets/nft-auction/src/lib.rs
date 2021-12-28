@@ -232,22 +232,38 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
-		/// Created ductch auction \[class_id, token_id, quantity, who, auction_id\]
-		CreatedDutchAuction(T::ClassId, T::TokenId, T::Quantity, T::AccountId, T::AuctionId),
-		/// Bid dutch auction \[who, auction_id\]
-		BidDutchAuction(T::AccountId, T::AuctionId),
-		/// Canceled dutch auction \[who, auction_id\]
-		CanceledDutchAuction(T::AccountId, T::AuctionId),
-		/// Redeemed dutch auction \[who, auction_id\]
-		RedeemedDutchAuction(T::AccountId, T::AuctionId),
-		/// Created ductch auction \[class_id, token_id, quantity, who, auction_id\]
-		CreatedEnglishAuction(T::ClassId, T::TokenId, T::Quantity, T::AccountId, T::AuctionId),
-		/// Bid english auction \[who, auction_id\]
-		BidEnglishAuction(T::AccountId, T::AuctionId),
-		/// Canceled english auction \[who, auction_id\]
-		CanceledEnglishAuction(T::AccountId, T::AuctionId),
-		/// Redeemed english auction \[who, auction_id\]
-		RedeemedEnglishAuction(T::AccountId, T::AuctionId),
+		/// Created ductch auction.
+		CreatedDutchAuction {
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+			owner: T::AccountId,
+			auction_id: T::AuctionId,
+		},
+		/// Bid dutch auction.
+		BidDutchAuction { bidder: T::AccountId, owner: T::AccountId, auction_id: T::AuctionId },
+		/// Canceled dutch auction.
+		CanceledDutchAuction { owner: T::AccountId, auction_id: T::AuctionId },
+		/// Redeemed dutch auction.
+		RedeemedDutchAuction { bidder: T::AccountId, owner: T::AccountId, auction_id: T::AuctionId },
+		/// Created ductch auction.
+		CreatedEnglishAuction {
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+			owner: T::AccountId,
+			auction_id: T::AuctionId,
+		},
+		/// Bid english auction.
+		BidEnglishAuction { bidder: T::AccountId, owner: T::AccountId, auction_id: T::AuctionId },
+		/// Canceled english auction.
+		CanceledEnglishAuction { owner: T::AccountId, auction_id: T::AuctionId },
+		/// Redeemed english auction.
+		RedeemedEnglishAuction {
+			bidder: T::AccountId,
+			owner: T::AccountId,
+			auction_id: T::AuctionId,
+		},
 	}
 
 	// Errors inform users that something went wrong.
@@ -356,9 +372,13 @@ pub mod pallet {
 
 			DutchAuctions::<T, I>::insert(who.clone(), auction_id, auction);
 
-			Self::deposit_event(Event::CreatedDutchAuction(
-				class_id, token_id, quantity, who, auction_id,
-			));
+			Self::deposit_event(Event::CreatedDutchAuction {
+				class_id,
+				token_id,
+				quantity,
+				owner: who,
+				auction_id,
+			});
 			Ok(())
 		}
 
@@ -399,7 +419,11 @@ pub mod pallet {
 					} else {
 						T::Currency::reserve(&who, new_price)?;
 						DutchAuctionBids::<T, I>::insert(auction_id, bid);
-						Self::deposit_event(Event::BidDutchAuction(who, auction_id));
+						Self::deposit_event(Event::BidDutchAuction {
+							bidder: who,
+							owner: auction_owner.clone(),
+							auction_id,
+						});
 					}
 				},
 				(Some(bid), Some(bid_price)) => {
@@ -425,7 +449,11 @@ pub mod pallet {
 						ensure!(bid_price > bid.price, Error::<T, I>::InvalidBidPrice);
 						T::Currency::reserve(&who, bid_price)?;
 						DutchAuctionBids::<T, I>::insert(auction_id, new_bid);
-						Self::deposit_event(Event::BidDutchAuction(who, auction_id));
+						Self::deposit_event(Event::BidDutchAuction {
+							bidder: who,
+							owner: auction_owner.clone(),
+							auction_id,
+						});
 					}
 				},
 				(Some(_), None) => return Err(Error::<T, I>::MissDutchBidPrice.into()),
@@ -476,7 +504,7 @@ pub mod pallet {
 				&auction_owner,
 			)?;
 			Self::delete_dutch_auction(&auction_owner, auction_id)?;
-			Self::deposit_event(Event::CanceledDutchAuction(auction_owner, auction_id));
+			Self::deposit_event(Event::CanceledDutchAuction { owner: auction_owner, auction_id });
 			Ok(())
 		}
 
@@ -523,9 +551,13 @@ pub mod pallet {
 
 			EnglishAuctions::<T, I>::insert(who.clone(), auction_id, auction);
 
-			Self::deposit_event(Event::CreatedEnglishAuction(
-				class_id, token_id, quantity, who, auction_id,
-			));
+			Self::deposit_event(Event::CreatedEnglishAuction {
+				class_id,
+				token_id,
+				quantity,
+				owner: who,
+				auction_id,
+			});
 			Ok(())
 		}
 
@@ -554,7 +586,11 @@ pub mod pallet {
 						auction_id,
 						AuctionBid { account: who.clone(), price, bid_at: now },
 					);
-					Self::deposit_event(Event::BidEnglishAuction(who, auction_id));
+					Self::deposit_event(Event::BidEnglishAuction {
+						bidder: who,
+						owner: auction_owner.clone(),
+						auction_id,
+					});
 				},
 				Some(bid) => {
 					ensure!(
@@ -572,7 +608,11 @@ pub mod pallet {
 						auction_id,
 						AuctionBid { account: who.clone(), price, bid_at: now },
 					);
-					Self::deposit_event(Event::BidEnglishAuction(who, auction_id));
+					Self::deposit_event(Event::BidEnglishAuction {
+						bidder: who,
+						owner: auction_owner.clone(),
+						auction_id,
+					});
 				},
 			}
 			Ok(())
@@ -614,10 +654,11 @@ pub mod pallet {
 			)?;
 
 			Self::delete_english_auction(&auction_owner, auction_id)?;
-			Self::deposit_event(Event::RedeemedEnglishAuction(
-				bid.account.clone(),
-				auction_id.clone(),
-			));
+			Self::deposit_event(Event::RedeemedEnglishAuction {
+				bidder: bid.account,
+				owner: auction_owner.clone(),
+				auction_id,
+			});
 			Ok(())
 		}
 
@@ -640,7 +681,7 @@ pub mod pallet {
 				&auction_owner,
 			)?;
 			Self::delete_english_auction(&auction_owner, auction_id)?;
-			Self::deposit_event(Event::CanceledEnglishAuction(auction_owner, auction_id));
+			Self::deposit_event(Event::CanceledEnglishAuction { owner: auction_owner, auction_id });
 			Ok(())
 		}
 	}
@@ -684,7 +725,11 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			T::AuctionFeeTaxRatio::get(),
 		)?;
 		Self::delete_dutch_auction(&auction_owner, auction_id)?;
-		Self::deposit_event(Event::RedeemedDutchAuction(bid.account.clone(), auction_id.clone()));
+		Self::deposit_event(Event::RedeemedDutchAuction {
+			bidder: bid.account.clone(),
+			owner: auction_owner.clone(),
+			auction_id,
+		});
 		Ok(())
 	}
 

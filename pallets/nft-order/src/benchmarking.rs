@@ -66,7 +66,7 @@ benchmarks_instance_pallet! {
 		let order_id = NextOrderId::<T, I>::get();
 	}: _(SystemOrigin::Signed(owner.clone()), class_id, token_id, quantity, 10u32.into(), Some(3u32.into()))
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CreatedOrder(order_id, class_id, token_id, quantity, owner).into());
+		assert_last_event::<T, I>(Event::<T, I>::CreatedOrder { order_id, class_id, token_id, quantity, seller: owner }.into());
 	}
 
 	deal_order {
@@ -82,7 +82,7 @@ benchmarks_instance_pallet! {
 		let order_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(owner.clone());
 	}: _(SystemOrigin::Signed(buyer.clone()), order_owner, order_id, quantity)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::DealedOrder(order_id, owner, buyer).into());
+		assert_last_event::<T, I>(Event::<T, I>::DealedOrder { order_id, seller: owner, buyer }.into());
 	}
 
 	remove_order {
@@ -94,7 +94,7 @@ benchmarks_instance_pallet! {
 		assert!(NFTOrder::<T, I>::sell(SystemOrigin::Signed(owner.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
 	}: _(SystemOrigin::Signed(owner.clone()), order_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RemovedOrder(order_id, owner).into());
+		assert_last_event::<T, I>(Event::<T, I>::RemovedOrder { order_id, seller: owner }.into());
 	}
 
 	buy {
@@ -108,7 +108,7 @@ benchmarks_instance_pallet! {
 		let offer_id = NextOfferId::<T, I>::get();
 	}: _(SystemOrigin::Signed(buyer.clone()), class_id, token_id, quantity, 10u32.into(), Some(3u32.into()))
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CreatedOffer(offer_id, class_id, token_id, quantity, buyer).into());
+		assert_last_event::<T, I>(Event::<T, I>::CreatedOffer { offer_id, class_id, token_id, quantity, buyer }.into());
 	}
 
 	deal_offer {
@@ -124,7 +124,7 @@ benchmarks_instance_pallet! {
 		let offer_owner: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(buyer.clone());
 	}: _(SystemOrigin::Signed(owner.clone()), offer_owner, offer_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::DealedOffer(offer_id, buyer, owner).into());
+		assert_last_event::<T, I>(Event::<T, I>::DealedOffer { offer_id, buyer, seller: owner }.into());
 	}
 
 	remove_offer {
@@ -139,7 +139,7 @@ benchmarks_instance_pallet! {
 		assert!(NFTOrder::<T, I>::buy(SystemOrigin::Signed(buyer.clone()).into(), class_id, token_id, quantity, 10u32.into(), Some(3u32.into())).is_ok());
 	}: _(SystemOrigin::Signed(buyer.clone()), offer_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RemovedOffer(offer_id, buyer).into());
+		assert_last_event::<T, I>(Event::<T, I>::RemovedOffer { offer_id, buyer }.into());
 	}
 }
 
