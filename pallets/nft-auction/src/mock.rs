@@ -94,7 +94,6 @@ impl pallet_nft::Config for Test {
 parameter_types! {
 	pub const AuctionDeposit: u64 = 10;
 	pub const AuctionFeeTaxRatio: Perbill = Perbill::from_percent(10);
-	pub const MinDeadline: u64 = 600;
 	pub const DelayOfAuction: u64 = 60;
 }
 
@@ -103,7 +102,6 @@ impl Config for Test {
 	type AuctionId = u32;
 	type AuctionDeposit = AuctionDeposit;
 	type AuctionFeeTaxRatio = AuctionFeeTaxRatio;
-	type MinDeadline = MinDeadline;
 	type DelayOfAuction = DelayOfAuction;
 	type WeightInfo = ();
 }

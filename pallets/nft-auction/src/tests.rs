@@ -50,10 +50,10 @@ fn create_dutch_auction_should_work() {
 			NFTError::<Test>::TokenNotFound,
 		);
 
-		// Failed when deadline lt T::MinDeadline
+		// Failed when deadline is invalid
 		assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 1, vec![], None, None));
 		assert_err!(
-			NFTAuction::create_dutch(Origin::signed(1), 0, 1, 1, 20, 80, 100, None),
+			NFTAuction::create_dutch(Origin::signed(1), 0, 1, 1, 20, 80, 0, None),
 			Error::<Test>::InvalidDeadline
 		);
 
@@ -305,10 +305,10 @@ fn create_english_auction_should_work() {
 			NFTError::<Test>::TokenNotFound,
 		);
 
-		// Failed when deadline lt T::MinDeadline
+		// Failed when deadline is invalid
 		assert_ok!(NFT::mint(Origin::signed(1), 1, 0, 1, vec![], None, None));
 		assert_err!(
-			NFTAuction::create_english(Origin::signed(1), 0, 1, 1, 20, 1, 100, None),
+			NFTAuction::create_english(Origin::signed(1), 0, 1, 1, 20, 1, 1, None),
 			Error::<Test>::InvalidDeadline
 		);
 	});

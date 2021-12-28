@@ -165,9 +165,6 @@ pub mod pallet {
 		/// The amount of auction fee as tax
 		#[pallet::constant]
 		type AuctionFeeTaxRatio: Get<Perbill>;
-		/// Minimum deadline of auction
-		#[pallet::constant]
-		type MinDeadline: Get<BlockNumberFor<Self>>;
 		/// Delay of auction after bidding
 		#[pallet::constant]
 		type DelayOfAuction: Get<BlockNumberFor<Self>>;
@@ -362,10 +359,7 @@ pub mod pallet {
 			pallet_nft::Pallet::<T, I>::ensure_transferable(class_id, token_id, quantity, &who)?;
 			ensure!(max_price > min_price, Error::<T, I>::InvalidPrice);
 			let now = frame_system::Pallet::<T>::block_number();
-			ensure!(
-				deadline >= now.saturating_add(T::MinDeadline::get()),
-				Error::<T, I>::InvalidDeadline
-			);
+			ensure!(deadline > now, Error::<T, I>::InvalidDeadline);
 			let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
 
 			let deposit = T::AuctionDeposit::get();
@@ -543,10 +537,7 @@ pub mod pallet {
 
 			pallet_nft::Pallet::<T, I>::ensure_transferable(class_id, token_id, quantity, &who)?;
 			let now = frame_system::Pallet::<T>::block_number();
-			ensure!(
-				deadline >= now.saturating_add(T::MinDeadline::get()),
-				Error::<T, I>::InvalidDeadline
-			);
+			ensure!(deadline > now, Error::<T, I>::InvalidDeadline);
 			let open_at = open_at.map(|v| v.max(now)).unwrap_or(now);
 
 			let deposit = T::AuctionDeposit::get();

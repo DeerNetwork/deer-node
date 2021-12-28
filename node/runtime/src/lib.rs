@@ -1054,7 +1054,6 @@ impl pallet_nft_order::Config for Runtime {
 parameter_types! {
 	pub const AuctionDeposit: Balance = 1 * DOLLARS;
 	pub const AuctionFeeTaxRatio: Perbill = Perbill::from_percent(3);
-	pub const MinDeadline: BlockNumber = 1 * DAYS;
 	pub const DelayOfAuction: BlockNumber = 10 * MINUTES;
 }
 
@@ -1063,7 +1062,6 @@ impl pallet_nft_auction::Config for Runtime {
 	type AuctionId = u64;
 	type AuctionDeposit = AuctionDeposit;
 	type AuctionFeeTaxRatio = AuctionFeeTaxRatio;
-	type MinDeadline = MinDeadline;
 	type DelayOfAuction = DelayOfAuction;
 	type WeightInfo = pallet_nft_auction::weights::SubstrateWeight<Runtime>;
 }
