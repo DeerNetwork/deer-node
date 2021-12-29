@@ -230,20 +230,37 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Created ductch auction.
-		CreatedDutchAuction { auction_id: T::AuctionId, owner: T::AccountId },
+		CreatedDutchAuction {
+			auction_id: T::AuctionId,
+			owner: T::AccountId,
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+		},
 		/// Bid dutch auction.
 		BidDutchAuction {
 			auction_id: T::AuctionId,
-			bidder: T::AccountId,
 			owner: T::AccountId,
+			bidder: T::AccountId,
 			price: BalanceOf<T, I>,
 		},
 		/// Canceled dutch auction.
 		CanceledDutchAuction { auction_id: T::AuctionId, owner: T::AccountId },
 		/// Redeemed dutch auction.
-		RedeemedDutchAuction { auction_id: T::AuctionId, owner: T::AccountId },
+		RedeemedDutchAuction {
+			auction_id: T::AuctionId,
+			owner: T::AccountId,
+			bidder: T::AccountId,
+			price: BalanceOf<T, I>,
+		},
 		/// Created ductch auction.
-		CreatedEnglishAuction { auction_id: T::AuctionId, owner: T::AccountId },
+		CreatedEnglishAuction {
+			auction_id: T::AuctionId,
+			owner: T::AccountId,
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+		},
 		/// Bid english auction.
 		BidEnglishAuction {
 			auction_id: T::AuctionId,
@@ -254,7 +271,12 @@ pub mod pallet {
 		/// Canceled english auction.
 		CanceledEnglishAuction { auction_id: T::AuctionId, owner: T::AccountId },
 		/// Redeemed english auction.
-		RedeemedEnglishAuction { auction_id: T::AuctionId, owner: T::AccountId },
+		RedeemedEnglishAuction {
+			auction_id: T::AuctionId,
+			owner: T::AccountId,
+			bidder: T::AccountId,
+			price: BalanceOf<T, I>,
+		},
 	}
 
 	// Errors inform users that something went wrong.
@@ -360,7 +382,13 @@ pub mod pallet {
 
 			DutchAuctions::<T, I>::insert(who.clone(), auction_id, auction);
 
-			Self::deposit_event(Event::CreatedDutchAuction { auction_id, owner: who });
+			Self::deposit_event(Event::CreatedDutchAuction {
+				auction_id,
+				class_id,
+				token_id,
+				quantity,
+				owner: who,
+			});
 			Ok(())
 		}
 
@@ -532,7 +560,13 @@ pub mod pallet {
 
 			EnglishAuctions::<T, I>::insert(who.clone(), auction_id, auction);
 
-			Self::deposit_event(Event::CreatedEnglishAuction { auction_id, owner: who });
+			Self::deposit_event(Event::CreatedEnglishAuction {
+				auction_id,
+				class_id,
+				token_id,
+				quantity,
+				owner: who,
+			});
 			Ok(())
 		}
 
@@ -634,7 +668,9 @@ pub mod pallet {
 			Self::delete_english_auction(&auction_owner, auction_id)?;
 			Self::deposit_event(Event::RedeemedEnglishAuction {
 				auction_id,
+				bidder: bid.account,
 				owner: auction_owner.clone(),
+				price: bid.price,
 			});
 			Ok(())
 		}
@@ -705,7 +741,9 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		Self::delete_dutch_auction(&auction_owner, auction_id)?;
 		Self::deposit_event(Event::RedeemedDutchAuction {
 			auction_id,
+			bidder: bid.account.clone(),
 			owner: auction_owner.clone(),
+			price: bid.price,
 		});
 		Ok(())
 	}
