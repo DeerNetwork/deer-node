@@ -264,8 +264,8 @@ pub mod pallet {
 		/// Bid english auction.
 		BidEnglishAuction {
 			auction_id: T::AuctionId,
-			bidder: T::AccountId,
 			owner: T::AccountId,
+			bidder: T::AccountId,
 			price: BalanceOf<T, I>,
 		},
 		/// Canceled english auction.
