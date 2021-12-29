@@ -298,7 +298,7 @@ benchmarks! {
 		let fee = T::Currency::minimum_balance().saturating_mul(2000u32.saturated_into());
 	}: _(SystemOrigin::Signed(caller.clone()), cid.clone(), 100u64, fee)
 	verify {
-		assert_last_event::<T>(Event::<T>::StoreFileSubmitted { cid, caller, fee }.into());
+		assert_last_event::<T>(Event::<T>::StoreFileSubmitted { cid, caller, fee, first: true }.into());
 	}
 
 	force_delete {

@@ -317,10 +317,8 @@ pub mod pallet {
 		NodeRegisted { node: T::AccountId, machine_id: MachineId },
 		/// A node reported its work.
 		NodeReported { node: T::AccountId, machine_id: MachineId },
-		/// A file have summitted.
-		StoreFileSubmitted { cid: FileId, caller: T::AccountId, fee: BalanceOf<T> },
-		/// More founds given to a file.
-		StoreFileAddedFounds { cid: FileId, caller: T::AccountId, fee: BalanceOf<T> },
+		/// A request to store file was submitted
+		StoreFileSubmitted { cid: FileId, caller: T::AccountId, fee: BalanceOf<T>, first: bool },
 		/// A file have been removed.
 		StoreFileRemoved { cid: FileId },
 		/// A file was renewed and can accepte more replicas.
@@ -756,7 +754,12 @@ pub mod pallet {
 				)?;
 				file.reserved = new_reserved;
 				StoreFiles::<T>::insert(cid.clone(), file);
-				Self::deposit_event(Event::<T>::StoreFileAddedFounds { cid, caller: who, fee });
+				Self::deposit_event(Event::<T>::StoreFileSubmitted {
+					cid,
+					caller: who,
+					fee,
+					first: false,
+				});
 			} else {
 				let min_fee = Self::store_file_fee(file_size);
 				ensure!(fee >= min_fee, Error::<T>::NotEnoughFee);
@@ -776,7 +779,12 @@ pub mod pallet {
 						added_at: Self::now_bn(),
 					},
 				);
-				Self::deposit_event(Event::<T>::StoreFileSubmitted { cid, caller: who, fee });
+				Self::deposit_event(Event::<T>::StoreFileSubmitted {
+					cid,
+					caller: who,
+					fee,
+					first: true,
+				});
 			}
 			Ok(())
 		}
