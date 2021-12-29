@@ -66,7 +66,7 @@ benchmarks_instance_pallet! {
 		let order_id = NextOrderId::<T, I>::get();
 	}: _(SystemOrigin::Signed(owner.clone()), class_id, token_id, quantity, 10u32.into(), Some(3u32.into()))
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CreatedOrder { order_id, class_id, token_id, quantity, seller: owner }.into());
+		assert_last_event::<T, I>(Event::<T, I>::CreatedOrder { order_id,  seller: owner }.into());
 	}
 
 	deal_order {
@@ -108,7 +108,7 @@ benchmarks_instance_pallet! {
 		let offer_id = NextOfferId::<T, I>::get();
 	}: _(SystemOrigin::Signed(buyer.clone()), class_id, token_id, quantity, 10u32.into(), Some(3u32.into()))
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CreatedOffer { offer_id, class_id, token_id, quantity, buyer }.into());
+		assert_last_event::<T, I>(Event::<T, I>::CreatedOffer { offer_id, buyer }.into());
 	}
 
 	deal_offer {

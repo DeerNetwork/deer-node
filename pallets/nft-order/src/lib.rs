@@ -182,9 +182,6 @@ pub mod pallet {
 		/// Create sell order.
 		CreatedOrder {
 			order_id: T::OrderId,
-			class_id: T::ClassId,
-			token_id: T::TokenId,
-			quantity: T::Quantity,
 			seller: T::AccountId,
 		},
 		/// Make a deal with sell order.
@@ -200,9 +197,6 @@ pub mod pallet {
 		/// Create buy offer.
 		CreatedOffer {
 			offer_id: T::OrderId,
-			class_id: T::ClassId,
-			token_id: T::TokenId,
-			quantity: T::Quantity,
 			buyer: T::AccountId,
 		},
 		/// Make a deal with buy offer.
@@ -322,9 +316,6 @@ pub mod pallet {
 
 				Self::deposit_event(Event::CreatedOrder {
 					order_id,
-					class_id,
-					token_id,
-					quantity,
 					seller: who,
 				});
 				Ok(())
@@ -462,9 +453,6 @@ pub mod pallet {
 
 				Self::deposit_event(Event::CreatedOffer {
 					offer_id,
-					class_id,
-					token_id,
-					quantity,
 					buyer: who,
 				});
 				Ok(())

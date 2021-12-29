@@ -73,7 +73,7 @@ benchmarks_instance_pallet! {
 		let expire = 28800u32.into();
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity, get_dollars::<T, I>(20), get_dollars::<T, I>(80), expire, None)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CreatedDutchAuction { class_id, token_id, quantity, owner: caller, auction_id }.into());
+		assert_last_event::<T, I>(Event::<T, I>::CreatedDutchAuction { owner: caller, auction_id }.into());
 	}
 
 	bid_dutch {
@@ -120,7 +120,7 @@ benchmarks_instance_pallet! {
 
 	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RedeemedDutchAuction { bidder: caller, owner, auction_id, price: 49997916680000u64.saturated_into() }.into());
+		assert_last_event::<T, I>(Event::<T, I>::RedeemedDutchAuction { owner, auction_id }.into());
 	}
 
 	cancel_dutch {
@@ -154,7 +154,7 @@ benchmarks_instance_pallet! {
 		let expire = 28800u32.into();
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity, get_dollars::<T, I>(20), get_dollars::<T, I>(1), expire, None)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::CreatedEnglishAuction { class_id, token_id, quantity, owner: caller, auction_id }.into());
+		assert_last_event::<T, I>(Event::<T, I>::CreatedEnglishAuction { owner: caller, auction_id }.into());
 	}
 
 	bid_english {
@@ -200,7 +200,7 @@ benchmarks_instance_pallet! {
 
 	}: _(SystemOrigin::Signed(caller.clone()), auction_owner, auction_id)
 	verify {
-		assert_last_event::<T, I>(Event::<T, I>::RedeemedEnglishAuction { bidder: caller, owner, auction_id, price: 20000000000000u64.saturated_into() }.into());
+		assert_last_event::<T, I>(Event::<T, I>::RedeemedEnglishAuction { owner, auction_id }.into());
 	}
 
 	cancel_english {
