@@ -269,10 +269,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// An nft class was created.
-		CreatedClass {
-			class_id: T::ClassId,
-			owner: T::AccountId,
-		},
+		CreatedClass { class_id: T::ClassId, owner: T::AccountId },
 		/// A nft token was minted.
 		MintedToken {
 			class_id: T::ClassId,
@@ -297,11 +294,8 @@ pub mod pallet {
 			to: T::AccountId,
 			reason: TransferReason,
 		},
-		// token info was updated
-		UpdatedToken {
-			class_id: T::ClassId,
-			token_id: T::TokenId,
-		},
+		/// token info was updated
+		UpdatedToken { class_id: T::ClassId, token_id: T::TokenId },
 	}
 
 	#[pallet::error]
