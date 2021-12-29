@@ -230,10 +230,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Created ductch auction.
-		CreatedDutchAuction {
-			auction_id: T::AuctionId,
-			owner: T::AccountId,
-		},
+		CreatedDutchAuction { auction_id: T::AuctionId, owner: T::AccountId },
 		/// Bid dutch auction.
 		BidDutchAuction {
 			auction_id: T::AuctionId,
@@ -244,15 +241,9 @@ pub mod pallet {
 		/// Canceled dutch auction.
 		CanceledDutchAuction { auction_id: T::AuctionId, owner: T::AccountId },
 		/// Redeemed dutch auction.
-		RedeemedDutchAuction {
-			auction_id: T::AuctionId,
-			owner: T::AccountId,
-		},
+		RedeemedDutchAuction { auction_id: T::AuctionId, owner: T::AccountId },
 		/// Created ductch auction.
-		CreatedEnglishAuction {
-			auction_id: T::AuctionId,
-			owner: T::AccountId,
-		},
+		CreatedEnglishAuction { auction_id: T::AuctionId, owner: T::AccountId },
 		/// Bid english auction.
 		BidEnglishAuction {
 			auction_id: T::AuctionId,
@@ -263,10 +254,7 @@ pub mod pallet {
 		/// Canceled english auction.
 		CanceledEnglishAuction { auction_id: T::AuctionId, owner: T::AccountId },
 		/// Redeemed english auction.
-		RedeemedEnglishAuction {
-			auction_id: T::AuctionId,
-			owner: T::AccountId,
-		},
+		RedeemedEnglishAuction { auction_id: T::AuctionId, owner: T::AccountId },
 	}
 
 	// Errors inform users that something went wrong.
@@ -372,10 +360,7 @@ pub mod pallet {
 
 			DutchAuctions::<T, I>::insert(who.clone(), auction_id, auction);
 
-			Self::deposit_event(Event::CreatedDutchAuction {
-				auction_id,
-				owner: who,
-			});
+			Self::deposit_event(Event::CreatedDutchAuction { auction_id, owner: who });
 			Ok(())
 		}
 
@@ -547,10 +532,7 @@ pub mod pallet {
 
 			EnglishAuctions::<T, I>::insert(who.clone(), auction_id, auction);
 
-			Self::deposit_event(Event::CreatedEnglishAuction {
-				auction_id,
-				owner: who,
-			});
+			Self::deposit_event(Event::CreatedEnglishAuction { auction_id, owner: who });
 			Ok(())
 		}
 

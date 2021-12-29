@@ -115,9 +115,9 @@ benchmarks_instance_pallet! {
 		let (class_id, caller) = new_class::<T, I>();
 		let (token_id, quantity, ..) = mint_token::<T, I>(class_id, 1u32.into());
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, rate(10))
-    verify {
+	verify {
 		assert_last_event::<T, I>(Event::UpdatedToken { class_id, token_id }.into());
-    }
+	}
 
 	update_token_royalty_beneficiary {
 		let (class_id, caller) = new_class::<T, I>();
@@ -126,9 +126,9 @@ benchmarks_instance_pallet! {
 		whitelist_account!(target);
 		let target_lookup = T::Lookup::unlookup(target.clone());
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, target_lookup)
-    verify {
+	verify {
 		assert_last_event::<T, I>(Event::UpdatedToken { class_id, token_id }.into());
-    }
+	}
 
 	transfer {
 		let (class_id, caller) = new_class::<T, I>();

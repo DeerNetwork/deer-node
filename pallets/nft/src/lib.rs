@@ -269,7 +269,10 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// An nft class was created.
-		CreatedClass { class_id: T::ClassId, owner: T::AccountId },
+		CreatedClass {
+			class_id: T::ClassId,
+			owner: T::AccountId,
+		},
 		/// A nft token was minted.
 		MintedToken {
 			class_id: T::ClassId,
@@ -294,11 +297,11 @@ pub mod pallet {
 			to: T::AccountId,
 			reason: TransferReason,
 		},
-        // token info was updated
-        UpdatedToken {
+		// token info was updated
+		UpdatedToken {
 			class_id: T::ClassId,
 			token_id: T::TokenId,
-        }
+		},
 	}
 
 	#[pallet::error]
@@ -583,10 +586,7 @@ pub mod pallet {
 					);
 					token_details.royalty_rate = royalty_rate;
 
-                    Self::deposit_event(Event::UpdatedToken {
-                        class_id,
-                        token_id,
-                    });
+					Self::deposit_event(Event::UpdatedToken { class_id, token_id });
 					Ok(().into())
 				},
 			)
@@ -610,11 +610,8 @@ pub mod pallet {
 					ensure!(who == token_details.royalty_beneficiary, Error::<T, I>::NoPermission);
 					let to = T::Lookup::lookup(to)?;
 					token_details.royalty_beneficiary = to;
-                    
-                    Self::deposit_event(Event::UpdatedToken {
-                        class_id,
-                        token_id,
-                    });
+
+					Self::deposit_event(Event::UpdatedToken { class_id, token_id });
 					Ok(().into())
 				},
 			)
