@@ -224,24 +224,6 @@ fn file_order_should_be_removed_if_file_size_is_wrong_and_too_small() {
 }
 
 #[test]
-fn file_order_fee_comes_from_storage_pot_reserved_if_lack() {
-	ExtBuilder::default()
-		.stash(1, 2)
-		.register(2, mock_register1())
-		.files(vec![(mock_file_id('A'), 100, 1100)])
-		.build()
-		.execute_with(|| {
-			change_file_byte_price(default_file_byte_price().saturating_mul(2));
-			assert_ok!(call_report(2, mock_report1()));
-			assert_eq!(StoragePotReserved::<Test>::get(), 900);
-			let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
-			assert_eq!(store_file.reserved, 0);
-			assert_eq!(store_file.base_fee, 0);
-			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().fee, 200);
-		})
-}
-
-#[test]
 fn file_order_replicas_will_be_replace_if_node_fail_to_report() {
 	ExtBuilder::default()
 		.stash(1, 2)

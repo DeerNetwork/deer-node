@@ -522,10 +522,7 @@ pub mod pallet {
 			#[cfg(not(feature = "runtime-benchmarks"))]
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			#[cfg(feature = "runtime-benchmarks")]
-			let now: u64 = match T::UnixTime::now().as_secs().saturated_into::<u64>() {
-				0 => 1627833600,
-				v => v,
-			};
+			let now: u64 = 1627833600;
 			let time_now = webpki::Time::from_seconds_since_unix_epoch(now);
 			sig_cert
 				.verify_is_valid_tls_server_cert(
@@ -861,7 +858,19 @@ impl<T: Config> Pallet<T> {
 		let current_round = CurrentRound::<T>::get();
 		let mine_reward = Self::calculate_mine_reward(current_round);
 		if !mine_reward.is_zero() {
-			T::Currency::deposit_creating(&Self::account_id(), mine_reward);
+			let storage_pot_reserved = StoragePotReserved::<T>::get();
+			let (new_storage_pot_reserved, need_mine_reward) = if storage_pot_reserved > mine_reward
+			{
+				(storage_pot_reserved.saturating_sub(mine_reward), Zero::zero())
+			} else {
+				(Zero::zero(), mine_reward.saturating_sub(storage_pot_reserved))
+			};
+			if !need_mine_reward.is_zero() {
+				T::Currency::deposit_creating(&Self::account_id(), need_mine_reward);
+			}
+			if new_storage_pot_reserved != storage_pot_reserved {
+				StoragePotReserved::<T>::mutate(|v| *v = new_storage_pot_reserved);
+			}
 			RoundsReward::<T>::mutate(current_round, |reward| {
 				reward.mine_reward = reward.mine_reward.saturating_add(mine_reward);
 			});
@@ -1069,19 +1078,13 @@ impl<T: Config> Pallet<T> {
 			} else {
 				(file.reserved, Zero::zero())
 			};
+			if order_fee < expect_order_fee {
+				*storage_pot_reserved = storage_pot_reserved.saturating_add(order_fee);
+				order_fee = Zero::zero();
+			}
 			if order_fee.is_zero() {
 				Self::clear_store_file(cid);
 				return false
-			}
-			if order_fee < expect_order_fee {
-				let lack_fee = expect_order_fee.saturating_sub(order_fee);
-				if *storage_pot_reserved > lack_fee {
-					order_fee = expect_order_fee;
-					*storage_pot_reserved = storage_pot_reserved.saturating_sub(lack_fee);
-				} else {
-					order_fee = order_fee.saturating_add(*storage_pot_reserved);
-					*storage_pot_reserved = Zero::zero();
-				}
 			}
 			Self::deposit_event(Event::<T>::StoreFileNewOrder {
 				cid: cid.clone(),
