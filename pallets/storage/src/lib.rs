@@ -316,17 +316,25 @@ pub mod pallet {
 		/// A node was registerd.
 		NodeRegisted { node: T::AccountId, machine_id: MachineId },
 		/// A node reported its work.
-		NodeReported { node: T::AccountId, machine_id: MachineId },
+		NodeReported {
+			node: T::AccountId,
+			machine_id: MachineId,
+			round: RoundIndex,
+			slash: BalanceOf<T>,
+			mine_reward: BalanceOf<T>,
+			share_store_reward: BalanceOf<T>,
+			direct_store_reward: BalanceOf<T>,
+		},
 		/// A request to store file was submitted.
 		StoreFileSubmitted { cid: FileId, caller: T::AccountId, fee: BalanceOf<T>, first: bool },
 		/// A file have been removed.
 		StoreFileRemoved { cid: FileId },
-		/// A file was renewed and can accepte more replicas.
-		StoreFileSettledIncomplete { cid: FileId, replicas: u32 },
+		/// A file order was created or renewed
+		StoreFileNewOrder { cid: FileId, replicas: u32 },
 		/// A file was deleted by admin.
 		FileForceDeleted { cid: FileId },
 		/// A round was ended.
-		EndedRound { round: RoundIndex, unpaid: BalanceOf<T> },
+		RoundEnded { round: RoundIndex, unpaid: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -666,11 +674,25 @@ pub mod pallet {
 				Self::delete_file(&mut replica_changes, &reporter, cid);
 			}
 
+			let mut share_store_reward = Zero::zero();
+			let mut mine_reward = Zero::zero();
+			let mut slash = Zero::zero();
+
 			if let Some(stats) = RoundsReport::<T>::get(prev_round, &reporter) {
-				Self::reward_round(prev_round, stats, &mut stash_info);
+				Self::reward_round(
+					prev_round,
+					stats,
+					&mut stash_info,
+					&mut share_store_reward,
+					&mut mine_reward,
+				);
 			} else {
 				if !node_info.reported_at.is_zero() {
-					Self::slash_offline(&mut storage_pot_reserved, &mut stash_info.deposit);
+					Self::slash_offline(
+						&mut storage_pot_reserved,
+						&mut stash_info.deposit,
+						&mut slash,
+					);
 				}
 			}
 
@@ -698,10 +720,12 @@ pub mod pallet {
 			}
 			node_info.power = power.min(T::MaxPower::get());
 
+			let mut direct_store_reward: BalanceOf<T> = Zero::zero();
 			for (account, inc) in node_inc_deposits.iter() {
 				Stashs::<T>::mutate(account, |maybe_stash_info| {
 					if let Some(stash_info) = maybe_stash_info {
 						stash_info.deposit = stash_info.deposit.saturating_add(*inc);
+						direct_store_reward = direct_store_reward.saturating_add(*inc);
 					} else {
 						current_round_reward.store_reward =
 							current_round_reward.store_reward.saturating_add(*inc);
@@ -726,7 +750,15 @@ pub mod pallet {
 			RoundsSummary::<T>::insert(current_round, summary);
 			Nodes::<T>::insert(reporter.clone(), node_info);
 			Stashs::<T>::insert(reporter.clone(), stash_info);
-			Self::deposit_event(Event::<T>::NodeReported { node: reporter, machine_id });
+			Self::deposit_event(Event::<T>::NodeReported {
+				node: reporter,
+				machine_id,
+				round: current_round,
+				slash,
+				mine_reward,
+				share_store_reward,
+				direct_store_reward,
+			});
 			Ok(())
 		}
 
@@ -863,10 +895,7 @@ impl<T: Config> Pallet<T> {
 
 		Self::next_round();
 		Self::clear_round_information(prev_round);
-		Self::deposit_event(Event::<T>::EndedRound {
-			round: current_round,
-			unpaid: unpaid_reward,
-		});
+		Self::deposit_event(Event::<T>::RoundEnded { round: current_round, unpaid: unpaid_reward });
 	}
 
 	fn next_round() {
@@ -1054,12 +1083,10 @@ impl<T: Config> Pallet<T> {
 					*storage_pot_reserved = Zero::zero();
 				}
 			}
-			if maybe_file_size.is_none() && nodes.len() < T::EffectiveFileReplicas::get() as usize {
-				Self::deposit_event(Event::<T>::StoreFileSettledIncomplete {
-					cid: cid.clone(),
-					replicas: nodes.len() as u32,
-				});
-			}
+			Self::deposit_event(Event::<T>::StoreFileNewOrder {
+				cid: cid.clone(),
+				replicas: nodes.len() as u32,
+			});
 			FileOrders::<T>::insert(
 				cid,
 				FileOrder {
@@ -1081,6 +1108,8 @@ impl<T: Config> Pallet<T> {
 		prev_round: RoundIndex,
 		node_stats: NodeStats,
 		stash_info: &mut StashInfo<T::AccountId, BalanceOf<T>>,
+		report_store_reward: &mut BalanceOf<T>,
+		report_mine_reward: &mut BalanceOf<T>,
 	) {
 		if prev_round.is_zero() {
 			return
@@ -1091,6 +1120,8 @@ impl<T: Config> Pallet<T> {
 			let power_ratio = Perbill::from_rational(node_stats.power as u128, summary.power);
 			let store_reward = used_ratio * reward_info.store_reward;
 			let mine_reward = power_ratio * reward_info.mine_reward;
+			*report_store_reward = report_store_reward.saturating_add(store_reward);
+			*report_mine_reward = report_mine_reward.saturating_add(mine_reward);
 			reward_info.paid_store_reward =
 				reward_info.paid_store_reward.saturating_add(store_reward);
 			reward_info.paid_mine_reward = reward_info.paid_mine_reward.saturating_add(mine_reward);
@@ -1099,7 +1130,11 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
-	fn slash_offline(storage_pot_reserved: &mut BalanceOf<T>, reporter_deposit: &mut BalanceOf<T>) {
+	fn slash_offline(
+		storage_pot_reserved: &mut BalanceOf<T>,
+		reporter_deposit: &mut BalanceOf<T>,
+		slash: &mut BalanceOf<T>,
+	) {
 		let slash_balance = T::SlashBalance::get();
 		if slash_balance.is_zero() {
 			return
@@ -1109,6 +1144,7 @@ impl<T: Config> Pallet<T> {
 		} else {
 			(*reporter_deposit, Zero::zero())
 		};
+		*slash = slash.saturating_add(slash_reserved);
 		*reporter_deposit = new_deposit;
 		*storage_pot_reserved = storage_pot_reserved.saturating_add(slash_reserved);
 	}

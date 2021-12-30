@@ -287,9 +287,6 @@ benchmarks! {
 			power,
 		);
 	}: _(SystemOrigin::Signed(node.clone()), rid, power, sig, add_files, del_files, settle_files)
-	verify {
-		assert_last_event::<T>(Event::<T>::NodeReported { node, machine_id }.into());
-	}
 
 
 	store {
