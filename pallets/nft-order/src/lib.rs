@@ -180,7 +180,13 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Create sell order.
-		CreatedOrder { order_id: T::OrderId, seller: T::AccountId },
+		CreatedOrder {
+			order_id: T::OrderId,
+			seller: T::AccountId,
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+		},
 		/// Make a deal with sell order.
 		DealedOrder {
 			order_id: T::OrderId,
@@ -192,7 +198,13 @@ pub mod pallet {
 		/// Remove an sell order.
 		RemovedOrder { order_id: T::OrderId, seller: T::AccountId },
 		/// Create buy offer.
-		CreatedOffer { offer_id: T::OrderId, buyer: T::AccountId },
+		CreatedOffer {
+			offer_id: T::OrderId,
+			buyer: T::AccountId,
+			class_id: T::ClassId,
+			token_id: T::TokenId,
+			quantity: T::Quantity,
+		},
 		/// Make a deal with buy offer.
 		DealedOffer {
 			offer_id: T::OrderId,
@@ -308,7 +320,13 @@ pub mod pallet {
 				};
 				Orders::<T, I>::insert(who.clone(), order_id, order);
 
-				Self::deposit_event(Event::CreatedOrder { order_id, seller: who });
+				Self::deposit_event(Event::CreatedOrder {
+					order_id,
+					class_id,
+					token_id,
+					quantity,
+					seller: who,
+				});
 				Ok(())
 			})
 		}
@@ -442,7 +460,13 @@ pub mod pallet {
 				let offer = OfferDetails { class_id, token_id, quantity, price, deadline };
 				Offers::<T, I>::insert(who.clone(), offer_id, offer);
 
-				Self::deposit_event(Event::CreatedOffer { offer_id, buyer: who });
+				Self::deposit_event(Event::CreatedOffer {
+					offer_id,
+					class_id,
+					token_id,
+					quantity,
+					buyer: who,
+				});
 				Ok(())
 			})
 		}
