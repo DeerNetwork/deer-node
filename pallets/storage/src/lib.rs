@@ -733,10 +733,6 @@ pub mod pallet {
 			node_info.rid = rid;
 			node_info.reported_at = now_at;
 
-			let mut summary = RoundsSummary::<T>::get(current_round);
-			summary.used = summary.used.saturating_add(node_info.used.saturated_into());
-			summary.power = summary.power.saturating_add(node_info.power.saturated_into());
-
 			StoragePotReserved::<T>::mutate(|v| *v = storage_pot_reserved);
 			RoundsReward::<T>::insert(current_round, current_round_reward);
 			RoundsReport::<T>::insert(
@@ -744,7 +740,10 @@ pub mod pallet {
 				reporter.clone(),
 				NodeStats { power: node_info.power, used: node_info.used },
 			);
-			RoundsSummary::<T>::insert(current_round, summary);
+			RoundsSummary::<T>::mutate(current_round, |v| {
+				v.used = v.used.saturating_add(node_info.used.saturated_into());
+				v.power = v.power.saturating_add(node_info.power.saturated_into());
+			});
 			Nodes::<T>::insert(reporter.clone(), node_info);
 			Stashs::<T>::insert(reporter.clone(), stash_info);
 			Self::deposit_event(Event::<T>::NodeReported {
@@ -903,7 +902,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Self::next_round();
-		Self::clear_round_information(prev_round);
+		Self::clear_round_information(prev_round.saturating_sub(1));
 		Self::deposit_event(Event::<T>::RoundEnded { round: current_round, unpaid: unpaid_reward });
 	}
 
