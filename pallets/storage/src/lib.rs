@@ -317,7 +317,7 @@ pub mod pallet {
 		NodeRegisted { node: T::AccountId, machine_id: MachineId },
 		/// A node reported its work.
 		NodeReported { node: T::AccountId, machine_id: MachineId },
-		/// A request to store file was submitted
+		/// A request to store file was submitted.
 		StoreFileSubmitted { cid: FileId, caller: T::AccountId, fee: BalanceOf<T>, first: bool },
 		/// A file have been removed.
 		StoreFileRemoved { cid: FileId },
@@ -325,6 +325,8 @@ pub mod pallet {
 		StoreFileSettledIncomplete { cid: FileId, replicas: u32 },
 		/// A file was deleted by admin.
 		FileForceDeleted { cid: FileId },
+		/// A round was ended.
+		EndedRound { round: RoundIndex, unpaid: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -834,19 +836,20 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let prev_round = current_round.saturating_sub(1);
+		let mut unpaid_reward = Zero::zero();
 		if !prev_round.is_zero() {
 			let prev_reward = RoundsReward::<T>::get(prev_round);
-			let store_reward = prev_reward
+			unpaid_reward = prev_reward
 				.store_reward
 				.saturating_add(prev_reward.mine_reward)
 				.saturating_sub(prev_reward.paid_mine_reward)
 				.saturating_sub(prev_reward.paid_store_reward);
-			if !store_reward.is_zero() {
+			if !unpaid_reward.is_zero() {
 				match T::Currency::withdraw(
 					&Self::account_id(),
-					store_reward,
+					unpaid_reward,
 					WithdrawReasons::TRANSFER,
-					ExistenceRequirement::KeepAlive,
+					ExistenceRequirement::AllowDeath,
 				) {
 					Ok(treasury) => {
 						T::Treasury::on_unbalanced(treasury);
@@ -859,8 +862,11 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Self::next_round();
-
 		Self::clear_round_information(prev_round);
+		Self::deposit_event(Event::<T>::EndedRound {
+			round: current_round,
+			unpaid: unpaid_reward,
+		});
 	}
 
 	fn next_round() {
