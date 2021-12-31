@@ -215,8 +215,8 @@ fn file_order_should_be_removed_if_file_size_is_wrong_and_too_small() {
 
 			assert_eq!(StoragePotReserved::<Test>::get(), 1000);
 			let stash_info = Stashs::<Test>::get(2).unwrap();
-			assert_eq!(stash_info.deposit, default_stash_balance().saturating_add(12));
-			assert_eq!(RoundsReward::<Test>::get(current_round).store_reward, 88);
+			assert_eq!(stash_info.deposit, default_stash_balance().saturating_add(10));
+			assert_eq!(RoundsReward::<Test>::get(current_round).store_reward, 90);
 
 			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')), None);
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')), None);
@@ -291,8 +291,8 @@ fn report_settle_files() {
 			assert_ok!(call_report(9, mock_report7()));
 			run_to_block(32);
 			assert_ok!(call_report(9, mock_report8()));
-			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(12));
-			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 88);
+			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(20));
+			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 80);
 			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')).is_none(), true);
 		})
 }
@@ -308,10 +308,11 @@ fn report_settle_files_do_not_reward_unhealth_node() {
 			run_to_block(11);
 			assert_ok!(call_report(9, mock_report6()));
 			run_to_block(21);
+			let pot_reserved = StoragePotReserved::<Test>::get();
 			run_to_block(32);
 			assert_ok!(call_report(9, mock_report9()));
-			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_sub(100)); // slash
-			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 100);
+			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_sub(110)); // slash
+			assert_eq!(StoragePotReserved::<Test>::get(), pot_reserved.saturating_add(110));
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas.len(), 0);
 		})
 }
@@ -334,8 +335,8 @@ fn reward_round() {
 			});
 			run_to_block(32);
 			assert_ok!(call_report(9, mock_report8()));
-			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(212));
-			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 88);
+			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(220));
+			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 80);
 			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')).is_none(), true);
 		})
 }
