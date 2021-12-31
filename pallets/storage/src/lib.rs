@@ -1072,18 +1072,19 @@ impl<T: Config> Pallet<T> {
 					file.file_size = file_size;
 				}
 			}
-			let (mut order_fee, new_reserved) = if file.reserved > expect_order_fee {
+			let (order_fee, new_reserved) = if file.reserved > expect_order_fee {
 				(expect_order_fee, file.reserved.saturating_sub(expect_order_fee))
 			} else {
 				(file.reserved, Zero::zero())
 			};
-			if order_fee < expect_order_fee {
-				*storage_pot_reserved = storage_pot_reserved.saturating_add(order_fee);
-				order_fee = Zero::zero();
-			}
 			if order_fee.is_zero() {
 				Self::clear_store_file(cid);
 				return false
+			}
+			let now_at = Self::now_bn();
+			let mut expire = Self::get_file_order_expire();
+			if order_fee < expect_order_fee {
+				expire = Perbill::from_rational(order_fee, expect_order_fee) * expire;
 			}
 			Self::deposit_event(Event::<T>::StoreFileNewOrder {
 				cid: cid.clone(),
@@ -1094,7 +1095,7 @@ impl<T: Config> Pallet<T> {
 				FileOrder {
 					fee: order_fee,
 					file_size: file.file_size,
-					expire_at: Self::get_file_order_expire(),
+					expire_at: now_at.saturating_add(expire),
 					replicas: nodes,
 				},
 			);
@@ -1190,9 +1191,8 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn get_file_order_expire() -> BlockNumberFor<T> {
-		let now_at = Self::now_bn();
 		let rounds = T::FileOrderRounds::get();
-		now_at.saturating_add(T::RoundDuration::get().saturating_mul(rounds.saturated_into()))
+		T::RoundDuration::get().saturating_mul(rounds.saturated_into())
 	}
 
 	fn now_bn() -> BlockNumberFor<T> {
