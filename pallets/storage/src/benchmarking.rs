@@ -77,7 +77,7 @@ fn create_replica_nodes<T: Config>(
 		Stashs::<T>::insert(
 			node.clone(),
 			StashInfo {
-				stasher: account("replica", i, seed),
+				stasher: node.clone(),
 				deposit: T::Currency::minimum_balance().saturating_mul(1000u32.into()),
 				machine_id: Some(vec![0u8; 16]),
 			},
@@ -91,15 +91,17 @@ fn create_replica_nodes<T: Config>(
 	nodes
 }
 
-fn create_file_order<T: Config>(cid: &FileId, replicas: &[T::AccountId], settle: bool) {
-	create_store_file::<T>(cid, settle);
-	let expire_at: u32 = if settle { 999 } else { 1111 };
+fn create_file_order<T: Config>(
+	cid: &FileId,
+	replicas: &[T::AccountId],
+	expire_at: BlockNumberFor<T>,
+) {
 	FileOrders::<T>::insert(
 		cid.clone(),
 		FileOrder {
 			fee: FileStorage::<T>::store_file_bytes_fee(1_000_000),
 			file_size: 1_000_000,
-			expire_at: expire_at.into(),
+			expire_at,
 			replicas: replicas.to_vec(),
 		},
 	);
@@ -225,7 +227,7 @@ benchmarks! {
 		let sig = hex!("90639853f8e815ede625c0b786c8453230790193aa5b29f5dca76e48845344503c8373a5cd9536d02504e0d74dfaef791af7f65e081a7be827f6d5e492424ca4").into();
 	}: _(SystemOrigin::Signed(node.clone()), machine_id.clone(), ias_cert, ias_sig, ias_body, sig)
 	verify {
-		assert_last_event::<T>(Event::<T>::NodeRegisted { node, machine_id }.into());
+		assert_last_event::<T>(Event::<T>::NodeRegistered { node, machine_id }.into());
 	}
 
 	report {
@@ -252,22 +254,24 @@ benchmarks! {
 
 		let mut add_files = vec![];
 		for i in 0 .. x {
-			let suffix: Vec<u8> = vec![65, 65 + i as u8 / 25,  65 + i as u8 % 25];
+			let a = ((i / 26) / 26 % 26 + 97) as u8;
+			let b = ((i / 26) % 26 + 97) as u8;
+			let c = ((i % 26) + 97) as u8;
+			let suffix: Vec<u8> = vec![a, b, c];
 			let cid: FileId = [&FILE_ID_PREFIX[..], &suffix[..]].concat();
-			if i == 0 {
-				create_store_file::<T>(&cid, false);
-			} else {
-				let replicas = create_replica_nodes::<T>(10, 1000u32 + i as u32, None);
-				create_file_order::<T>(&cid, &replicas, false);
-			}
+			create_store_file::<T>(&cid, false);
 			add_files.push((cid, 1_000_000));
 		}
 		let mut del_files = vec![];
 		for i in 0 .. y {
-			let suffix: Vec<u8> = vec![66, 65 + i as u8 / 25,  65 + i as u8 % 25];
+			let a = ((i / 26) / 26 % 26 + 65) as u8;
+			let b = ((i / 26) % 26 + 97) as u8;
+			let c = ((i % 26) + 97) as u8;
+			let suffix: Vec<u8> = vec![a, b, c];
 			let cid: FileId = [&FILE_ID_PREFIX[..], &suffix[..]].concat();
-			let replicas = create_replica_nodes::<T>(T::MaxFileReplicas::get(), 2000u32 + i as u32, Some(node.clone()));
-			create_file_order::<T>(&cid, &replicas, false);
+			create_store_file::<T>(&cid, false);
+			let replicas = create_replica_nodes::<T>(T::EffectiveFileReplicas::get(), 2000u32 + i as u32, Some(node.clone()));
+			create_file_order::<T>(&cid, &replicas, 1000u32.into());
 			del_files.push(cid);
 		}
 		let settle_files = vec![];
@@ -298,7 +302,7 @@ benchmarks! {
 		let fee = T::Currency::minimum_balance().saturating_mul(2000u32.saturated_into());
 	}: _(SystemOrigin::Signed(caller.clone()), cid.clone(), 100u64, fee)
 	verify {
-		assert_last_event::<T>(Event::<T>::StoreFileSubmitted { cid, caller, fee, first: true }.into());
+		assert_last_event::<T>(Event::<T>::FileAdded { cid, caller, fee, first: true }.into());
 	}
 
 	force_delete {

@@ -50,17 +50,6 @@ type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-// syntactic sugar for logging.
-#[macro_export]
-macro_rules! log {
-	($level:tt, $patter:expr $(, $values:expr)* $(,)?) => {
-		log::$level!(
-			target: crate::LOG_TARGET,
-			concat!("[{:?}] 💸 ", $patter), <frame_system::Pallet<T>>::block_number() $(, $values)*
-		)
-	};
-}
-
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct NodeInfo<BlockNumber> {
 	/// A increment id of one report
@@ -314,15 +303,15 @@ pub mod pallet {
 		/// A account have withdrawn some founds.
 		Withdrawn { node: T::AccountId, stasher: T::AccountId, amount: BalanceOf<T> },
 		/// A node was registerd.
-		NodeRegisted { node: T::AccountId, machine_id: MachineId },
+		NodeRegistered { node: T::AccountId, machine_id: MachineId },
 		/// A node reported its work.
 		NodeReported { node: T::AccountId, machine_id: MachineId },
-		/// A request to store file was submitted.
-		StoreFileSubmitted { cid: FileId, caller: T::AccountId, fee: BalanceOf<T>, first: bool },
+		/// A request to store file.
+		FileAdded { cid: FileId, caller: T::AccountId, fee: BalanceOf<T>, first: bool },
 		/// A file have been removed.
-		StoreFileRemoved { cid: FileId },
-		/// A file order was created
-		StoreFileOrderCreated { cid: FileId },
+		FileDeleted { cid: FileId },
+		/// A node have stored file
+		FileStored { cid: FileId },
 		/// A file was deleted by admin.
 		FileForceDeleted { cid: FileId },
 		/// A round was ended.
@@ -568,7 +557,7 @@ pub mod pallet {
 				},
 			}
 
-			Self::deposit_event(Event::<T>::NodeRegisted { node, machine_id });
+			Self::deposit_event(Event::<T>::NodeRegistered { node, machine_id });
 			Ok(())
 		}
 
@@ -766,12 +755,7 @@ pub mod pallet {
 				)?;
 				file.reserved = new_reserved;
 				StoreFiles::<T>::insert(cid.clone(), file);
-				Self::deposit_event(Event::<T>::StoreFileSubmitted {
-					cid,
-					caller: who,
-					fee,
-					first: false,
-				});
+				Self::deposit_event(Event::<T>::FileAdded { cid, caller: who, fee, first: false });
 			} else {
 				let min_fee = Self::store_file_fee(file_size);
 				ensure!(fee >= min_fee, Error::<T>::NotEnoughFee);
@@ -791,12 +775,7 @@ pub mod pallet {
 						added_at: Self::now_bn(),
 					},
 				);
-				Self::deposit_event(Event::<T>::StoreFileSubmitted {
-					cid,
-					caller: who,
-					fee,
-					first: true,
-				});
+				Self::deposit_event(Event::<T>::FileAdded { cid, caller: who, fee, first: true });
 			}
 			Ok(())
 		}
@@ -811,9 +790,6 @@ pub mod pallet {
 				let invalid_at = file.added_at.saturating_add(
 					T::RoundDuration::get().saturating_mul(rounds.saturated_into()),
 				);
-				sp_std::if_std! {
-					println!("base_fee={:?}, invalid_at={:?}, now={:?}", file.base_fee, invalid_at, now);
-				}
 				ensure!(
 					!file.base_fee.is_zero() &&
 						now > invalid_at && FileOrders::<T>::get(&cid).is_none(),
@@ -896,7 +872,10 @@ impl<T: Config> Pallet<T> {
 						T::Treasury::on_unbalanced(treasury);
 					},
 					Err(e) => {
-						log!(error, "Storage pot is lack of funds {:?}", e);
+						log::error!(
+							target: "runtime::storage",
+							"Storage pot lack of funds {:?}", e
+						);
 					},
 				}
 			}
@@ -1071,7 +1050,7 @@ impl<T: Config> Pallet<T> {
 				expire = Perbill::from_rational(order_fee, expect_order_fee) * expire;
 			}
 			if first {
-				Self::deposit_event(Event::<T>::StoreFileOrderCreated { cid: cid.clone() });
+				Self::deposit_event(Event::<T>::FileStored { cid: cid.clone() });
 			}
 			FileOrders::<T>::insert(
 				cid,
@@ -1133,7 +1112,7 @@ impl<T: Config> Pallet<T> {
 	fn clear_store_file(cid: &FileId) {
 		StoreFiles::<T>::remove(cid);
 		FileOrders::<T>::remove(cid);
-		Self::deposit_event(Event::<T>::StoreFileRemoved { cid: cid.clone() });
+		Self::deposit_event(Event::<T>::FileDeleted { cid: cid.clone() });
 	}
 
 	fn store_file_fee(file_size: u64) -> BalanceOf<T> {
