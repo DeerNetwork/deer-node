@@ -538,9 +538,7 @@ pub mod pallet {
 			let now_at = Self::now_bn();
 			let enclave = &isv_quote_body[112..144].to_vec();
 			ensure!(
-				<Enclaves<T>>::iter()
-					.find(|(id, bn)| { bn > &now_at && id == enclave })
-					.is_some(),
+				Enclaves::<T>::get(enclave).unwrap_or_default() > now_at,
 				Error::<T>::InvalidEnclave
 			);
 			let key = &isv_quote_body[368..].to_vec();
