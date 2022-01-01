@@ -4,6 +4,10 @@
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
+#[cfg(any(test, feature = "runtime-benchmarks"))]
+mod sign;
+
 #[cfg(test)]
 pub mod mock;
 #[cfg(test)]
@@ -694,7 +698,7 @@ pub mod pallet {
 			reporter_deposit.1 = reporter_deposit
 				.1
 				.saturating_add(ctx.reporter_mine_reward)
-				.saturating_add(ctx.reporter_mine_reward);
+				.saturating_add(ctx.reporter_store_reward);
 			let mut deposit_collect: BalanceOf<T> = Zero::zero();
 			for (account, (dec, inc)) in ctx.node_deposit_changes.iter() {
 				Stashs::<T>::mutate(account, |maybe_stash_info| {
@@ -830,6 +834,7 @@ type ReportContextOf<T> = ReportContext<
 	<<T as Config>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance,
 >;
 
+#[derive(RuntimeDebug)]
 struct ReportContext<AccountId, BlockNumber, Balance> {
 	now_at: BlockNumber,
 	prev_round: RoundIndex,
