@@ -305,7 +305,14 @@ pub mod pallet {
 		/// A node was registerd.
 		NodeRegistered { node: T::AccountId, machine_id: MachineId },
 		/// A node reported its work.
-		NodeReported { node: T::AccountId, machine_id: MachineId },
+		NodeReported {
+			node: T::AccountId,
+			machine_id: MachineId,
+			mine_reward: BalanceOf<T>,
+			share_store_reward: BalanceOf<T>,
+			direct_store_reward: BalanceOf<T>,
+			slash: BalanceOf<T>,
+		},
 		/// A request to store file.
 		FileAdded { cid: FileId, caller: T::AccountId, fee: BalanceOf<T>, first: bool },
 		/// A file have been removed.
@@ -683,7 +690,13 @@ pub mod pallet {
 					})
 				}
 			}
-
+			let reporter_deposit = ctx.node_deposit_changes.entry(reporter.clone()).or_default();
+			let direct_store_reward = reporter_deposit.1;
+			let slash = reporter_deposit.0;
+			reporter_deposit.1 = reporter_deposit
+				.1
+				.saturating_add(ctx.reporter_mine_reward)
+				.saturating_add(ctx.reporter_mine_reward);
 			let mut deposit_collect: BalanceOf<T> = Zero::zero();
 			for (account, (dec, inc)) in ctx.node_deposit_changes.iter() {
 				Stashs::<T>::mutate(account, |maybe_stash_info| {
@@ -725,7 +738,14 @@ pub mod pallet {
 			});
 			Nodes::<T>::insert(reporter.clone(), node_info);
 
-			Self::deposit_event(Event::<T>::NodeReported { node: reporter, machine_id });
+			Self::deposit_event(Event::<T>::NodeReported {
+				node: reporter,
+				machine_id,
+				mine_reward: ctx.reporter_mine_reward,
+				share_store_reward: ctx.reporter_store_reward,
+				direct_store_reward,
+				slash,
+			});
 			Ok(())
 		}
 
@@ -1081,11 +1101,6 @@ impl<T: Config> Pallet<T> {
 			reward_info.paid_store_reward =
 				reward_info.paid_store_reward.saturating_add(store_reward);
 			reward_info.paid_mine_reward = reward_info.paid_mine_reward.saturating_add(mine_reward);
-
-			let reporter_deposit =
-				ctx.node_deposit_changes.entry(ctx.reporter.clone()).or_default();
-			reporter_deposit.1 =
-				reporter_deposit.1.saturating_add(mine_reward).saturating_add(store_reward);
 		});
 	}
 
