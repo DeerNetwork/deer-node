@@ -25,6 +25,7 @@ hex-literal = { version = "0.3.4", optional = true }
 
 [dev-dependencies]
 hex-literal = "0.3.4"
+hex = { version = "0.4" }
 sp-std = { path = "../../substrate/primitives/std" }
 sp-core = { path = "../../substrate/primitives/core" }
 sp-io = { path = "../../substrate/primitives/io" }

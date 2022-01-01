@@ -1077,7 +1077,7 @@ parameter_types! {
 	pub const MaxPower: u64 = 1_125_899_906_842_624; // 1P
 	pub const MaxReportFiles: u32 = 200;
 	pub const FileBaseFee: Balance = 10 * MILLICENTS;
-	pub const FileBytePrice: Balance = 2 * MILLICENTS;
+	pub const FileSizePrice: Balance = 2 * MILLICENTS;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
 	pub const MineFactor: Perbill = Perbill::from_parts(16629317);
@@ -1099,7 +1099,7 @@ impl pallet_storage::Config for Runtime {
 	type MaxReportFiles = MaxReportFiles;
 	type EffectiveFileReplicas = EffectiveFileReplicas;
 	type FileBaseFee = FileBaseFee;
-	type FileBytePrice = FileBytePrice;
+	type FileSizePrice = FileSizePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
 	type MineFactor = MineFactor;

@@ -2,18 +2,20 @@ use super::*;
 use crate::mock::*;
 use frame_support::{assert_err, assert_ok, traits::Currency};
 
+const MB: u64 = 1_048_576;
+
 #[test]
 fn set_enclave_works() {
 	ExtBuilder::default().build().execute_with(|| {
-		assert_ok!(FileStorage::set_enclave(Origin::root(), mock_register_info2().enclave, 100));
+		assert_ok!(FileStorage::set_enclave(Origin::root(), MACHINES[1].get_enclave(), 100));
 
 		// should shorten period
-		assert_ok!(FileStorage::set_enclave(Origin::root(), mock_register_info1().enclave, 100));
+		assert_ok!(FileStorage::set_enclave(Origin::root(), MACHINES[0].get_enclave(), 100));
 
 		// should not growth period
 		assert_err!(
-			FileStorage::set_enclave(Origin::root(), mock_register_info1().enclave, 100),
-			Error::<Test>::InvalidEnclaveExpire
+			FileStorage::set_enclave(Origin::root(), MACHINES[0].get_enclave(), 100),
+			Error::<Test>::EnclaveExpired
 		);
 	});
 }
@@ -33,9 +35,9 @@ fn round() {
 fn stash_works() {
 	ExtBuilder::default().build().execute_with(|| {
 		let stash_balance = default_stash_balance();
-		let u1_b = Balances::free_balance(1);
+		let u1 = Balances::free_balance(1);
 		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
-		assert_eq!(Balances::free_balance(1), u1_b.saturating_sub(stash_balance));
+		assert_eq!(Balances::free_balance(1), u1.saturating_sub(stash_balance));
 		assert_eq!(balance_of_storage_pot(), stash_balance + 1);
 		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance);
 
@@ -43,14 +45,14 @@ fn stash_works() {
 		let stash_balance_x3 = stash_balance.saturating_mul(3);
 		change_stash_balance(stash_balance_x3);
 		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
-		assert_eq!(Balances::free_balance(1), u1_b.saturating_sub(stash_balance_x3));
+		assert_eq!(Balances::free_balance(1), u1.saturating_sub(stash_balance_x3));
 		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance_x3);
 		assert_eq!(balance_of_storage_pot(), stash_balance_x3 + 1);
 
 		// should do nothing when account's stash_balance > T::StashBalance
 		change_stash_balance(stash_balance);
 		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
-		assert_eq!(Balances::free_balance(1), u1_b.saturating_sub(stash_balance_x3));
+		assert_eq!(Balances::free_balance(1), u1.saturating_sub(stash_balance_x3));
 		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance_x3);
 		assert_eq!(balance_of_storage_pot(), stash_balance_x3 + 1);
 
@@ -59,6 +61,21 @@ fn stash_works() {
 
 		// should not stash another controller
 		assert_err!(FileStorage::stash(Origin::signed(11), 2), Error::<Test>::InvalidStashPair,);
+	})
+}
+
+#[test]
+fn stash_coverd_used_space_deposit() {
+	ExtBuilder::default().build().execute_with(|| {
+		let stash_balance = default_stash_balance();
+		let u1 = Balances::free_balance(1);
+		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
+		Nodes::<Test>::insert(
+			2,
+			NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: MB, slash_used: 0 },
+		);
+		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
+		assert_eq!(Balances::free_balance(1), u1.saturating_sub(stash_balance).saturating_sub(10));
 	})
 }
 
@@ -75,10 +92,10 @@ fn withdraw_works() {
 			}
 		});
 		let pot_b = balance_of_storage_pot();
-		let u1_b = Balances::free_balance(1);
+		let u1 = Balances::free_balance(1);
 		assert_ok!(FileStorage::withdraw(Origin::signed(2)));
 		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance);
-		assert_eq!(Balances::free_balance(1), u1_b.saturating_add(1_000));
+		assert_eq!(Balances::free_balance(1), u1.saturating_add(1_000));
 		assert_eq!(balance_of_storage_pot(), pot_b.saturating_sub(1_000));
 
 		// should not withdraw when account's deposit < T::StashBalance
@@ -88,35 +105,54 @@ fn withdraw_works() {
 }
 
 #[test]
+fn withdraw_reserve_used_space_deposit() {
+	ExtBuilder::default().build().execute_with(|| {
+		let stash_balance = default_stash_balance();
+		Balances::make_free_balance_be(&FileStorage::account_id(), 2_000);
+
+		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
+		Stashs::<Test>::mutate(2, |maybe_stash_info| {
+			if let Some(stash_info) = maybe_stash_info {
+				stash_info.deposit = stash_info.deposit.saturating_add(1_000)
+			}
+		});
+		Nodes::<Test>::insert(
+			2,
+			NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: MB, slash_used: 0 },
+		);
+		assert_ok!(FileStorage::withdraw(Origin::signed(2)));
+		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance.saturating_add(10));
+	})
+}
+
+#[test]
 fn register_works() {
 	ExtBuilder::default().stash(1, 2).build().execute_with(|| {
-		let register = mock_register1();
-		let machine_id = register.machine_id.clone();
+		let register_data = MACHINES[0].register_data();
+		let machine_id = register_data.machine_id.clone();
 		assert_eq!(Stashs::<Test>::get(2).unwrap().machine_id, None);
-		assert_ok!(call_register(2, register));
+		assert_ok!(register_data.call(2));
 		assert_eq!(Stashs::<Test>::get(2).unwrap().machine_id.unwrap(), machine_id.clone());
-		let register = Registers::<Test>::get(&machine_id).unwrap();
-		assert_eq!(register, mock_register_info1());
+		assert_eq!(Registers::<Test>::get(&machine_id).unwrap(), MACHINES[0].register_info());
 
 		// register again with different register info
-		assert_ok!(call_register(2, mock_register2()));
-		let register = Registers::<Test>::get(&machine_id).unwrap();
-		assert_eq!(register, mock_register_info2());
+		assert_ok!(MACHINES[1].register(2));
+		assert_eq!(Registers::<Test>::get(&machine_id).unwrap(), MACHINES[1].register_info());
 
 		// Failed when controller is not stashed
-		assert_err!(call_register(3, mock_register1()), Error::<Test>::UnstashNode);
+		assert_err!(MACHINES[0].register(3), Error::<Test>::NodeNotStashed);
 
 		// Failed when machind_id don't match
-		let mut register = mock_register1();
-		register.machine_id[0] += 1;
-		assert_err!(call_register(2, register), Error::<Test>::MismatchMacheId);
+		let mut register_data = MACHINES[0].register_data();
+		register_data.machine_id[0] += 1;
+		assert_err!(register_data.call(2), Error::<Test>::MismatchMacheId);
 
 		// Failed when enclave is not inclued
-		assert_err!(call_register(2, mock_register3()), Error::<Test>::InvalidEnclave);
+		assert_err!(MACHINES[2].register(2), Error::<Test>::InvalidEnclave);
 
 		// Failed when relady registered machine
 		assert_ok!(FileStorage::stash(Origin::signed(1), 3));
-		assert_err!(call_register(3, mock_register1()), Error::<Test>::MachineAlreadyRegistered);
+		assert_err!(MACHINES[1].register(3), Error::<Test>::MachineAlreadyRegistered);
 	})
 }
 
@@ -124,40 +160,33 @@ fn register_works() {
 fn report_works() {
 	ExtBuilder::default()
 		.stash(1, 2)
-		.register(2, mock_register4())
-		.files(vec![(mock_file_id('A'), 100, 2000)])
-		.build()
-		.execute_with(|| {
-			assert_ok!(call_report(2, mock_report4()));
-		})
-}
-
-#[test]
-fn report_works_then_check_storage() {
-	ExtBuilder::default()
-		.stash(1, 2)
-		.register(2, mock_register1())
-		.files(vec![(mock_file_id('A'), 100, 2000)])
+		.register(2, MACHINES[0].register_data())
+		.files(vec![(mock_file_id('A'), MB, 2000)])
 		.build()
 		.execute_with(|| {
 			let now_bn = FileStorage::now_bn();
 			let current_round = CurrentRound::<Test>::get();
-
-			assert_ok!(call_report(2, mock_report1()));
-			let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
+			let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
+			assert_ok!(report_data.call(2));
+			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
+				controller: 2,
+				machine_id: MACHINES[0].get_machine_id(),
+				mine_reward: 0,
+				share_store_reward: 0,
+				direct_store_reward: 0,
+				slash: 0,
+			}));
 			assert_eq!(
-				store_file,
-				StoreFile { base_fee: 0, file_size: 100, reserved: 900, added_at: now_bn }
+				StoreFiles::<Test>::get(&mock_file_id('A')).unwrap(),
+				StoreFile { base_fee: 0, file_size: MB, reserved: 900, added_at: now_bn }
 			);
-			let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
 			assert_eq!(
-				file_order,
-				FileOrder { fee: 100, file_size: 100, expire_at: 31, replicas: vec![2] }
+				FileOrders::<Test>::get(&mock_file_id('A')).unwrap(),
+				FileOrder { fee: 100, file_size: MB, expire_at: 31, replicas: vec![2] }
 			);
 			assert_eq!(StoragePotReserved::<Test>::get(), 1000);
-			let round_reward = RoundsReward::<Test>::get(current_round);
 			assert_eq!(
-				round_reward,
+				RoundsReward::<Test>::get(current_round),
 				RewardInfo {
 					mine_reward: 0,
 					store_reward: 0,
@@ -167,103 +196,125 @@ fn report_works_then_check_storage() {
 			);
 			assert_eq!(
 				RoundsReport::<Test>::get(current_round, 2).unwrap(),
-				NodeStats { power: 200, used: 100 }
+				NodeStats { power: 10 * MB, used: MB }
 			);
 			assert_eq!(
 				RoundsSummary::<Test>::get(current_round),
-				SummaryStats { power: 200, used: 100 }
+				SummaryStats { power: 10 * MB as u128, used: MB as u128 }
 			);
 			assert_eq!(
 				Nodes::<Test>::get(2).unwrap(),
-				NodeInfo { rid: 3, reported_at: now_bn, power: 200, used: 100 }
+				NodeInfo { rid: 3, reported_at: now_bn, power: 10 * MB, used: MB, slash_used: 0 }
 			);
-			let stash_info = Stashs::<Test>::get(2).unwrap();
-			assert_eq!(stash_info.deposit, default_stash_balance());
+			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, default_stash_balance());
 
 			// Failed when report twice in same round
-			assert_err!(call_report(2, mock_report1()), Error::<Test>::DuplicateReport);
+			assert_err!(report_data.call(2), Error::<Test>::DuplicateReport);
 		})
 }
 
 #[test]
-fn report_works_when_files_are_miss() {
+fn report_works_with_useless_files() {
 	ExtBuilder::default()
 		.stash(1, 2)
-		.register(2, mock_register1())
+		.register(2, MACHINES[0].register_data())
 		.build()
 		.execute_with(|| {
-			let now_bn = FileStorage::now_bn();
-			assert_ok!(call_report(2, mock_report3()));
+			assert_ok!(MockData::new(0, 3, 10 * MB, &[('A', MB)])
+				.del_files(&['B'])
+				.settle_files(&['C'])
+				.report_data(0)
+				.call(2));
 			assert_eq!(
 				Nodes::<Test>::get(2).unwrap(),
-				NodeInfo { rid: 3, reported_at: now_bn, power: 200, used: 0 }
+				NodeInfo {
+					rid: 3,
+					reported_at: FileStorage::now_bn(),
+					power: 10 * MB,
+					used: 0,
+					slash_used: 0
+				}
 			);
 		})
 }
 
 #[test]
-fn file_order_should_be_removed_if_file_size_is_wrong_and_too_small() {
+fn file_order_removed_if_file_size_is_small_than_actual_and_is_lack_fee() {
 	ExtBuilder::default()
 		.stash(1, 2)
-		.register(2, mock_register1())
+		.register(2, MACHINES[0].register_data())
 		.files(vec![(mock_file_id('A'), 100, 1100)])
 		.build()
 		.execute_with(|| {
-			let current_round = CurrentRound::<Test>::get();
-
-			assert_ok!(call_report(2, mock_report2()));
-
-			assert_eq!(StoragePotReserved::<Test>::get(), 1000);
-			let stash_info = Stashs::<Test>::get(2).unwrap();
-			assert_eq!(stash_info.deposit, default_stash_balance().saturating_add(12));
-			assert_eq!(RoundsReward::<Test>::get(current_round).store_reward, 88);
-
+			assert_ok!(MockData::new(0, 3, 10 * MB, &[('A', 2 * MB)]).report_data(0).call(2));
+			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
+				controller: 2,
+				machine_id: MACHINES[0].get_machine_id(),
+				mine_reward: 0,
+				share_store_reward: 0,
+				direct_store_reward: 10,
+				slash: 0,
+			}));
+			assert_eq!(
+				Stashs::<Test>::get(2).unwrap().deposit,
+				default_stash_balance().saturating_add(10)
+			);
+			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 90);
 			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')), None);
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')), None);
 		})
 }
 
 #[test]
-fn file_order_fee_comes_from_storage_pot_reserved_if_lack() {
+fn file_order_do_not_add_replica_when_exceed_max_replicas() {
+	let report_data = MockData::new(0, 3, 200, &[('A', 100)]).report_data(3);
 	ExtBuilder::default()
 		.stash(1, 2)
-		.register(2, mock_register1())
-		.files(vec![(mock_file_id('A'), 100, 1100)])
+		.register(2, MACHINES[0].register_data())
+		.files(vec![(mock_file_id('A'), MB, 1100)])
+		.reports(vec![
+			(6, MACHINES[3].register_data(), report_data.clone()),
+			(7, MACHINES[3].register_data(), report_data.clone()),
+			(8, MACHINES[3].register_data(), report_data.clone()),
+			(9, MACHINES[3].register_data(), report_data.clone()),
+			(10, MACHINES[3].register_data(), report_data.clone()),
+		])
 		.build()
 		.execute_with(|| {
-			change_file_byte_price(default_file_byte_price().saturating_mul(2));
-			assert_ok!(call_report(2, mock_report1()));
-			assert_eq!(StoragePotReserved::<Test>::get(), 900);
-			let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
-			assert_eq!(store_file.reserved, 0);
-			assert_eq!(store_file.base_fee, 0);
-			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().fee, 200);
+			assert_ok!(MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0).call(2));
+			assert_eq!(
+				FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas,
+				vec![6, 7, 8, 9, 10]
+			);
+			assert_eq!(
+				RoundsReport::<Test>::get(CurrentRound::<Test>::get(), 2).unwrap(),
+				NodeStats { power: 10 * MB, used: 0 }
+			);
 		})
 }
 
 #[test]
-fn file_order_replicas_will_be_replace_if_node_fail_to_report() {
+fn file_order_remove_replica_if_node_fail_to_report() {
+	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(3);
 	ExtBuilder::default()
 		.stash(1, 2)
-		.register(2, mock_register1())
-		.files(vec![(mock_file_id('A'), 100, 1100)])
+		.register(2, MACHINES[0].register_data())
+		.files(vec![(mock_file_id('A'), MB, 1100)])
 		.reports(vec![
-			(6, mock_register4(), mock_report4()),
-			(7, mock_register4(), mock_report4()),
-			(8, mock_register4(), mock_report4()),
-			(9, mock_register4(), mock_report4()),
+			(8, MACHINES[3].register_data(), report_data.clone()),
+			(9, MACHINES[3].register_data(), report_data.clone()),
 		])
 		.build()
 		.execute_with(|| {
 			run_to_block(11);
-			assert_ok!(call_report(9, mock_report6()));
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(3).call(9));
+
 			run_to_block(21);
-			assert_ok!(call_report(2, mock_report1()));
-			let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
-			assert_eq!(file_order.replicas, vec![9, 2]);
+			assert_ok!(MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0).call(2));
+			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas, vec![9, 2]);
 			assert_eq!(
-				RoundsSummary::<Test>::get(CurrentRound::<Test>::get()),
-				SummaryStats { power: 200, used: 100 }
+				Nodes::<Test>::get(8).unwrap(),
+				NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: 0, slash_used: MB }
 			);
 		})
 }
@@ -272,148 +323,226 @@ fn file_order_replicas_will_be_replace_if_node_fail_to_report() {
 fn report_del_files() {
 	ExtBuilder::default()
 		.stash(1, 2)
-		.register(2, mock_register1())
-		.files(vec![(mock_file_id('A'), 100, 1100)])
+		.register(2, MACHINES[0].register_data())
+		.files(vec![(mock_file_id('A'), MB, 1100)])
 		.build()
 		.execute_with(|| {
-			assert_ok!(call_register(2, mock_register1()));
-			assert_ok!(call_report(2, mock_report1()));
-			let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
-			assert_eq!(file_order.replicas, vec![2]);
+			assert_ok!(MACHINES[0].register(2));
+			assert_ok!(MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0).call(2));
+			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas, vec![2]);
+			assert_eq!(
+				Nodes::<Test>::get(2).unwrap(),
+				NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: MB, slash_used: 0 }
+			);
 			run_to_block(11);
-			assert_ok!(call_report(2, mock_report5()));
-			let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
-			assert_eq!(file_order.replicas.len(), 0);
+			assert_ok!(MockData::new(3, 5, 9 * MB, &vec![])
+				.del_files(&['A'])
+				.report_data(0)
+				.call(2));
+			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas.len(), 0);
+			assert_eq!(
+				Nodes::<Test>::get(2).unwrap(),
+				NodeInfo { rid: 5, reported_at: 11, power: 9 * MB, used: 0, slash_used: 0 }
+			);
+			assert_eq!(
+				Stashs::<Test>::get(2).unwrap().deposit,
+				default_stash_balance().saturating_sub(10)
+			);
 			assert_eq!(
 				RoundsReport::<Test>::get(CurrentRound::<Test>::get(), 2).unwrap(),
-				NodeStats { power: 100, used: 0 }
+				NodeStats { power: 9 * MB, used: 0 }
 			);
 		})
 }
 
 #[test]
 fn report_settle_files() {
+	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(3);
 	ExtBuilder::default()
-		.files(vec![(mock_file_id('A'), 100, 1100)])
-		.reports(vec![(9, mock_register4(), mock_report4())])
+		.files(vec![(mock_file_id('A'), MB, 1100)])
+		.reports(vec![(2, MACHINES[3].register_data(), report_data.clone())])
 		.build()
 		.execute_with(|| {
 			let stash_balance = default_stash_balance();
-			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance);
+			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance);
 			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 0);
-			let file_order = FileOrders::<Test>::get(&mock_file_id('A')).unwrap();
-			assert_eq!(file_order.expire_at, 31);
+			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().expire_at, 31);
 			run_to_block(11);
-			assert_ok!(call_report(9, mock_report6()));
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(3).call(2));
 			run_to_block(21);
-			assert_ok!(call_report(9, mock_report7()));
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(3).call(2));
 			run_to_block(32);
-			assert_ok!(call_report(9, mock_report8()));
-			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(12));
-			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 88);
-			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')).is_none(), true);
+			assert_ok!(MockData::new(5, 6, 9 * MB, &[])
+				.settle_files(&['A'])
+				.report_data(3)
+				.call(2));
+			assert_eq!(
+				RoundsReport::<Test>::get(CurrentRound::<Test>::get(), 2).unwrap(),
+				NodeStats { power: 9 * MB, used: 0 }
+			);
+			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
+				controller: 2,
+				machine_id: MACHINES[3].get_machine_id(),
+				mine_reward: 0,
+				share_store_reward: 0,
+				direct_store_reward: 20,
+				slash: 0,
+			}));
+			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance.saturating_add(20));
+			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 80);
+			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')), None);
 		})
 }
 
 #[test]
 fn report_settle_files_do_not_reward_unhealth_node() {
 	ExtBuilder::default()
-		.files(vec![(mock_file_id('A'), 100, 1200)])
-		.reports(vec![(9, mock_register4(), mock_report4())])
+		.files(vec![(mock_file_id('A'), MB, 1200)])
+		.reports(vec![
+			(
+				2,
+				MACHINES[3].register_data(),
+				MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(3).clone(),
+			),
+			(
+				3,
+				MACHINES[0].register_data(),
+				MockData::new(0, 3, 100 * MB, &[('A', MB)]).report_data(0).clone(),
+			),
+		])
 		.build()
 		.execute_with(|| {
 			let stash_balance = default_stash_balance();
 			run_to_block(11);
-			assert_ok!(call_report(9, mock_report6()));
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(3).call(2));
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(0).call(3));
 			run_to_block(21);
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(0).call(3));
 			run_to_block(32);
-			assert_ok!(call_report(9, mock_report9()));
-			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_sub(100)); // slash
-			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 100);
-			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas.len(), 0);
+			assert_ok!(MockData::new(5, 6, 10 * MB, &[])
+				.settle_files(&['A'])
+				.report_data(0)
+				.call(3));
+			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance);
+			assert_eq!(Stashs::<Test>::get(3).unwrap().deposit, stash_balance.saturating_add(20));
+			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas, vec![3]);
+			assert_eq!(
+				Nodes::<Test>::get(2).unwrap(),
+				NodeInfo { rid: 4, reported_at: 11, power: 10 * MB, used: 0, slash_used: MB }
+			);
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(3).call(2));
+			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
+				controller: 2,
+				machine_id: MACHINES[3].get_machine_id(),
+				mine_reward: 0,
+				share_store_reward: 0,
+				direct_store_reward: 0,
+				slash: 110,
+			}));
+			assert_eq!(
+				Nodes::<Test>::get(2).unwrap(),
+				NodeInfo { rid: 5, reported_at: 32, power: 10 * MB, used: 0, slash_used: 0 }
+			);
 		})
 }
 
 #[test]
-fn reward_round() {
+fn mine_reward() {
 	ExtBuilder::default()
-		.files(vec![(mock_file_id('A'), 100, 1100)])
-		.reports(vec![(9, mock_register4(), mock_report4())])
-		.build()
-		.execute_with(|| {
-			let stash_balance = default_stash_balance();
-			run_to_block(11);
-			assert_ok!(call_report(9, mock_report6()));
-			run_to_block(21);
-			assert_ok!(call_report(9, mock_report7()));
-			RoundsReward::<Test>::mutate(CurrentRound::<Test>::get(), |reward| {
-				reward.store_reward = 100;
-				reward.mine_reward = 100;
-			});
-			run_to_block(32);
-			assert_ok!(call_report(9, mock_report8()));
-			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_add(212));
-			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 88);
-			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')).is_none(), true);
-		})
-}
-
-#[test]
-fn calculate_mine_reward() {
-	ExtBuilder::default()
-		.files(vec![(mock_file_id('A'), 100, 1100)])
-		.reports(vec![(9, mock_register4(), mock_report4())])
+		.files(vec![(mock_file_id('A'), MB, 1100)])
+		.reports(vec![
+			(
+				2,
+				MACHINES[3].register_data(),
+				MockData::new(0, 3, 100 * MB, &[('A', MB)]).report_data(3),
+			),
+			(
+				3,
+				MACHINES[0].register_data(),
+				MockData::new(0, 3, 100 * MB, &[('A', MB)]).report_data(0),
+			),
+		])
 		.mine_factor(Perbill::from_percent(1))
 		.build()
 		.execute_with(|| {
 			run_to_block(11);
-			assert_ok!(call_report(9, mock_report6()));
-			let current_round = CurrentRound::<Test>::get();
+			let prev_round = CurrentRound::<Test>::get() - 1;
+			assert_eq!(RoundsSummary::<Test>::get(prev_round).power, 200 * MB as u128);
+			assert_eq!(RoundsReward::<Test>::get(prev_round).mine_reward, 2 * 1048576);
+			assert_ok!(MockData::new(3, 4, 512 * MB, &[]).report_data(3).call(2));
+			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
+				controller: 2,
+				machine_id: MACHINES[3].get_machine_id(),
+				mine_reward: 1048576,
+				share_store_reward: 0,
+				direct_store_reward: 0,
+				slash: 0,
+			}));
 			run_to_block(21);
-			assert_eq!(RoundsSummary::<Test>::get(current_round).power, 200);
-			assert_eq!(RoundsReward::<Test>::get(current_round).mine_reward, 2);
+			let prev_round = CurrentRound::<Test>::get() - 1;
+			assert_eq!(RoundsSummary::<Test>::get(prev_round).power, 512 * MB as u128);
+			assert_eq!(RoundsReward::<Test>::get(prev_round).mine_reward, 4 * 1048576); // limit to T::MaxMine
 		})
 }
 
 #[test]
 fn slash_offline() {
+	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(3);
 	ExtBuilder::default()
-		.files(vec![(mock_file_id('A'), 100, 1100)])
-		.reports(vec![(9, mock_register4(), mock_report4())])
+		.files(vec![(mock_file_id('A'), MB, 1200)])
+		.reports(vec![(2, MACHINES[3].register_data(), report_data.clone())])
 		.build()
 		.execute_with(|| {
 			let stash_balance = default_stash_balance();
 			run_to_block(11);
-			assert_ok!(call_report(9, mock_report6()));
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(3).call(2));
 			run_to_block(21);
 			let pot_reserved = StoragePotReserved::<Test>::get();
 			run_to_block(32);
-			assert_ok!(call_report(9, mock_report7()));
-			assert_eq!(Stashs::<Test>::get(9).unwrap().deposit, stash_balance.saturating_sub(100));
-			assert_eq!(StoragePotReserved::<Test>::get(), pot_reserved.saturating_add(100));
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[])
+				.settle_files(&['A'])
+				.report_data(3)
+				.call(2));
+			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
+				controller: 2,
+				machine_id: MACHINES[3].get_machine_id(),
+				mine_reward: 0,
+				share_store_reward: 0,
+				direct_store_reward: 0,
+				slash: 110,
+			}));
+			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance.saturating_sub(110)); // slash
+			assert_eq!(StoragePotReserved::<Test>::get(), pot_reserved.saturating_add(110));
+			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas.len(), 0);
 		})
+}
+
+#[test]
+fn round_end() {
+	ExtBuilder::default().build().execute_with(|| {})
 }
 
 #[test]
 fn report_failed_with_legal_input() {
 	ExtBuilder::default().build().execute_with(|| {
 		// Failed when controller is not stashed
-		assert_err!(call_report(2, mock_report1()), Error::<Test>::UnstashNode);
+		let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
+		assert_err!(report_data.call(2), Error::<Test>::NodeNotStashed);
 
 		// Failed when controller is not registered
 		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
-		assert_err!(call_report(2, mock_report1()), Error::<Test>::UnregisterNode);
+		assert_err!(report_data.call(2), Error::<Test>::UnregisterNode);
 
-		assert_ok!(call_register(2, mock_register1()));
+		assert_ok!(MACHINES[0].register(2));
 
 		// Failed when add_files or del_files is tampered
-		let mut report = mock_report1();
-		report.add_files[0].1 = report.add_files[0].1 + 1;
-		assert_err!(call_report(2, report), Error::<Test>::InvalidVerifyP256Sig);
+		let mut report_data2 = report_data.clone();
+		report_data2.add_files[0].1 = report_data2.add_files[0].1 + 1;
+		assert_err!(report_data2.call(2), Error::<Test>::InvalidVerifyP256Sig);
 
 		// Failed when enclave is outdated
 		run_to_block(1001);
-		assert_err!(call_report(2, mock_report1()), Error::<Test>::InvalidEnclave);
+		assert_err!(report_data.call(2), Error::<Test>::InvalidEnclave);
 	})
 }
 
@@ -421,20 +550,21 @@ fn report_failed_with_legal_input() {
 fn report_failed_when_rid_is_not_continuous() {
 	ExtBuilder::default()
 		.stash(1, 2)
-		.register(2, mock_register1())
-		.files(vec![(mock_file_id('A'), 100, 1100)])
+		.register(2, MACHINES[0].register_data())
+		.files(vec![(mock_file_id('A'), MB, 1100)])
 		.build()
 		.execute_with(|| {
-			assert_ok!(call_register(2, mock_register1()));
-			assert_ok!(call_report(2, mock_report1()));
+			assert_ok!(MACHINES[0].register(2));
+			let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
+			assert_ok!(report_data.call(2));
 			run_to_block(11);
-			assert_err!(call_report(2, mock_report1()), Error::<Test>::InvalidVerifyP256Sig);
+			assert_err!(report_data.call(2), Error::<Test>::InvalidVerifyP256Sig);
 			Nodes::<Test>::mutate(2, |maybe_node_info| {
 				if let Some(node_info) = maybe_node_info {
 					node_info.rid = 0;
 				}
 			});
-			assert_ok!(call_report(2, mock_report1()));
+			assert_ok!(report_data.call(2));
 		})
 }
 
@@ -445,7 +575,7 @@ fn store_works() {
 		let u1000_b = Balances::free_balance(&1000);
 		let file_fee = 1100;
 		assert_eq!(FileStorage::store_file_fee(2000), file_fee);
-		assert_ok!(FileStorage::store(Origin::signed(1000), mock_file_id('A'), 100, file_fee,));
+		assert_ok!(FileStorage::store(Origin::signed(1000), mock_file_id('A'), MB, file_fee,));
 		let now_bn = FileStorage::now_bn();
 		let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
 		assert_eq!(
@@ -453,7 +583,7 @@ fn store_works() {
 			StoreFile {
 				reserved: file_fee.saturating_sub(FILE_BASE_PRICE),
 				base_fee: FILE_BASE_PRICE,
-				file_size: 100,
+				file_size: MB,
 				added_at: now_bn,
 			}
 		);
@@ -461,14 +591,14 @@ fn store_works() {
 		assert_eq!(balance_of_storage_pot(), pot_b.saturating_add(file_fee));
 
 		// Add more fee
-		assert_ok!(FileStorage::store(Origin::signed(1000), mock_file_id('A'), 1000, 10,));
+		assert_ok!(FileStorage::store(Origin::signed(1000), mock_file_id('A'), MB, 10,));
 		let store_file = StoreFiles::<Test>::get(&mock_file_id('A')).unwrap();
 		assert_eq!(
 			store_file,
 			StoreFile {
 				reserved: file_fee.saturating_sub(FILE_BASE_PRICE).saturating_add(10),
 				base_fee: FILE_BASE_PRICE,
-				file_size: 100,
+				file_size: MB,
 				added_at: now_bn
 			}
 		);
@@ -478,7 +608,7 @@ fn store_works() {
 			FileStorage::store(
 				Origin::signed(100),
 				mock_file_id('B'),
-				100,
+				MB,
 				file_fee.saturating_sub(1),
 			),
 			Error::<Test>::NotEnoughFee
