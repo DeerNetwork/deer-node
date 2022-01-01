@@ -50,8 +50,8 @@ impl Get<Balance> for StashBalance {
 	}
 }
 
-pub struct FileBytePrice;
-impl Get<Balance> for FileBytePrice {
+pub struct FileSizePrice;
+impl Get<Balance> for FileSizePrice {
 	fn get() -> Balance {
 		FILE_BYTE_PRICE.with(|v| *v.borrow())
 	}
@@ -159,7 +159,7 @@ impl Config for Test {
 	type MaxPower = MaxPower;
 	type MaxReportFiles = MaxReportFiles;
 	type FileBaseFee = FileBaseFee;
-	type FileBytePrice = FileBytePrice;
+	type FileSizePrice = FileSizePrice;
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
 	type MineFactor = MineFactor;

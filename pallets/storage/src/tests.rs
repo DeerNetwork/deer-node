@@ -15,7 +15,7 @@ fn set_enclave_works() {
 		// should not growth period
 		assert_err!(
 			FileStorage::set_enclave(Origin::root(), MACHINES[0].get_enclave(), 100),
-			Error::<Test>::InvalidEnclaveExpire
+			Error::<Test>::EnclaveExpired
 		);
 	});
 }
@@ -35,9 +35,9 @@ fn round() {
 fn stash_works() {
 	ExtBuilder::default().build().execute_with(|| {
 		let stash_balance = default_stash_balance();
-		let u1_b = Balances::free_balance(1);
+		let u1 = Balances::free_balance(1);
 		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
-		assert_eq!(Balances::free_balance(1), u1_b.saturating_sub(stash_balance));
+		assert_eq!(Balances::free_balance(1), u1.saturating_sub(stash_balance));
 		assert_eq!(balance_of_storage_pot(), stash_balance + 1);
 		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance);
 
@@ -45,14 +45,14 @@ fn stash_works() {
 		let stash_balance_x3 = stash_balance.saturating_mul(3);
 		change_stash_balance(stash_balance_x3);
 		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
-		assert_eq!(Balances::free_balance(1), u1_b.saturating_sub(stash_balance_x3));
+		assert_eq!(Balances::free_balance(1), u1.saturating_sub(stash_balance_x3));
 		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance_x3);
 		assert_eq!(balance_of_storage_pot(), stash_balance_x3 + 1);
 
 		// should do nothing when account's stash_balance > T::StashBalance
 		change_stash_balance(stash_balance);
 		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
-		assert_eq!(Balances::free_balance(1), u1_b.saturating_sub(stash_balance_x3));
+		assert_eq!(Balances::free_balance(1), u1.saturating_sub(stash_balance_x3));
 		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance_x3);
 		assert_eq!(balance_of_storage_pot(), stash_balance_x3 + 1);
 
@@ -61,6 +61,21 @@ fn stash_works() {
 
 		// should not stash another controller
 		assert_err!(FileStorage::stash(Origin::signed(11), 2), Error::<Test>::InvalidStashPair,);
+	})
+}
+
+#[test]
+fn stash_coverd_used_space_deposit() {
+	ExtBuilder::default().build().execute_with(|| {
+		let stash_balance = default_stash_balance();
+		let u1 = Balances::free_balance(1);
+		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
+		Nodes::<Test>::insert(
+			2,
+			NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: MB, slash_used: 0 },
+		);
+		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
+		assert_eq!(Balances::free_balance(1), u1.saturating_sub(stash_balance).saturating_sub(10));
 	})
 }
 
@@ -77,15 +92,36 @@ fn withdraw_works() {
 			}
 		});
 		let pot_b = balance_of_storage_pot();
-		let u1_b = Balances::free_balance(1);
+		let u1 = Balances::free_balance(1);
 		assert_ok!(FileStorage::withdraw(Origin::signed(2)));
 		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance);
-		assert_eq!(Balances::free_balance(1), u1_b.saturating_add(1_000));
+		assert_eq!(Balances::free_balance(1), u1.saturating_add(1_000));
 		assert_eq!(balance_of_storage_pot(), pot_b.saturating_sub(1_000));
 
 		// should not withdraw when account's deposit < T::StashBalance
 		assert_ok!(FileStorage::stash(Origin::signed(11), 12));
 		assert_err!(FileStorage::withdraw(Origin::signed(12)), Error::<Test>::NoEnoughToWithdraw,);
+	})
+}
+
+#[test]
+fn withdraw_reserve_used_space_deposit() {
+	ExtBuilder::default().build().execute_with(|| {
+		let stash_balance = default_stash_balance();
+		Balances::make_free_balance_be(&FileStorage::account_id(), 2_000);
+
+		assert_ok!(FileStorage::stash(Origin::signed(1), 2));
+		Stashs::<Test>::mutate(2, |maybe_stash_info| {
+			if let Some(stash_info) = maybe_stash_info {
+				stash_info.deposit = stash_info.deposit.saturating_add(1_000)
+			}
+		});
+		Nodes::<Test>::insert(
+			2,
+			NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: MB, slash_used: 0 },
+		);
+		assert_ok!(FileStorage::withdraw(Origin::signed(2)));
+		assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance.saturating_add(10));
 	})
 }
 
@@ -104,7 +140,7 @@ fn register_works() {
 		assert_eq!(Registers::<Test>::get(&machine_id).unwrap(), MACHINES[1].register_info());
 
 		// Failed when controller is not stashed
-		assert_err!(MACHINES[0].register(3), Error::<Test>::UnstashNode);
+		assert_err!(MACHINES[0].register(3), Error::<Test>::NodeNotStashed);
 
 		// Failed when machind_id don't match
 		let mut register_data = MACHINES[0].register_data();
@@ -133,7 +169,7 @@ fn report_works() {
 			let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
 			assert_ok!(report_data.call(2));
 			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
-				node: 2,
+				controller: 2,
 				machine_id: MACHINES[0].get_machine_id(),
 				mine_reward: 0,
 				share_store_reward: 0,
@@ -168,7 +204,7 @@ fn report_works() {
 			);
 			assert_eq!(
 				Nodes::<Test>::get(2).unwrap(),
-				NodeInfo { rid: 3, reported_at: now_bn, power: 10 * MB, used: MB }
+				NodeInfo { rid: 3, reported_at: now_bn, power: 10 * MB, used: MB, slash_used: 0 }
 			);
 			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, default_stash_balance());
 
@@ -191,7 +227,13 @@ fn report_works_with_useless_files() {
 				.call(2));
 			assert_eq!(
 				Nodes::<Test>::get(2).unwrap(),
-				NodeInfo { rid: 3, reported_at: FileStorage::now_bn(), power: 10 * MB, used: 0 }
+				NodeInfo {
+					rid: 3,
+					reported_at: FileStorage::now_bn(),
+					power: 10 * MB,
+					used: 0,
+					slash_used: 0
+				}
 			);
 		})
 }
@@ -206,7 +248,7 @@ fn file_order_removed_if_file_size_is_small_than_actual_and_is_lack_fee() {
 		.execute_with(|| {
 			assert_ok!(MockData::new(0, 3, 10 * MB, &[('A', 2 * MB)]).report_data(0).call(2));
 			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
-				node: 2,
+				controller: 2,
 				machine_id: MACHINES[0].get_machine_id(),
 				mine_reward: 0,
 				share_store_reward: 0,
@@ -218,7 +260,6 @@ fn file_order_removed_if_file_size_is_small_than_actual_and_is_lack_fee() {
 				default_stash_balance().saturating_add(10)
 			);
 			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 90);
-
 			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')), None);
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')), None);
 		})
@@ -273,9 +314,8 @@ fn file_order_remove_replica_if_node_fail_to_report() {
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas, vec![9, 2]);
 			assert_eq!(
 				Nodes::<Test>::get(8).unwrap(),
-				NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: 0 }
+				NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: 0, slash_used: MB }
 			);
-			// TODO 8 deposit slash
 		})
 }
 
@@ -292,7 +332,7 @@ fn report_del_files() {
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas, vec![2]);
 			assert_eq!(
 				Nodes::<Test>::get(2).unwrap(),
-				NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: MB }
+				NodeInfo { rid: 3, reported_at: 1, power: 10 * MB, used: MB, slash_used: 0 }
 			);
 			run_to_block(11);
 			assert_ok!(MockData::new(3, 5, 9 * MB, &vec![])
@@ -302,7 +342,7 @@ fn report_del_files() {
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas.len(), 0);
 			assert_eq!(
 				Nodes::<Test>::get(2).unwrap(),
-				NodeInfo { rid: 5, reported_at: 11, power: 9 * MB, used: 0 }
+				NodeInfo { rid: 5, reported_at: 11, power: 9 * MB, used: 0, slash_used: 0 }
 			);
 			assert_eq!(
 				Stashs::<Test>::get(2).unwrap().deposit,
@@ -341,7 +381,7 @@ fn report_settle_files() {
 				NodeStats { power: 9 * MB, used: 0 }
 			);
 			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
-				node: 2,
+				controller: 2,
 				machine_id: MACHINES[3].get_machine_id(),
 				mine_reward: 0,
 				share_store_reward: 0,
@@ -386,6 +426,23 @@ fn report_settle_files_do_not_reward_unhealth_node() {
 			assert_eq!(Stashs::<Test>::get(2).unwrap().deposit, stash_balance);
 			assert_eq!(Stashs::<Test>::get(3).unwrap().deposit, stash_balance.saturating_add(20));
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas, vec![3]);
+			assert_eq!(
+				Nodes::<Test>::get(2).unwrap(),
+				NodeInfo { rid: 4, reported_at: 11, power: 10 * MB, used: 0, slash_used: MB }
+			);
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(3).call(2));
+			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
+				controller: 2,
+				machine_id: MACHINES[3].get_machine_id(),
+				mine_reward: 0,
+				share_store_reward: 0,
+				direct_store_reward: 0,
+				slash: 110,
+			}));
+			assert_eq!(
+				Nodes::<Test>::get(2).unwrap(),
+				NodeInfo { rid: 5, reported_at: 32, power: 10 * MB, used: 0, slash_used: 0 }
+			);
 		})
 }
 
@@ -414,7 +471,7 @@ fn mine_reward() {
 			assert_eq!(RoundsReward::<Test>::get(prev_round).mine_reward, 2 * 1048576);
 			assert_ok!(MockData::new(3, 4, 512 * MB, &[]).report_data(3).call(2));
 			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
-				node: 2,
+				controller: 2,
 				machine_id: MACHINES[3].get_machine_id(),
 				mine_reward: 1048576,
 				share_store_reward: 0,
@@ -447,7 +504,7 @@ fn slash_offline() {
 				.report_data(3)
 				.call(2));
 			assert_last_event::<Test>(mock::Event::FileStorage(crate::Event::NodeReported {
-				node: 2,
+				controller: 2,
 				machine_id: MACHINES[3].get_machine_id(),
 				mine_reward: 0,
 				share_store_reward: 0,
@@ -461,11 +518,16 @@ fn slash_offline() {
 }
 
 #[test]
+fn round_end() {
+	ExtBuilder::default().build().execute_with(|| {})
+}
+
+#[test]
 fn report_failed_with_legal_input() {
 	ExtBuilder::default().build().execute_with(|| {
 		// Failed when controller is not stashed
 		let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
-		assert_err!(report_data.call(2), Error::<Test>::UnstashNode);
+		assert_err!(report_data.call(2), Error::<Test>::NodeNotStashed);
 
 		// Failed when controller is not registered
 		assert_ok!(FileStorage::stash(Origin::signed(1), 2));

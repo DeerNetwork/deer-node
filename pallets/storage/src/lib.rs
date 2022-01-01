@@ -19,6 +19,8 @@ pub use constants::*;
 
 pub mod weights;
 
+pub mod migrations;
+
 use codec::{Decode, Encode};
 use frame_support::{
 	traits::{
@@ -60,6 +62,8 @@ pub struct NodeInfo<BlockNumber> {
 	pub rid: u64,
 	/// Effective storage space
 	pub used: u64,
+	/// Slash Effective storage space
+	pub slash_used: u64,
 	/// Mine power of node, use this to distribute mining rewards
 	pub power: u64,
 	/// Latest report at
@@ -143,6 +147,21 @@ pub struct SummaryStats {
 	pub used: u128,
 }
 
+// A value placed in storage that represents the current version of the Scheduler storage.
+// This value is used by the `on_runtime_upgrade` logic to determine whether we run
+// storage migration logic.
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub enum Releases {
+	V0,
+	V1,
+}
+
+impl Default for Releases {
+	fn default() -> Self {
+		Releases::V0
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -209,7 +228,7 @@ pub mod pallet {
 
 		/// The additional funds that must be spent for the number of bytes of the file
 		#[pallet::constant]
-		type FileBytePrice: Get<BalanceOf<Self>>;
+		type FileSizePrice: Get<BalanceOf<Self>>;
 
 		/// The ratio for divide store reward to node's have replicas and round store reward.
 		#[pallet::constant]
@@ -297,20 +316,26 @@ pub mod pallet {
 		FileOrder<T::AccountId, BalanceOf<T>, BlockNumberFor<T>>,
 	>;
 
+	/// Storage version of the pallet.
+	///
+	/// New networks start with last version.
+	#[pallet::storage]
+	pub type StorageVersion<T: Config> = StorageValue<_, Releases, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Add or change enclave.
 		SetEnclave { enclave_id: EnclaveId, expire_at: BlockNumberFor<T> },
 		/// A account have been stashed.
-		Stashed { node: T::AccountId },
+		Stashed { controller: T::AccountId, amount: BalanceOf<T> },
 		/// A account have withdrawn some founds.
-		Withdrawn { node: T::AccountId, stasher: T::AccountId, amount: BalanceOf<T> },
+		Withdrawn { controller: T::AccountId, stasher: T::AccountId, amount: BalanceOf<T> },
 		/// A node was registerd.
-		NodeRegistered { node: T::AccountId, machine_id: MachineId },
+		NodeRegistered { controller: T::AccountId, machine_id: MachineId },
 		/// A node reported its work.
 		NodeReported {
-			node: T::AccountId,
+			controller: T::AccountId,
 			machine_id: MachineId,
 			mine_reward: BalanceOf<T>,
 			share_store_reward: BalanceOf<T>,
@@ -332,13 +357,13 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Enclave's expire time should not great than current
-		InvalidEnclaveExpire,
+		EnclaveExpired,
 		/// Node have been stashed with another account
 		InvalidStashPair,
 		/// Node's deposit is not enough to withdraw
 		NoEnoughToWithdraw,
-		/// Have not stashed node
-		UnstashNode,
+		/// Node Have not stashed
+		NodeNotStashed,
 		/// Machine id incorrect
 		MismatchMacheId,
 		/// Machine id exists in system
@@ -379,6 +404,28 @@ pub mod pallet {
 			// TODO: weights
 			0
 		}
+
+		fn on_runtime_upgrade() -> Weight {
+			if StorageVersion::<T>::get() == Releases::V0 {
+				migrations::v1::migrate::<T>()
+			} else {
+				T::DbWeight::get().reads(1)
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<(), &'static str> {
+			if StorageVersion::<T>::get() == Releases::V0 {
+				migrations::v1::pre_migrate::<T>()
+			} else {
+				Ok(())
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade() -> Result<(), &'static str> {
+			migrations::v1::post_migrate::<T>()
+		}
 	}
 
 	#[pallet::genesis_config]
@@ -395,6 +442,7 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
+			StorageVersion::<T>::put(Releases::V1);
 			<Pallet<T>>::next_round();
 			let storage_pot = <Pallet<T>>::account_id();
 			let min = T::Currency::minimum_balance();
@@ -418,7 +466,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			if let Some(old_expire_at) = Enclaves::<T>::get(&enclave_id) {
-				ensure!(expire_at < old_expire_at, Error::<T>::InvalidEnclaveExpire);
+				ensure!(expire_at < old_expire_at, Error::<T>::EnclaveExpired);
 			}
 			Enclaves::<T>::insert(&enclave_id, &expire_at);
 			Self::deposit_event(Event::<T>::SetEnclave { enclave_id, expire_at });
@@ -431,23 +479,26 @@ pub mod pallet {
 		#[pallet::weight(1_000_000)]
 		pub fn stash(
 			origin: OriginFor<T>,
-			node: <T::Lookup as StaticLookup>::Source,
+			controller: <T::Lookup as StaticLookup>::Source,
 		) -> DispatchResult {
 			let stasher = ensure_signed(origin)?;
-			let node = T::Lookup::lookup(node)?;
+			let controller = T::Lookup::lookup(controller)?;
 			let stash_balance = T::StashBalance::get();
-			if let Some(mut stash_info) = Stashs::<T>::get(&node) {
+			if let Some(mut stash_info) = Stashs::<T>::get(&controller) {
 				ensure!(&stash_info.stasher == &stasher, Error::<T>::InvalidStashPair);
-				if stash_info.deposit < stash_balance {
-					let lack = stash_balance.saturating_sub(stash_info.deposit);
+				let new_deposit =
+					Self::node_used_deposit(&controller).saturating_add(stash_balance);
+				let lack = new_deposit.saturating_sub(stash_info.deposit);
+				if !lack.is_zero() {
 					T::Currency::transfer(
 						&stasher,
 						&Self::account_id(),
 						lack,
 						ExistenceRequirement::KeepAlive,
 					)?;
-					stash_info.deposit = stash_balance;
-					Stashs::<T>::insert(node, stash_info);
+					stash_info.deposit = new_deposit;
+					Stashs::<T>::insert(controller.clone(), stash_info);
+					Self::deposit_event(Event::<T>::Stashed { controller, amount: lack });
 				}
 			} else {
 				T::Currency::transfer(
@@ -457,10 +508,10 @@ pub mod pallet {
 					ExistenceRequirement::KeepAlive,
 				)?;
 				Stashs::<T>::insert(
-					&node,
+					&controller,
 					StashInfo { stasher, deposit: stash_balance, machine_id: None },
 				);
-				Self::deposit_event(Event::<T>::Stashed { node });
+				Self::deposit_event(Event::<T>::Stashed { controller, amount: stash_balance });
 			}
 			Ok(())
 		}
@@ -468,16 +519,13 @@ pub mod pallet {
 		/// Withdraw the mine reward, node's despoist should not below T::StashBalance
 		#[pallet::weight(T::WeightInfo::withdraw())]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
-			let node = ensure_signed(origin)?;
-			let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::UnstashNode)?;
-			let stash_deposit: BalanceOf<T> = stash_info.deposit;
-			let current_round = CurrentRound::<T>::get();
-			let round_stats = RoundsReport::<T>::get(current_round, &node).unwrap_or_default();
-			let store_deposit = Self::share_ratio() * Self::store_file_bytes_fee(round_stats.used);
+			let controller = ensure_signed(origin)?;
+			let mut stash_info = Stashs::<T>::get(&controller).ok_or(Error::<T>::NodeNotStashed)?;
 			let stash_balance = T::StashBalance::get();
-			let amount = stash_deposit.saturating_sub(stash_balance).saturating_sub(store_deposit);
+			let new_deposit = Self::node_used_deposit(&controller).saturating_add(stash_balance);
+			let amount = stash_info.deposit.saturating_sub(new_deposit);
 			ensure!(!amount.is_zero(), Error::<T>::NoEnoughToWithdraw);
-			stash_info.deposit = stash_balance;
+			stash_info.deposit = new_deposit;
 			let stasher = stash_info.stasher.clone();
 			T::Currency::transfer(
 				&Self::account_id(),
@@ -485,8 +533,8 @@ pub mod pallet {
 				amount,
 				ExistenceRequirement::KeepAlive,
 			)?;
-			Stashs::<T>::insert(node.clone(), stash_info);
-			Self::deposit_event(Event::<T>::Withdrawn { node, stasher, amount });
+			Stashs::<T>::insert(controller.clone(), stash_info);
+			Self::deposit_event(Event::<T>::Withdrawn { controller, stasher, amount });
 			Ok(())
 		}
 
@@ -500,9 +548,9 @@ pub mod pallet {
 			ias_body: Vec<u8>,
 			sig: Vec<u8>,
 		) -> DispatchResult {
-			let node = ensure_signed(origin)?;
+			let controller = ensure_signed(origin)?;
 			let maybe_register_info = Registers::<T>::get(&machine_id);
-			let mut stash_info = Stashs::<T>::get(&node).ok_or(Error::<T>::UnstashNode)?;
+			let mut stash_info = Stashs::<T>::get(&controller).ok_or(Error::<T>::NodeNotStashed)?;
 			if maybe_register_info.is_some() {
 				ensure!(&stash_info.machine_id.is_some(), Error::<T>::MachineAlreadyRegistered);
 			}
@@ -562,11 +610,11 @@ pub mod pallet {
 						RegisterInfo { key: key.clone(), enclave: enclave.clone() },
 					);
 					stash_info.machine_id = Some(machine_id.clone());
-					Stashs::<T>::insert(&node, stash_info);
+					Stashs::<T>::insert(&controller, stash_info);
 				},
 			}
 
-			Self::deposit_event(Event::<T>::NodeRegistered { node, machine_id });
+			Self::deposit_event(Event::<T>::NodeRegistered { controller, machine_id });
 			Ok(())
 		}
 
@@ -590,7 +638,7 @@ pub mod pallet {
 					settle_files.len() <= T::MaxReportFiles::get() as usize,
 				Error::<T>::ReportExceedLimit
 			);
-			let stash_info = Stashs::<T>::get(&reporter).ok_or(Error::<T>::UnstashNode)?;
+			let mut stash_info = Stashs::<T>::get(&reporter).ok_or(Error::<T>::NodeNotStashed)?;
 			let machine_id =
 				stash_info.machine_id.as_ref().ok_or(Error::<T>::UnregisterNode)?.clone();
 
@@ -630,12 +678,13 @@ pub mod pallet {
 				reporter: reporter.clone(),
 				storage_pot_reserved: StoragePotReserved::<T>::get(),
 				node_used_changes: BTreeMap::new(),
-				node_deposit_changes: BTreeMap::new(),
+				node_rewards: BTreeMap::new(),
 				nodes_prev_reported: BTreeMap::new(),
-				round_inc_store_reward: Zero::zero(),
+				round_store_reward: Zero::zero(),
 				reporter_mine_reward: Zero::zero(),
 				reporter_store_reward: Zero::zero(),
 			};
+			let mut slash: BalanceOf<T> = Zero::zero();
 
 			for cid in settle_files.iter() {
 				Self::settle_file(&mut ctx, cid);
@@ -659,67 +708,75 @@ pub mod pallet {
 				if !node_info.reported_at.is_zero() {
 					let slash_balance = T::SlashBalance::get();
 					if !slash_balance.is_zero() {
-						let reporter_deposit =
-							ctx.node_deposit_changes.entry(ctx.reporter.clone()).or_default();
-						reporter_deposit.0 = reporter_deposit.0.saturating_add(slash_balance);
+						slash = slash.saturating_add(slash_balance);
 					}
+				}
+			}
+
+			{
+				let (slash_dec_used, dec_used, inc_used) =
+					ctx.node_used_changes.entry(reporter.clone()).or_default();
+				node_info.used = node_info
+					.used
+					.saturating_add(*inc_used)
+					.saturating_sub(*slash_dec_used)
+					.saturating_sub(*dec_used);
+				let total_dec_used = slash_dec_used.saturating_add(node_info.slash_used);
+				if !total_dec_used.is_zero() {
+					slash = slash.saturating_add(Self::deposit_for_used(total_dec_used));
 				}
 			}
 
 			for (account, (slash_dec_used, dec_used, inc_used)) in ctx.node_used_changes.iter() {
-				if account == &reporter {
-					node_info.used = node_info
-						.used
-						.saturating_add(*inc_used)
-						.saturating_sub(*slash_dec_used)
-						.saturating_sub(*dec_used);
-					if !slash_dec_used.is_zero() {
-						let reporter_deposit =
-							ctx.node_deposit_changes.entry(account.clone()).or_default();
-						let slash_fee =
-							Self::share_ratio() * Self::store_file_bytes_fee(*slash_dec_used);
-						reporter_deposit.0 = reporter_deposit.0.saturating_add(slash_fee);
-					}
-				} else {
+				if account != &reporter {
 					Nodes::<T>::mutate(account, |maybe_node| {
 						if let Some(other_node) = maybe_node {
+							other_node.slash_used =
+								other_node.slash_used.saturating_add(*slash_dec_used);
 							other_node.used = other_node
 								.used
 								.saturating_add(*inc_used)
 								.saturating_sub(*slash_dec_used)
-								.saturating_sub(*dec_used)
+								.saturating_sub(*dec_used);
 						}
 					})
 				}
 			}
-			let reporter_deposit = ctx.node_deposit_changes.entry(reporter.clone()).or_default();
-			let direct_store_reward = reporter_deposit.1;
-			let slash = reporter_deposit.0;
-			reporter_deposit.1 = reporter_deposit
-				.1
-				.saturating_add(ctx.reporter_mine_reward)
-				.saturating_add(ctx.reporter_store_reward);
-			let mut deposit_collect: BalanceOf<T> = Zero::zero();
-			for (account, (dec, inc)) in ctx.node_deposit_changes.iter() {
-				Stashs::<T>::mutate(account, |maybe_stash_info| {
-					if let Some(stash_info) = maybe_stash_info {
-						let new_deposit = stash_info.deposit.saturating_add(*inc);
-						let new_dec = *dec;
-						let (new_deposit, new_dec) = if new_deposit >= new_dec {
-							(new_deposit.saturating_sub(new_dec), new_dec)
-						} else {
-							(Zero::zero(), new_deposit)
-						};
-						stash_info.deposit = new_deposit;
-						deposit_collect = deposit_collect.saturating_add(new_dec);
-					} else {
-						deposit_collect = deposit_collect.saturating_add(*inc);
-					}
-				})
+
+			let mut storage_pot_add: BalanceOf<T> = Zero::zero();
+			let reporter_reward = ctx.node_rewards.entry(reporter.clone()).or_default();
+			let direct_store_reward = reporter_reward.clone();
+			{
+				let reporter_slash = slash.clone();
+				*reporter_reward = reporter_reward
+					.saturating_add(ctx.reporter_mine_reward)
+					.saturating_add(ctx.reporter_store_reward);
+				let new_deposit = stash_info.deposit.saturating_add(*reporter_reward);
+				let (new_deposit, amount) = if new_deposit >= reporter_slash {
+					(new_deposit.saturating_sub(reporter_slash), reporter_slash)
+				} else {
+					(Zero::zero(), new_deposit)
+				};
+				stash_info.deposit = new_deposit;
+				storage_pot_add = storage_pot_add.saturating_add(amount);
 			}
-			ctx.storage_pot_reserved = ctx.storage_pot_reserved.saturating_add(deposit_collect);
+
+			for (account, reward) in ctx.node_rewards.iter() {
+				if account != &reporter {
+					Stashs::<T>::mutate(account, |maybe_stash_info| {
+						if let Some(stash_info) = maybe_stash_info {
+							stash_info.deposit = stash_info.deposit.saturating_add(*reward);
+						} else {
+							storage_pot_add = storage_pot_add.saturating_add(*reward);
+						}
+					})
+				}
+			}
+
+			ctx.storage_pot_reserved = ctx.storage_pot_reserved.saturating_add(storage_pot_add);
 
 			node_info.power = power.min(T::MaxPower::get());
+			node_info.slash_used = 0;
 
 			node_info.rid = rid;
 			node_info.reported_at = now_at;
@@ -727,7 +784,7 @@ pub mod pallet {
 			StoragePotReserved::<T>::mutate(|v| *v = ctx.storage_pot_reserved);
 			RoundsReward::<T>::mutate(current_round, |round_reward| {
 				round_reward.store_reward =
-					round_reward.store_reward.saturating_add(ctx.round_inc_store_reward);
+					round_reward.store_reward.saturating_add(ctx.round_store_reward);
 			});
 			RoundsReport::<T>::insert(
 				current_round,
@@ -738,10 +795,11 @@ pub mod pallet {
 				v.used = v.used.saturating_add(node_info.used.saturated_into());
 				v.power = v.power.saturating_add(node_info.power.saturated_into());
 			});
+			Stashs::<T>::insert(reporter.clone(), stash_info);
 			Nodes::<T>::insert(reporter.clone(), node_info);
 
 			Self::deposit_event(Event::<T>::NodeReported {
-				node: reporter,
+				controller: reporter,
 				machine_id,
 				mine_reward: ctx.reporter_mine_reward,
 				share_store_reward: ctx.reporter_store_reward,
@@ -840,10 +898,10 @@ struct ReportContext<AccountId, BlockNumber, Balance> {
 	prev_round: RoundIndex,
 	reporter: AccountId,
 	storage_pot_reserved: Balance,
-	node_deposit_changes: BTreeMap<AccountId, (Balance, Balance)>, // (dec, inc)
-	node_used_changes: BTreeMap<AccountId, (u64, u64, u64)>,       // (slash_dec, dec, inc)
+	node_rewards: BTreeMap<AccountId, Balance>,
+	node_used_changes: BTreeMap<AccountId, (u64, u64, u64)>, // (slash_dec, dec, inc)
 	nodes_prev_reported: BTreeMap<AccountId, bool>,
-	round_inc_store_reward: Balance,
+	round_store_reward: Balance,
 	reporter_mine_reward: Balance,
 	reporter_store_reward: Balance,
 }
@@ -996,11 +1054,11 @@ impl<T: Config> Pallet<T> {
 					.entry(node.clone())
 					.or_insert_with(|| Self::round_reported(prev_round, node));
 				if *reported {
-					let node_deposit = ctx.node_deposit_changes.entry(node.clone()).or_default();
-					node_deposit.1 = node_deposit.1.saturating_add(each_order_reward);
+					let node_reward = ctx.node_rewards.entry(node.clone()).or_default();
+					*node_reward = node_reward.saturating_add(each_order_reward);
 					total_order_reward = total_order_reward.saturating_add(each_order_reward);
 					if node == &ctx.reporter {
-						node_deposit.1 = node_deposit.1.saturating_add(each_order_reward);
+						*node_reward = node_reward.saturating_add(each_order_reward);
 						total_order_reward = total_order_reward.saturating_add(each_order_reward);
 					}
 					replicas.push(node.clone());
@@ -1022,8 +1080,7 @@ impl<T: Config> Pallet<T> {
 			}
 			let unpaid_reward = file_order_fee.saturating_sub(total_order_reward);
 			if !unpaid_reward.is_zero() {
-				ctx.round_inc_store_reward =
-					ctx.round_inc_store_reward.saturating_add(unpaid_reward);
+				ctx.round_store_reward = ctx.round_store_reward.saturating_add(unpaid_reward);
 			}
 		}
 	}
@@ -1045,11 +1102,11 @@ impl<T: Config> Pallet<T> {
 					// user underreported the file size
 					if file.file_size < file_size && file.reserved < expect_order_fee {
 						let to_reporter_reward = Self::share_ratio() * file.reserved;
-						let reporter_deposit =
-							ctx.node_deposit_changes.entry(ctx.reporter.clone()).or_default();
-						reporter_deposit.1 = reporter_deposit.1.saturating_add(to_reporter_reward);
-						ctx.round_inc_store_reward = ctx
-							.round_inc_store_reward
+						let reporter_reward =
+							ctx.node_rewards.entry(ctx.reporter.clone()).or_default();
+						*reporter_reward = reporter_reward.saturating_add(to_reporter_reward);
+						ctx.round_store_reward = ctx
+							.round_store_reward
 							.saturating_add(file.reserved.saturating_sub(to_reporter_reward));
 						Self::clear_store_file(cid);
 						return false
@@ -1133,6 +1190,16 @@ impl<T: Config> Pallet<T> {
 		Self::deposit_event(Event::<T>::FileDeleted { cid: cid.clone() });
 	}
 
+	/// Reserved deposit balance for node's used storage space
+	fn deposit_for_used(space: u64) -> BalanceOf<T> {
+		Self::share_ratio() * Self::store_file_bytes_fee(space)
+	}
+
+	fn node_used_deposit(node: &T::AccountId) -> BalanceOf<T> {
+		let node_info = Nodes::<T>::get(node).unwrap_or_default();
+		Self::deposit_for_used(node_info.used)
+	}
+
 	fn store_file_fee(file_size: u64) -> BalanceOf<T> {
 		T::FileBaseFee::get().saturating_add(Self::store_file_bytes_fee(file_size))
 	}
@@ -1147,7 +1214,7 @@ impl<T: Config> Pallet<T> {
 		if file_size % 1_048_576 != 0 {
 			file_size_in_mega += 1;
 		}
-		T::FileBytePrice::get().saturating_mul(file_size_in_mega.saturated_into())
+		T::FileSizePrice::get().saturating_mul(file_size_in_mega.saturated_into())
 	}
 
 	fn get_file_order_expire() -> BlockNumberFor<T> {
