@@ -642,4 +642,11 @@ fn force_delete() {
 }
 
 #[test]
-fn unpaid_reward_to_treasury() {}
+fn store_fee_works() {
+	ExtBuilder::default().build().execute_with(|| {
+		assert_eq!(FileStorage::store_fee(MB, 30), 1100);
+		assert_eq!(FileStorage::store_fee(MB, 10), 1100);
+		assert_eq!(FileStorage::store_fee(100, 10), 1100);
+		assert_eq!(FileStorage::store_fee(MB, 31), 1200);
+	})
+}

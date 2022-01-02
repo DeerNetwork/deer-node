@@ -911,6 +911,18 @@ impl<T: Config> Pallet<T> {
 		T::PalletId::get().into_account()
 	}
 
+	pub fn store_fee(file_size: u64, time: BlockNumberFor<T>) -> BalanceOf<T> {
+		let rount_time = Self::get_round_time();
+		let mut num_rounds: u64 = (time / rount_time).saturated_into();
+		let rem = time % rount_time;
+		if !rem.is_zero() {
+			num_rounds += 1;
+		}
+		Self::store_file_bytes_fee(file_size)
+			.saturating_mul(num_rounds.saturated_into())
+			.saturating_add(T::FileBaseFee::get())
+	}
+
 	fn on_round_end() {
 		let current_round = CurrentRound::<T>::get();
 		let mine_reward = Self::calculate_mine_reward(current_round);
@@ -1125,7 +1137,7 @@ impl<T: Config> Pallet<T> {
 				return false
 			}
 			let now_at = Self::now_bn();
-			let mut expire = Self::get_file_order_expire();
+			let mut expire = Self::get_round_time();
 			if order_fee < expect_order_fee {
 				expire = Perbill::from_rational(order_fee, expect_order_fee) * expire;
 			}
@@ -1217,7 +1229,7 @@ impl<T: Config> Pallet<T> {
 		T::FileSizePrice::get().saturating_mul(file_size_in_mega.saturated_into())
 	}
 
-	fn get_file_order_expire() -> BlockNumberFor<T> {
+	fn get_round_time() -> BlockNumberFor<T> {
 		let rounds = T::FileOrderRounds::get();
 		T::RoundDuration::get().saturating_mul(rounds.saturated_into())
 	}

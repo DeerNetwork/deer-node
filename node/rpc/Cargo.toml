@@ -13,6 +13,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 jsonrpc-core = "18.0.0"
 node-primitives = { package = "deer-primitives", path = "../primitives" }
 pallet-transaction-payment-rpc = { path = "../../substrate/frame/transaction-payment/rpc/" }
+pallet-nft-rpc = { path = "../../pallets/nft/rpc/" }
+pallet-storage-rpc = { path = "../../pallets/storage/rpc/" }
 sc-client-api = { path = "../../substrate/client/api" }
 sc-consensus-babe = { path = "../../substrate/client/consensus/babe" }
 sc-consensus-babe-rpc = { path = "../../substrate/client/consensus/babe/rpc" }

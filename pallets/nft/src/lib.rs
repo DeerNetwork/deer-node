@@ -383,8 +383,8 @@ pub mod pallet {
 					Ok(current_id)
 				})?;
 
-			let deposit =
-				Self::caculate_deposit(T::ClassDeposit::get(), metadata.len().saturated_into());
+			let deposit = Self::create_class_deposit(metadata.len().saturated_into());
+
 			T::Currency::reserve(&owner, deposit)?;
 
 			let class_details = ClassDetails {
@@ -454,8 +454,8 @@ pub mod pallet {
 					class_details.permission.0.contains(Permission::DelegateMintable),
 					Error::<T, I>::NoPermission
 				);
-				let deposit =
-					Self::caculate_deposit(T::TokenDeposit::get(), metadata.len().saturated_into());
+				let deposit = Self::mint_token_deposit(metadata.len().saturated_into());
+
 				T::Currency::transfer(
 					&who,
 					&class_details.owner,
@@ -815,8 +815,16 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		Ok(())
 	}
 
-	fn caculate_deposit(base: BalanceOf<T, I>, metadata_len: u32) -> BalanceOf<T, I> {
-		base.saturating_add(T::MetaDataByteDeposit::get().saturating_mul(metadata_len.into()))
+	pub fn create_class_deposit(bytes_len: u32) -> BalanceOf<T, I> {
+		T::ClassDeposit::get().saturating_add(Self::caculate_byes_deposit(bytes_len))
+	}
+
+	pub fn mint_token_deposit(bytes_len: u32) -> BalanceOf<T, I> {
+		T::TokenDeposit::get().saturating_add(Self::caculate_byes_deposit(bytes_len))
+	}
+
+	fn caculate_byes_deposit(bytes_len: u32) -> BalanceOf<T, I> {
+		T::MetaDataByteDeposit::get().saturating_mul((bytes_len).into())
 	}
 
 	fn mint_token(
@@ -849,8 +857,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			class_details.total_tokens = total_tokens;
 			class_details.total_issuance = total_issuance;
 
-			let deposit =
-				Self::caculate_deposit(T::TokenDeposit::get(), metadata.len().saturated_into());
+			let deposit = Self::mint_token_deposit(metadata.len().saturated_into());
 			T::Currency::reserve(&class_details.owner, deposit)?;
 
 			let token_details = TokenDetails {

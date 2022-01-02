@@ -1393,6 +1393,8 @@ version = "0.2.0"
 dependencies = [
  "deer-primitives",
  "jsonrpc-core",
+ "pallet-nft-rpc",
+ "pallet-storage-rpc",
  "pallet-transaction-payment-rpc",
  "sc-chain-spec",
  "sc-client-api",
@@ -1451,6 +1453,7 @@ dependencies = [
  "pallet-nft",
  "pallet-nft-auction",
  "pallet-nft-order",
+ "pallet-nft-rpc-runtime-api",
  "pallet-offences",
  "pallet-offences-benchmarking",
  "pallet-proxy",
@@ -1461,6 +1464,7 @@ dependencies = [
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-storage",
+ "pallet-storage-rpc-runtime-api",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-tips",
@@ -4765,6 +4769,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-nft-rpc"
+version = "0.4.0"
+dependencies = [
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "pallet-nft-rpc-runtime-api",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-blockchain",
+ "sp-rpc",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-nft-rpc-runtime-api"
+version = "0.4.0"
+dependencies = [
+ "parity-scale-codec",
+ "sp-api",
+ "sp-core",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-offences"
 version = "4.0.0-dev"
 dependencies = [
@@ -4933,6 +4962,31 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "webpki 0.21.0",
+]
+
+[[package]]
+name = "pallet-storage-rpc"
+version = "0.4.0"
+dependencies = [
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "pallet-storage-rpc-runtime-api",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-blockchain",
+ "sp-rpc",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-storage-rpc-runtime-api"
+version = "0.4.0"
+dependencies = [
+ "parity-scale-codec",
+ "sp-api",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
