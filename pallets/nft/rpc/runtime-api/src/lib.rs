@@ -6,13 +6,12 @@ use codec::Codec;
 use sp_std::prelude::*;
 
 sp_api::decl_runtime_apis! {
-	/// The helper API to calculate deposit.
 	pub trait NFTApi<Balance> where
 		Balance: Codec
 	 {
-		/// create_class_deposit.
+		/// Get deposit for create nft class.
 		fn create_class_deposit(bytes_len: u32) -> Balance;
-		/// mint_token_deposit.
+		/// Get deposit for mint nft token.
 		fn mint_token_deposit(bytes_len: u32) -> Balance;
 	}
 }

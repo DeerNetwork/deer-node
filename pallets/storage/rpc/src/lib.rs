@@ -14,7 +14,7 @@ use sp_runtime::{
 
 #[rpc]
 pub trait FileStorageApi<Balance, BlockNumber> {
-	#[rpc(name = "fileStorage_storeDeposit")]
+	#[rpc(name = "fileStorage_storeFee")]
 	fn store_fee(&self, file_size: u64, time: BlockNumber) -> Result<Balance>;
 }
 
