@@ -1401,21 +1401,31 @@ impl_runtime_apis! {
 		Block,
 		Balance
 	> for Runtime {
-		fn create_class_deposit(bytes_len: u32) -> Balance {
-			NFT::create_class_deposit(bytes_len)
+		fn create_class_deposit(bytes_len: u32) -> pallet_nft_rpc_runtime_api::BalanceInfo<Balance> {
+			pallet_nft_rpc_runtime_api::BalanceInfo {
+			   amount: NFT::create_class_deposit(bytes_len)
+			}
 		}
-		fn mint_token_deposit(bytes_len: u32) -> Balance {
-			NFT::mint_token_deposit(bytes_len)
+		fn mint_token_deposit(bytes_len: u32) -> pallet_nft_rpc_runtime_api::BalanceInfo<Balance>  {
+			pallet_nft_rpc_runtime_api::BalanceInfo {
+			   amount: NFT::mint_token_deposit(bytes_len)
+			}
 		}
 	}
 
 	impl pallet_storage_rpc_runtime_api::FileStorageApi<
 		Block,
+		AccountId,
 		Balance,
 		BlockNumber
 	> for Runtime {
-		fn store_fee(file_size: u64, time: BlockNumber) -> Balance {
-			FileStorage::store_fee(file_size.saturated_into(), time)
+		fn store_fee(file_size: u64, time: BlockNumber) -> pallet_storage_rpc_runtime_api::StoreFeeInfo<Balance> {
+			pallet_storage_rpc_runtime_api::StoreFeeInfo {
+				fee: FileStorage::store_fee(file_size, time)
+			}
+		}
+		fn node_deposit(controller: &AccountId) -> pallet_storage_rpc_runtime_api::NodeDepositInfo<Balance> {
+			FileStorage::node_deposit(controller)
 		}
 	}
 

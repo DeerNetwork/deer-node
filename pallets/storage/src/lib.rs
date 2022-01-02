@@ -34,6 +34,7 @@ use p256::ecdsa::{
 	signature::{Signature, Verifier},
 	VerifyingKey,
 };
+use runtime_api::NodeDepositInfo;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{AccountIdConversion, One, Saturating, StaticLookup, Zero},
@@ -921,6 +922,20 @@ impl<T: Config> Pallet<T> {
 		Self::store_file_bytes_fee(file_size)
 			.saturating_mul(num_rounds.saturated_into())
 			.saturating_add(T::FileBaseFee::get())
+	}
+
+	pub fn node_deposit(controller: &T::AccountId) -> NodeDepositInfo<BalanceOf<T>> {
+		let stash_balance = T::StashBalance::get();
+		if let Some(stash_info) = Stashs::<T>::get(&controller) {
+			let slash_used_deposit = Self::node_used_deposit(&controller);
+			NodeDepositInfo {
+				current_deposit: stash_info.deposit,
+				slash_deposit: stash_balance,
+				slash_used_deposit,
+			}
+		} else {
+			NodeDepositInfo { slash_deposit: stash_balance, ..Default::default() }
+		}
 	}
 
 	fn on_round_end() {

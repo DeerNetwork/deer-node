@@ -9,8 +9,8 @@ exclude = [
 ]
 
 members = [
-    'node/*',
-    'pallets/*',
+    "node/*",
+    "pallets/*",
 ]
 
 resolver = "2"

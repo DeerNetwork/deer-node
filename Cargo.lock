@@ -4788,8 +4788,11 @@ name = "pallet-nft-rpc-runtime-api"
 version = "0.4.0"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
+ "serde",
  "sp-api",
  "sp-core",
+ "sp-runtime",
  "sp-std",
 ]
 
@@ -4953,6 +4956,7 @@ dependencies = [
  "log",
  "p256",
  "pallet-balances",
+ "pallet-storage-rpc-runtime-api",
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
@@ -4984,8 +4988,11 @@ name = "pallet-storage-rpc-runtime-api"
 version = "0.4.0"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
+ "serde",
  "sp-api",
  "sp-core",
+ "sp-runtime",
  "sp-std",
 ]
 
