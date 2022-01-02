@@ -72,5 +72,5 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          push: false # TODO set ture when everything is ok
+          push: true
           tags: ${{ needs.github-releases.outputs.image }}
