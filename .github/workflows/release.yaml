@@ -9,7 +9,7 @@ jobs:
   github-releases:
     runs-on: ubuntu-18.04
     outputs:
-      docker: ${{ steps.check_tag.outputs.image }}
+      image: ${{ steps.check_tag.outputs.image }}
     steps: 
       - uses: actions/checkout@v2
         with:
@@ -51,6 +51,7 @@ jobs:
     runs-on: ubuntu-18.04
     needs: ["github-releases"]
     steps:
+      - run: echo "Build image ${{ needs.github-releases.outputs.image }}"
       - name: Checkout
         uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
@@ -72,4 +73,4 @@ jobs:
         with:
           context: .
           push: false # TODO set ture when everything is ok
-          tags: ${{ steps.check_tag.outputs.image }}
+          tags: ${{ needs.github-releases.outputs.image }}
