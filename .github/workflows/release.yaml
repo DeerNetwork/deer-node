@@ -9,7 +9,7 @@ jobs:
   github-releases:
     runs-on: ubuntu-18.04
     outputs:
-      docker: ${{ steps.check_tag.outputs.image}
+      docker: ${{ steps.check_tag.outputs.image }}
     steps: 
       - uses: actions/checkout@v2
         with:
