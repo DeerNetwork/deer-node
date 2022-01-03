@@ -5,6 +5,7 @@ use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whiteli
 use frame_support::assert_ok;
 use frame_system::{Pallet as System, RawOrigin as SystemOrigin};
 use hex_literal::hex;
+use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
 use crate::Pallet as FileStorage;
@@ -74,18 +75,19 @@ fn create_replica_nodes<T: Config>(
 	};
 	for i in 0..num_replicas {
 		let node: T::AccountId = account("replica", i, seed);
-		Stashs::<T>::insert(
+		Nodes::<T>::insert(
 			node.clone(),
-			StashInfo {
-				stasher: node.clone(),
+			NodeInfo {
+				stash: node.clone(),
 				deposit: T::Currency::minimum_balance().saturating_mul(1000u32.into()),
 				machine_id: Some(vec![0u8; 16]),
+				rid: 0,
+				used: 10000000,
+				slash_used: 0,
+				power: 10000000000,
+				reported_at: Zero::zero(),
 			},
 		);
-		let mut node_info = NodeInfo::default();
-		node_info.used = 10000000;
-		node_info.power = 10000000000;
-		Nodes::<T>::insert(node.clone(), node_info);
 		nodes.push(node);
 	}
 	nodes
@@ -123,7 +125,7 @@ benchmarks! {
 		let controller_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(controller.clone());
 	}: _(SystemOrigin::Signed(stasher.clone()), controller_lookup)
 	verify {
-		assert!(Stashs::<T>::contains_key(&controller));
+		assert!(Nodes::<T>::contains_key(&controller));
 	}
 
 	withdraw {
@@ -134,14 +136,14 @@ benchmarks! {
 		let controller_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(controller.clone());
 		assert_ok!(FileStorage::<T>::stash(SystemOrigin::Signed(stasher.clone()).into(), controller_lookup));
 		let amount = T::Currency::minimum_balance().saturating_mul(10000u32.saturated_into());
-		Stashs::<T>::mutate(&controller, |maybe_stash| {
-			if let Some(stash_info) = maybe_stash {
-				stash_info.deposit = stash_info.deposit.saturating_add(amount);
+		Nodes::<T>::mutate(&controller, |maybe_node_info| {
+			if let Some(node_info) = maybe_node_info {
+				node_info.deposit = node_info.deposit.saturating_add(amount);
 			}
 		});
 	}: _(SystemOrigin::Signed(controller.clone()))
 	verify {
-		assert_last_event::<T>(Event::<T>::Withdrawn { controller, stasher, amount }.into());
+		assert_last_event::<T>(Event::<T>::Withdrawn { controller, stash: stasher, amount }.into());
 	}
 
 	register {

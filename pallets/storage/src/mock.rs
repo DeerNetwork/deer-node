@@ -309,16 +309,6 @@ pub fn mock_file_id(suffix: char) -> FileId {
 	str2bytes(&format!("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeee{}", suffix))
 }
 
-pub fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
-	assert_eq!(
-		frame_system::Pallet::<T>::events()
-			.pop()
-			.map(|e| e.event)
-			.expect("Event expected"),
-		generic_event.into()
-	);
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct MachineInfo<'a> {
 	pub machine_id: &'a str,
