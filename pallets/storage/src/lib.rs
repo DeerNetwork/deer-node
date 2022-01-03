@@ -668,8 +668,7 @@ pub mod pallet {
 				prev_round,
 				reporter: reporter.clone(),
 				storage_pot_reserved: StoragePotReserved::<T>::get(),
-				node_used_changes: BTreeMap::new(),
-				node_rewards: BTreeMap::new(),
+				node_changes: BTreeMap::new(),
 				nodes_prev_reported: BTreeMap::new(),
 				round_store_reward: Zero::zero(),
 				reporter_mine_reward: Zero::zero(),
@@ -704,47 +703,28 @@ pub mod pallet {
 				}
 			}
 
+			let direct_store_reward: BalanceOf<T>;
+			let mut storage_pot_add: BalanceOf<T> = Zero::zero();
 			{
-				let (slash_dec_used, dec_used, inc_used) =
-					ctx.node_used_changes.entry(reporter.clone()).or_default();
+				let ReportNodeChange { slash_used_dec, used_dec, used_inc, reward } =
+					ctx.node_changes.entry(reporter.clone()).or_default();
 				node_info.used = node_info
 					.used
-					.saturating_add(*inc_used)
-					.saturating_sub(*slash_dec_used)
-					.saturating_sub(*dec_used);
-				let total_dec_used = slash_dec_used.saturating_add(node_info.slash_used);
-				if !total_dec_used.is_zero() {
-					slash = slash.saturating_add(Self::deposit_for_used(total_dec_used));
+					.saturating_add(*used_inc)
+					.saturating_sub(*slash_used_dec)
+					.saturating_sub(*used_dec);
+				let total_used_dec = slash_used_dec.saturating_add(node_info.slash_used);
+				if !total_used_dec.is_zero() {
+					slash = slash.saturating_add(Self::deposit_for_used(total_used_dec));
 				}
-			}
+				direct_store_reward = reward.clone();
 
-			for (account, (slash_dec_used, dec_used, inc_used)) in ctx.node_used_changes.iter() {
-				if account != &reporter {
-					Nodes::<T>::mutate(account, |maybe_node| {
-						if let Some(other_node) = maybe_node {
-							other_node.slash_used =
-								other_node.slash_used.saturating_add(*slash_dec_used);
-							other_node.used = other_node
-								.used
-								.saturating_add(*inc_used)
-								.saturating_sub(*slash_dec_used)
-								.saturating_sub(*dec_used);
-						}
-					})
-				}
-			}
-
-			let mut storage_pot_add: BalanceOf<T> = Zero::zero();
-			let reporter_reward = ctx.node_rewards.entry(reporter.clone()).or_default();
-			let direct_store_reward = reporter_reward.clone();
-			{
-				let reporter_slash = slash.clone();
-				*reporter_reward = reporter_reward
+				*reward = reward
 					.saturating_add(ctx.reporter_mine_reward)
 					.saturating_add(ctx.reporter_store_reward);
-				let new_deposit = node_info.deposit.saturating_add(*reporter_reward);
-				let (new_deposit, amount) = if new_deposit >= reporter_slash {
-					(new_deposit.saturating_sub(reporter_slash), reporter_slash)
+				let new_deposit = node_info.deposit.saturating_add(*reward);
+				let (new_deposit, amount) = if new_deposit >= slash {
+					(new_deposit.saturating_sub(slash), slash)
 				} else {
 					(Zero::zero(), new_deposit)
 				};
@@ -752,10 +732,19 @@ pub mod pallet {
 				storage_pot_add = storage_pot_add.saturating_add(amount);
 			}
 
-			for (account, reward) in ctx.node_rewards.iter() {
+			for (account, node_change) in ctx.node_changes.iter() {
 				if account != &reporter {
-					Nodes::<T>::mutate(account, |maybe_node_info| {
-						if let Some(node_info) = maybe_node_info {
+					let ReportNodeChange { slash_used_dec, used_dec, used_inc, reward } =
+						node_change;
+					Nodes::<T>::mutate(account, |maybe_node| {
+						if let Some(other_node) = maybe_node {
+							other_node.slash_used =
+								other_node.slash_used.saturating_add(*slash_used_dec);
+							other_node.used = other_node
+								.used
+								.saturating_add(*used_inc)
+								.saturating_sub(*slash_used_dec)
+								.saturating_sub(*used_dec);
 							node_info.deposit = node_info.deposit.saturating_add(*reward);
 						} else {
 							storage_pot_add = storage_pot_add.saturating_add(*reward);
@@ -888,12 +877,19 @@ struct ReportContext<AccountId, BlockNumber, Balance> {
 	prev_round: RoundIndex,
 	reporter: AccountId,
 	storage_pot_reserved: Balance,
-	node_rewards: BTreeMap<AccountId, Balance>,
-	node_used_changes: BTreeMap<AccountId, (u64, u64, u64)>, // (slash_dec, dec, inc)
+	node_changes: BTreeMap<AccountId, ReportNodeChange<Balance>>,
 	nodes_prev_reported: BTreeMap<AccountId, bool>,
 	round_store_reward: Balance,
 	reporter_mine_reward: Balance,
 	reporter_store_reward: Balance,
+}
+
+#[derive(RuntimeDebug, Default)]
+struct ReportNodeChange<Balance> {
+	slash_used_dec: u64,
+	used_dec: u64,
+	used_inc: u64,
+	reward: Balance,
 }
 
 impl<T: Config> Pallet<T> {
@@ -990,11 +986,12 @@ impl<T: Config> Pallet<T> {
 				if *reported {
 					new_nodes.push(node.clone());
 				} else {
-					let node_used = ctx.node_used_changes.entry(node.clone()).or_default();
+					let node_change = ctx.node_changes.entry(node.clone()).or_default();
 					if (index as u32) < T::MaxFileReplicas::get() {
-						node_used.0 = node_used.0.saturating_add(file_size);
+						node_change.slash_used_dec =
+							node_change.slash_used_dec.saturating_add(file_size);
 					} else {
-						node_used.1 = node_used.1.saturating_add(file_size);
+						node_change.used_dec = node_change.used_dec.saturating_add(file_size);
 					}
 				}
 				if node == &ctx.reporter {
@@ -1003,8 +1000,8 @@ impl<T: Config> Pallet<T> {
 			}
 			if !exist && (new_nodes.len() as u32) < T::MaxFileReplicas::get() {
 				new_nodes.push(ctx.reporter.clone());
-				let node_used = ctx.node_used_changes.entry(ctx.reporter.clone()).or_default();
-				node_used.2 = node_used.2.saturating_add(file_size);
+				let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
+				node_change.used_inc = node_change.used_inc.saturating_add(file_size);
 			}
 			file_order.replicas = new_nodes;
 			FileOrders::<T>::insert(cid, file_order);
@@ -1012,8 +1009,8 @@ impl<T: Config> Pallet<T> {
 			let new =
 				Self::settle_file_order(ctx, cid, vec![ctx.reporter.clone()], Some(file_size));
 			if new {
-				let node_used = ctx.node_used_changes.entry(ctx.reporter.clone()).or_default();
-				node_used.2 = node_used.2.saturating_add(file_size);
+				let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
+				node_change.used_inc = node_change.used_inc.saturating_add(file_size);
 			}
 		}
 	}
@@ -1022,11 +1019,13 @@ impl<T: Config> Pallet<T> {
 		if let Some(mut file_order) = FileOrders::<T>::get(cid) {
 			if let Ok(index) = file_order.replicas.binary_search(&ctx.reporter) {
 				file_order.replicas.remove(index);
-				let node_used = ctx.node_used_changes.entry(ctx.reporter.clone()).or_default();
+				let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
 				if (index as u32) < T::MaxFileReplicas::get() {
-					node_used.0 = node_used.0.saturating_add(file_order.file_size);
+					node_change.slash_used_dec =
+						node_change.slash_used_dec.saturating_add(file_order.file_size);
 				} else {
-					node_used.1 = node_used.1.saturating_add(file_order.file_size);
+					node_change.used_dec =
+						node_change.used_dec.saturating_add(file_order.file_size);
 				}
 				FileOrders::<T>::insert(cid, file_order);
 			}
@@ -1050,28 +1049,31 @@ impl<T: Config> Pallet<T> {
 					.entry(node.clone())
 					.or_insert_with(|| Self::round_reported(prev_round, node));
 				if *reported {
-					let node_reward = ctx.node_rewards.entry(node.clone()).or_default();
-					*node_reward = node_reward.saturating_add(each_order_reward);
+					let node_change = ctx.node_changes.entry(node.clone()).or_default();
+					node_change.reward = node_change.reward.saturating_add(each_order_reward);
 					total_order_reward = total_order_reward.saturating_add(each_order_reward);
 					if node == &ctx.reporter {
-						*node_reward = node_reward.saturating_add(each_order_reward);
+						node_change.reward = node_change.reward.saturating_add(each_order_reward);
 						total_order_reward = total_order_reward.saturating_add(each_order_reward);
 					}
 					replicas.push(node.clone());
 				} else {
-					let node_used = ctx.node_used_changes.entry(node.clone()).or_default();
+					let node_change = ctx.node_changes.entry(node.clone()).or_default();
 					if (index as u32) < T::MaxFileReplicas::get() {
-						node_used.0 = node_used.0.saturating_add(file_order.file_size);
+						node_change.slash_used_dec =
+							node_change.slash_used_dec.saturating_add(file_order.file_size);
 					} else {
-						node_used.1 = node_used.1.saturating_add(file_order.file_size);
+						node_change.used_dec =
+							node_change.used_dec.saturating_add(file_order.file_size);
 					}
 				}
 			}
 			let ok = Self::settle_file_order(ctx, cid, replicas.clone(), None);
 			if !ok {
 				for node in replicas.iter() {
-					let node_used = ctx.node_used_changes.entry(node.clone()).or_default();
-					node_used.1 = node_used.1.saturating_add(file_order.file_size);
+					let node_change = ctx.node_changes.entry(node.clone()).or_default();
+					node_change.used_dec =
+						node_change.used_dec.saturating_add(file_order.file_size);
 				}
 			}
 			let unpaid_reward = file_order_fee.saturating_sub(total_order_reward);
@@ -1098,9 +1100,8 @@ impl<T: Config> Pallet<T> {
 					// user underreported the file size
 					if file.file_size < file_size && file.reserved < expect_order_fee {
 						let to_reporter_reward = Self::share_ratio() * file.reserved;
-						let reporter_reward =
-							ctx.node_rewards.entry(ctx.reporter.clone()).or_default();
-						*reporter_reward = reporter_reward.saturating_add(to_reporter_reward);
+						let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
+						node_change.reward = node_change.reward.saturating_add(to_reporter_reward);
 						ctx.round_store_reward = ctx
 							.round_store_reward
 							.saturating_add(file.reserved.saturating_sub(to_reporter_reward));

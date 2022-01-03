@@ -481,7 +481,7 @@ fn round_end() {
 					paid_store_reward: 0,
 				}
 			);
-			assert_last_pallet_event!(PalletEvent::RoundEnded { round: 2, mine: MB2 })
+			assert_last_pallet_event!(PalletEvent::RoundEnded { round: 2, mine: MB2 });
 		})
 }
 
