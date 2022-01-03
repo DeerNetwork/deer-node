@@ -68,6 +68,8 @@ pub struct NodeInfo<AccountId, Balance, BlockNumber> {
 	pub used: u64,
 	/// Slash Effective storage space
 	pub slash_used: u64,
+	/// FileOrder settle reward
+	pub reward: Balance,
 	/// Mine power of node, use this to distribute mining rewards
 	pub power: u64,
 	/// Latest report at
@@ -502,6 +504,7 @@ pub mod pallet {
 						rid: 0,
 						used: 0,
 						slash_used: 0,
+						reward: Zero::zero(),
 						power: 0,
 						reported_at: Zero::zero(),
 					},
@@ -667,12 +670,10 @@ pub mod pallet {
 				now_at,
 				prev_round,
 				reporter: reporter.clone(),
-				storage_pot_reserved: StoragePotReserved::<T>::get(),
+				storage_pot_add: Zero::zero(),
 				node_changes: BTreeMap::new(),
 				nodes_prev_reported: BTreeMap::new(),
 				round_store_reward: Zero::zero(),
-				reporter_mine_reward: Zero::zero(),
-				reporter_store_reward: Zero::zero(),
 			};
 			let mut slash: BalanceOf<T> = Zero::zero();
 
@@ -690,9 +691,24 @@ pub mod pallet {
 				Self::delete_file(&mut ctx, cid);
 			}
 
-			if let Some(stats) = RoundsReport::<T>::get(prev_round, &reporter) {
+			let mut mine_reward: BalanceOf<T> = Zero::zero();
+			let mut share_store_reward: BalanceOf<T> = Zero::zero();
+
+			if let Some(node_stats) = RoundsReport::<T>::get(prev_round, &reporter) {
 				if !prev_round.is_zero() {
-					Self::reward_round(&mut ctx, stats);
+					RoundsReward::<T>::mutate(ctx.prev_round, |mut reward_info| {
+						let summary = RoundsSummary::<T>::get(ctx.prev_round);
+						let used_ratio =
+							Perbill::from_rational(node_stats.used as u128, summary.used);
+						let power_ratio =
+							Perbill::from_rational(node_stats.power as u128, summary.power);
+						share_store_reward = used_ratio * reward_info.store_reward;
+						mine_reward = power_ratio * reward_info.mine_reward;
+						reward_info.paid_store_reward =
+							reward_info.paid_store_reward.saturating_add(share_store_reward);
+						reward_info.paid_mine_reward =
+							reward_info.paid_mine_reward.saturating_add(mine_reward);
+					});
 				}
 			} else {
 				if !node_info.reported_at.is_zero() {
@@ -700,38 +716,39 @@ pub mod pallet {
 					if !slash_balance.is_zero() {
 						slash = slash.saturating_add(slash_balance);
 					}
+					ctx.storage_pot_add = ctx.storage_pot_add.saturating_add(node_info.reward);
+					node_info.reward = Zero::zero();
 				}
 			}
-
-			let direct_store_reward: BalanceOf<T>;
-			let mut storage_pot_add: BalanceOf<T> = Zero::zero();
-			{
-				let ReportNodeChange { slash_used_dec, used_dec, used_inc, reward } =
-					ctx.node_changes.entry(reporter.clone()).or_default();
-				node_info.used = node_info
-					.used
-					.saturating_add(*used_inc)
-					.saturating_sub(*slash_used_dec)
-					.saturating_sub(*used_dec);
-				let total_used_dec = slash_used_dec.saturating_add(node_info.slash_used);
-				if !total_used_dec.is_zero() {
-					slash = slash.saturating_add(Self::deposit_for_used(total_used_dec));
-				}
-				direct_store_reward = reward.clone();
-
-				*reward = reward
-					.saturating_add(ctx.reporter_mine_reward)
-					.saturating_add(ctx.reporter_store_reward);
-				let new_deposit = node_info.deposit.saturating_add(*reward);
-				let (new_deposit, amount) = if new_deposit >= slash {
-					(new_deposit.saturating_sub(slash), slash)
-				} else {
-					(Zero::zero(), new_deposit)
-				};
-				node_info.deposit = new_deposit;
-				storage_pot_add = storage_pot_add.saturating_add(amount);
+			let reporter_change = ctx.node_changes.entry(reporter.clone()).or_default();
+			node_info.used = node_info
+				.used
+				.saturating_add(reporter_change.used_inc)
+				.saturating_sub(reporter_change.slash_used_dec)
+				.saturating_sub(reporter_change.used_dec);
+			let reporter_total_used_dec =
+				node_info.slash_used.saturating_add(reporter_change.slash_used_dec);
+			if !reporter_total_used_dec.is_zero() {
+				slash = slash.saturating_add(Self::deposit_for_used(reporter_total_used_dec));
 			}
+			let direct_store_reward = node_info.reward.saturating_add(reporter_change.reward);
 
+			let reporter_new_deposit = node_info
+				.deposit
+				.saturating_add(mine_reward)
+				.saturating_add(share_store_reward)
+				.saturating_add(direct_store_reward);
+			let (reporter_new_deposit, storage_pot_add_slash) = if reporter_new_deposit >= slash {
+				(reporter_new_deposit.saturating_sub(slash), slash)
+			} else {
+				(Zero::zero(), reporter_new_deposit)
+			};
+			ctx.storage_pot_add = ctx.storage_pot_add.saturating_add(storage_pot_add_slash);
+			node_info.deposit = reporter_new_deposit;
+			node_info.slash_used = 0;
+			node_info.reward = Zero::zero();
+
+			let mut storage_pot_add_rewards: BalanceOf<T> = Zero::zero();
 			for (account, node_change) in ctx.node_changes.iter() {
 				if account != &reporter {
 					let ReportNodeChange { slash_used_dec, used_dec, used_inc, reward } =
@@ -745,23 +762,22 @@ pub mod pallet {
 								.saturating_add(*used_inc)
 								.saturating_sub(*slash_used_dec)
 								.saturating_sub(*used_dec);
-							node_info.deposit = node_info.deposit.saturating_add(*reward);
+							other_node.reward = other_node.reward.saturating_add(*reward);
 						} else {
-							storage_pot_add = storage_pot_add.saturating_add(*reward);
+							storage_pot_add_rewards =
+								storage_pot_add_rewards.saturating_add(*reward);
 						}
 					})
 				}
 			}
 
-			ctx.storage_pot_reserved = ctx.storage_pot_reserved.saturating_add(storage_pot_add);
-
+			ctx.storage_pot_add = ctx.storage_pot_add.saturating_add(storage_pot_add_rewards);
 			node_info.power = power.min(T::MaxPower::get());
-			node_info.slash_used = 0;
 
 			node_info.rid = rid;
 			node_info.reported_at = now_at;
 
-			StoragePotReserved::<T>::mutate(|v| *v = ctx.storage_pot_reserved);
+			StoragePotReserved::<T>::mutate(|v| *v = v.saturating_add(ctx.storage_pot_add));
 			RoundsReward::<T>::mutate(current_round, |round_reward| {
 				round_reward.store_reward =
 					round_reward.store_reward.saturating_add(ctx.round_store_reward);
@@ -780,11 +796,12 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::NodeReported {
 				controller: reporter,
 				machine_id,
-				mine_reward: ctx.reporter_mine_reward,
-				share_store_reward: ctx.reporter_store_reward,
+				mine_reward,
+				share_store_reward,
 				direct_store_reward,
 				slash,
 			});
+
 			Ok(())
 		}
 
@@ -876,12 +893,10 @@ struct ReportContext<AccountId, BlockNumber, Balance> {
 	now_at: BlockNumber,
 	prev_round: RoundIndex,
 	reporter: AccountId,
-	storage_pot_reserved: Balance,
+	storage_pot_add: Balance,
 	node_changes: BTreeMap<AccountId, ReportNodeChange<Balance>>,
 	nodes_prev_reported: BTreeMap<AccountId, bool>,
 	round_store_reward: Balance,
-	reporter_mine_reward: Balance,
-	reporter_store_reward: Balance,
 }
 
 #[derive(RuntimeDebug, Default)]
@@ -1095,8 +1110,7 @@ impl<T: Config> Pallet<T> {
 				Self::store_file_bytes_fee(maybe_file_size.unwrap_or(file.file_size));
 			if let Some(file_size) = maybe_file_size {
 				if first {
-					ctx.storage_pot_reserved =
-						ctx.storage_pot_reserved.saturating_add(file.base_fee);
+					ctx.storage_pot_add = ctx.storage_pot_add.saturating_add(file.base_fee);
 					// user underreported the file size
 					if file.file_size < file_size && file.reserved < expect_order_fee {
 						let to_reporter_reward = Self::share_ratio() * file.reserved;
@@ -1144,21 +1158,6 @@ impl<T: Config> Pallet<T> {
 		} else {
 			false
 		}
-	}
-
-	fn reward_round(ctx: &mut ReportContextOf<T>, node_stats: NodeStats) {
-		RoundsReward::<T>::mutate(ctx.prev_round, |mut reward_info| {
-			let summary = RoundsSummary::<T>::get(ctx.prev_round);
-			let used_ratio = Perbill::from_rational(node_stats.used as u128, summary.used);
-			let power_ratio = Perbill::from_rational(node_stats.power as u128, summary.power);
-			let store_reward = used_ratio * reward_info.store_reward;
-			let mine_reward = power_ratio * reward_info.mine_reward;
-			ctx.reporter_mine_reward = mine_reward;
-			ctx.reporter_store_reward = store_reward;
-			reward_info.paid_store_reward =
-				reward_info.paid_store_reward.saturating_add(store_reward);
-			reward_info.paid_mine_reward = reward_info.paid_mine_reward.saturating_add(mine_reward);
-		});
 	}
 
 	fn round_reported(round: RoundIndex, node: &T::AccountId) -> bool {

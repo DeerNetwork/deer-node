@@ -180,9 +180,9 @@ fn report_works() {
 			let current_round = CurrentRound::<Test>::get();
 			let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
 			assert_ok!(report_data.call(2));
-            assert_last_pallet_event!(crate::Event::NodeReported {
+            assert_last_pallet_event!(PalletEvent::NodeReported {
 				controller: 2,
-				machine_id: MACHINES[0].get_machine_id(),
+				machine_id: get_machine_id(0),
 				mine_reward: 0,
 				share_store_reward: 0,
 				direct_store_reward: 0,
@@ -240,7 +240,7 @@ fn report_works_with_useless_files() {
 }
 
 #[test]
-fn file_order_removed_if_file_size_is_small_than_actual_and_is_lack_fee() {
+fn file_order_removed_if_file_size_is_too_small() {
 	ExtBuilder::default()
 		.stash(1, 2)
 		.register(2, MACHINES[0].register_data())
@@ -248,9 +248,9 @@ fn file_order_removed_if_file_size_is_small_than_actual_and_is_lack_fee() {
 		.build()
 		.execute_with(|| {
 			assert_ok!(MockData::new(0, 3, 10 * MB, &[('A', 2 * MB)]).report_data(0).call(2));
-			assert_last_pallet_event!(crate::Event::NodeReported {
+			assert_last_pallet_event!(PalletEvent::NodeReported {
 				controller: 2,
-				machine_id: MACHINES[0].get_machine_id(),
+				machine_id: get_machine_id(0),
 				mine_reward: 0,
 				share_store_reward: 0,
 				direct_store_reward: 10,
@@ -292,7 +292,7 @@ fn file_order_do_not_add_replica_when_exceed_max_replicas() {
 }
 
 #[test]
-fn file_order_remove_replica_if_node_fail_to_report() {
+fn file_order_remove_replica_if_not_report() {
 	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(3);
 	ExtBuilder::default()
 		.stash(1, 2)
@@ -342,31 +342,31 @@ fn report_del_files() {
 
 #[test]
 fn report_settle_files() {
-	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(3);
+	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
 	ExtBuilder::default()
 		.files(vec![(mock_file_id('A'), MB, 1100)])
-		.reports(vec![(2, MACHINES[3].register_data(), report_data.clone())])
+		.reports(vec![(2, MACHINES[0].register_data(), report_data.clone())])
 		.build()
 		.execute_with(|| {
 			assert_node_info!(2, deposit => default_stash_balance());
 			assert_eq!(RoundsReward::<Test>::get(CurrentRound::<Test>::get()).store_reward, 0);
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().expire_at, 31);
 			run_to_block(11);
-			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(3).call(2));
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(0).call(2));
 			run_to_block(21);
-			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(3).call(2));
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(0).call(2));
 			run_to_block(31);
 			assert_ok!(MockData::new(5, 6, 9 * MB, &[])
 				.settle_files(&['A'])
-				.report_data(3)
+				.report_data(0)
 				.call(2));
 			assert_eq!(
 				RoundsReport::<Test>::get(CurrentRound::<Test>::get(), 2).unwrap(),
 				NodeStats { power: 9 * MB, used: 0 }
 			);
-			assert_last_pallet_event!(crate::Event::NodeReported {
+			assert_last_pallet_event!(PalletEvent::NodeReported {
 				controller: 2,
-				machine_id: MACHINES[3].get_machine_id(),
+				machine_id: get_machine_id(0),
 				mine_reward: 0,
 				share_store_reward: 0,
 				direct_store_reward: 20,
@@ -385,34 +385,34 @@ fn report_settle_files_do_not_reward_unhealth_node() {
 		.reports(vec![
 			(
 				2,
-				MACHINES[3].register_data(),
-				MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(3).clone(),
+				MACHINES[0].register_data(),
+				MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0).clone(),
 			),
 			(
 				3,
-				MACHINES[0].register_data(),
-				MockData::new(0, 3, 100 * MB, &[('A', MB)]).report_data(0).clone(),
+				MACHINES[3].register_data(),
+				MockData::new(0, 3, 100 * MB, &[('A', MB)]).report_data(3).clone(),
 			),
 		])
 		.build()
 		.execute_with(|| {
 			run_to_block(11);
-			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(3).call(2));
-			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(0).call(3));
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(0).call(2));
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(3).call(3));
 			run_to_block(21);
-			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(0).call(3));
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(3).call(3));
 			run_to_block(31);
 			assert_ok!(MockData::new(5, 6, 10 * MB, &[])
 				.settle_files(&['A'])
-				.report_data(0)
+				.report_data(3)
 				.call(3));
 			assert_eq!(FileOrders::<Test>::get(&mock_file_id('A')).unwrap().replicas, vec![3]);
             assert_node_info!(3, deposit => default_stash_balance() + 20);
             assert_node_info!(2, deposit => default_stash_balance(), rid => 4, reported_at => 11, power => 10 * MB, used => 0, slash_used => MB);
-			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(3).call(2));
-            assert_last_pallet_event!(crate::Event::NodeReported {
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(0).call(2));
+            assert_last_pallet_event!(PalletEvent::NodeReported {
 				controller: 2,
-				machine_id: MACHINES[3].get_machine_id(),
+				machine_id: get_machine_id(0),
 				mine_reward: 0,
 				share_store_reward: 0,
 				direct_store_reward: 0,
@@ -423,65 +423,124 @@ fn report_settle_files_do_not_reward_unhealth_node() {
 }
 
 #[test]
-fn calculate_mine() {
+fn report_do_store_reward() {
 	ExtBuilder::default()
-		.mine_factor(Perbill::from_percent(1))
+		.files(vec![(mock_file_id('A'), MB, 1200)])
+		.reports(vec![
+			(
+				2,
+				MACHINES[0].register_data(),
+				MockData::new(0, 3, 100 * MB, &[('A', MB)]).report_data(0).clone(),
+			),
+			(
+				3,
+				MACHINES[3].register_data(),
+				MockData::new(0, 3, 100 * MB, &[('A', MB)]).report_data(3).clone(),
+			),
+		])
 		.build()
 		.execute_with(|| {
+			FileOrders::<Test>::mutate(mock_file_id('A'), |maybe_file_order| {
+				if let Some(file_order) = maybe_file_order {
+					file_order.expire_at = 11;
+				}
+			});
 			run_to_block(11);
-			assert_eq!(CurrentRound::<Test>::get(), 2);
-			assert_eq!(StoragePotReserved::<Test>::get(), 0);
-			assert_eq!(FileStorage::calculate_mine(2), (0, 0, 0));
-			RoundsSummary::<Test>::insert(2, SummaryStats { power: 400 * MB2, used: 0 });
-			assert_eq!(FileStorage::calculate_mine(2), (4 * MB2, 0, 4 * MB2));
-			StoragePotReserved::<Test>::set(MB2);
-			assert_eq!(FileStorage::calculate_mine(2), (4 * MB2, 0, 3 * MB2));
-			RoundsReward::<Test>::insert(
-				1,
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[])
+				.settle_files(&['A'])
+				.report_data(0)
+				.call(2));
+			assert_last_pallet_event!(PalletEvent::NodeReported {
+				controller: 2,
+				machine_id: get_machine_id(0),
+				mine_reward: 0,
+				share_store_reward: 0,
+				direct_store_reward: 20,
+				slash: 0,
+			});
+			assert_node_info!(2, deposit => default_stash_balance() + 20);
+			assert_node_info!(3, deposit => default_stash_balance(), reward => 10);
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(3).call(3));
+			assert_node_info!(3, deposit => default_stash_balance() + 10, reward => 0);
+			assert_eq!(
+				RoundsReward::<Test>::get(CurrentRound::<Test>::get()),
 				RewardInfo {
-					mine_reward: 2 * MB2,
-					store_reward: 2 * MB2,
-					paid_mine_reward: MB2,
-					paid_store_reward: MB2,
-				},
+					mine_reward: 0,
+					store_reward: 70,
+					paid_mine_reward: 0,
+					paid_store_reward: 0,
+				}
 			);
-			assert_eq!(FileStorage::calculate_mine(2), (4 * MB2, 0, 1 * MB2));
+			run_to_block(21);
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(0).call(2));
+			assert_last_pallet_event!(PalletEvent::NodeReported {
+				controller: 2,
+				machine_id: get_machine_id(0),
+				mine_reward: 0,
+				share_store_reward: 35,
+				direct_store_reward: 0,
+				slash: 0,
+			});
+			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(3).call(3));
+			assert_last_pallet_event!(PalletEvent::NodeReported {
+				controller: 3,
+				machine_id: get_machine_id(3),
+				mine_reward: 0,
+				share_store_reward: 35,
+				direct_store_reward: 0,
+				slash: 0,
+			});
 		})
 }
 
 #[test]
-fn round_end() {
+fn report_do_mine_reward() {
 	ExtBuilder::default()
+		.files(vec![(mock_file_id('A'), MB, 1200)])
+		.reports(vec![
+			(
+				2,
+				MACHINES[0].register_data(),
+				MockData::new(0, 3, 100 * MB, &[('A', MB)]).report_data(0).clone(),
+			),
+			(
+				3,
+				MACHINES[3].register_data(),
+				MockData::new(0, 3, 100 * MB, &[('A', MB)]).report_data(3).clone(),
+			),
+		])
 		.mine_factor(Perbill::from_percent(1))
 		.build()
 		.execute_with(|| {
 			run_to_block(11);
 			assert_eq!(CurrentRound::<Test>::get(), 2);
-			RoundsSummary::<Test>::insert(2, SummaryStats { power: 400 * MB2, used: 0 });
-			StoragePotReserved::<Test>::set(MB2);
-			RoundsReward::<Test>::insert(
-				1,
+			assert_eq!(
+				RoundsReward::<Test>::get(1),
 				RewardInfo {
 					mine_reward: 2 * MB2,
-					store_reward: 2 * MB2,
-					paid_mine_reward: MB2,
-					paid_store_reward: MB2,
-				},
-			);
-			let pb = Balances::free_balance(&FileStorage::account_id());
-			StoragePotReserved::<Test>::set(MB2);
-			run_to_block(21);
-			assert_eq!(Balances::free_balance(&FileStorage::account_id()), pb.saturating_add(MB2));
-			assert_eq!(
-				RoundsReward::<Test>::get(2),
-				RewardInfo {
-					mine_reward: 4 * MB2,
 					store_reward: 0,
 					paid_mine_reward: 0,
 					paid_store_reward: 0,
 				}
 			);
-			assert_last_pallet_event!(PalletEvent::RoundEnded { round: 2, mine: MB2 });
+			assert_ok!(MockData::new(3, 4, 10, &[]).report_data(0).call(2));
+			assert_last_pallet_event!(PalletEvent::NodeReported {
+				controller: 2,
+				machine_id: get_machine_id(0),
+				mine_reward: MB.saturated_into(),
+				share_store_reward: 0,
+				direct_store_reward: 0,
+				slash: 0,
+			});
+			assert_ok!(MockData::new(3, 4, 10, &[]).report_data(3).call(3));
+			assert_last_pallet_event!(PalletEvent::NodeReported {
+				controller: 3,
+				machine_id: get_machine_id(3),
+				mine_reward: MB.saturated_into(),
+				share_store_reward: 0,
+				direct_store_reward: 0,
+				slash: 0,
+			});
 		})
 }
 
@@ -535,24 +594,24 @@ fn round_end_clear_prev_prev_round_data() {
 
 #[test]
 fn slash_offline() {
-	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(3);
+	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
 	ExtBuilder::default()
 		.files(vec![(mock_file_id('A'), MB, 1200)])
-		.reports(vec![(2, MACHINES[3].register_data(), report_data.clone())])
+		.reports(vec![(2, MACHINES[0].register_data(), report_data.clone())])
 		.build()
 		.execute_with(|| {
 			run_to_block(11);
-			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(3).call(2));
+			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(0).call(2));
 			run_to_block(21);
 			let pot_reserved = StoragePotReserved::<Test>::get();
 			run_to_block(31);
 			assert_ok!(MockData::new(4, 5, 10 * MB, &[])
 				.settle_files(&['A'])
-				.report_data(3)
+				.report_data(0)
 				.call(2));
-			assert_last_pallet_event!(crate::Event::NodeReported {
+			assert_last_pallet_event!(PalletEvent::NodeReported {
 				controller: 2,
-				machine_id: MACHINES[3].get_machine_id(),
+				machine_id: get_machine_id(0),
 				mine_reward: 0,
 				share_store_reward: 0,
 				direct_store_reward: 0,
@@ -686,6 +745,69 @@ fn force_delete() {
 			assert_ok!(FileStorage::force_delete(Origin::root(), mock_file_id('A')));
 			assert_eq!(StoreFiles::<Test>::get(&mock_file_id('A')), None);
 			assert_eq!(StoragePotReserved::<Test>::get(), 1100);
+		})
+}
+
+#[test]
+fn calculate_mine() {
+	ExtBuilder::default()
+		.mine_factor(Perbill::from_percent(1))
+		.build()
+		.execute_with(|| {
+			run_to_block(11);
+			assert_eq!(CurrentRound::<Test>::get(), 2);
+			assert_eq!(StoragePotReserved::<Test>::get(), 0);
+			assert_eq!(FileStorage::calculate_mine(2), (0, 0, 0));
+			RoundsSummary::<Test>::insert(2, SummaryStats { power: 400 * MB2, used: 0 });
+			assert_eq!(FileStorage::calculate_mine(2), (4 * MB2, 0, 4 * MB2));
+			StoragePotReserved::<Test>::set(MB2);
+			assert_eq!(FileStorage::calculate_mine(2), (4 * MB2, 0, 3 * MB2));
+			RoundsReward::<Test>::insert(
+				1,
+				RewardInfo {
+					mine_reward: 2 * MB2,
+					store_reward: 2 * MB2,
+					paid_mine_reward: MB2,
+					paid_store_reward: MB2,
+				},
+			);
+			assert_eq!(FileStorage::calculate_mine(2), (4 * MB2, 0, 1 * MB2));
+		})
+}
+
+#[test]
+fn round_end() {
+	ExtBuilder::default()
+		.mine_factor(Perbill::from_percent(1))
+		.build()
+		.execute_with(|| {
+			run_to_block(11);
+			assert_eq!(CurrentRound::<Test>::get(), 2);
+			RoundsSummary::<Test>::insert(2, SummaryStats { power: 400 * MB2, used: 0 });
+			StoragePotReserved::<Test>::set(MB2);
+			RoundsReward::<Test>::insert(
+				1,
+				RewardInfo {
+					mine_reward: 2 * MB2,
+					store_reward: 2 * MB2,
+					paid_mine_reward: MB2,
+					paid_store_reward: MB2,
+				},
+			);
+			let pb = Balances::free_balance(&FileStorage::account_id());
+			StoragePotReserved::<Test>::set(MB2);
+			run_to_block(21);
+			assert_eq!(Balances::free_balance(&FileStorage::account_id()), pb.saturating_add(MB2));
+			assert_eq!(
+				RoundsReward::<Test>::get(2),
+				RewardInfo {
+					mine_reward: 4 * MB2,
+					store_reward: 0,
+					paid_mine_reward: 0,
+					paid_store_reward: 0,
+				}
+			);
+			assert_last_pallet_event!(PalletEvent::RoundEnded { round: 2, mine: MB2 });
 		})
 }
 

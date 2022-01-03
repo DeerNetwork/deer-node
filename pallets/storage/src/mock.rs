@@ -293,6 +293,10 @@ pub const fn default_file_byte_price() -> Balance {
 	100
 }
 
+pub fn get_machine_id(index: usize) -> Vec<u8> {
+	MACHINES[index].get_machine_id()
+}
+
 pub fn balance_of_storage_pot() -> Balance {
 	Balances::free_balance(&FileStorage::account_id())
 }
