@@ -1397,6 +1397,39 @@ impl_runtime_apis! {
 		}
 	}
 
+	impl pallet_nft_rpc_runtime_api::NFTApi<
+		Block,
+		Balance
+	> for Runtime {
+		fn create_class_deposit(bytes_len: u32) -> pallet_nft_rpc_runtime_api::BalanceInfo<Balance> {
+			pallet_nft_rpc_runtime_api::BalanceInfo {
+			   amount: NFT::create_class_deposit(bytes_len)
+			}
+		}
+		fn mint_token_deposit(bytes_len: u32) -> pallet_nft_rpc_runtime_api::BalanceInfo<Balance>  {
+			pallet_nft_rpc_runtime_api::BalanceInfo {
+			   amount: NFT::mint_token_deposit(bytes_len)
+			}
+		}
+	}
+
+	impl pallet_storage_rpc_runtime_api::FileStorageApi<
+		Block,
+		AccountId,
+		Balance,
+		BlockNumber
+	> for Runtime {
+		fn store_fee(file_size: u64, time: BlockNumber) -> pallet_storage_rpc_runtime_api::StoreFeeInfo<Balance> {
+			pallet_storage_rpc_runtime_api::StoreFeeInfo {
+				fee: FileStorage::store_fee(file_size, time)
+			}
+		}
+		fn node_deposit(controller: &AccountId) -> pallet_storage_rpc_runtime_api::NodeDepositInfo<Balance> {
+			FileStorage::node_deposit(controller)
+		}
+	}
+
+
 	impl sp_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
 			SessionKeys::generate(seed)

@@ -1,0 +1,29 @@
+[package]
+name = "pallet-nft-rpc-runtime-api"
+version = "0.4.0"
+edition = "2018"
+license = "Apache 2.0"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+serde = { version = "1.0.126", optional = true, features = ["derive"] }
+sp-api = { path = "../../../../substrate/primitives/api", default-features = false }
+sp-std = { path = "../../../../substrate/primitives/std", default-features = false  }
+sp-core = { path = "../../../../substrate/primitives/core", default-features = false  }
+sp-runtime = { path = "../../../../substrate/primitives/runtime", default-features = false  }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"scale-info/std",
+	"serde",
+	"sp-api/std",
+	"sp-std/std",
+	"sp-core/std",
+	"sp-runtime/std",
+]

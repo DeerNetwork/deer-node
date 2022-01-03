@@ -34,8 +34,7 @@ bench pallet exection="wasm":
 
 
 run +args='--dev --tmp':
-    cargo run --release \
-    -- \
+    ./target/release/deer-node \
     {{args}} \
     --port 30333 \
     --ws-port 9944 \
