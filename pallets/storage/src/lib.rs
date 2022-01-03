@@ -24,6 +24,7 @@ pub mod migrations;
 use codec::{Decode, Encode};
 use frame_support::{
 	traits::{Currency, ExistenceRequirement, Get, OnUnbalanced, ReservableCurrency, UnixTime},
+	weights::Weight,
 	PalletId,
 };
 use frame_system::{pallet_prelude::BlockNumberFor, Config as SystemConfig};
@@ -33,6 +34,7 @@ use p256::ecdsa::{
 };
 use runtime_api::NodeDepositInfo;
 use scale_info::TypeInfo;
+use sp_io::KillStorageResult;
 use sp_runtime::{
 	traits::{AccountIdConversion, One, Saturating, StaticLookup, Zero},
 	Perbill, RuntimeDebug, SaturatedConversion,
@@ -388,9 +390,10 @@ pub mod pallet {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
 			let next_round_at = NextRoundAt::<T>::get();
 			if now > next_round_at {
-				Self::round_end();
+				Self::round_end()
+			} else {
+				0
 			}
-			0
 		}
 
 		fn on_runtime_upgrade() -> Weight {
@@ -938,7 +941,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn round_end() {
+	fn round_end() -> Weight {
 		let current_round = CurrentRound::<T>::get();
 		let (mine_reward, storage_pot_reserved, require_mine) = Self::calculate_mine(current_round);
 		if !mine_reward.is_zero() {
@@ -952,13 +955,25 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let prev_2_round = current_round.saturating_sub(2);
+		let mut report_count = 0;
 		if prev_2_round > 0 {
-			RoundsReport::<T>::remove_prefix(prev_2_round, None);
+			match RoundsReport::<T>::remove_prefix(prev_2_round, None) {
+				KillStorageResult::SomeRemaining(count) => {
+					report_count = count;
+					log::warn!(
+						target: "runtime::file-storage",
+						"Storage RoundsReports remaining on round {}",
+						prev_2_round
+					);
+				},
+				KillStorageResult::AllRemoved(count) => report_count = count,
+			}
 			RoundsSummary::<T>::remove(prev_2_round);
 			RoundsReward::<T>::remove(prev_2_round);
 		}
 		Self::next_round();
 		Self::deposit_event(Event::<T>::RoundEnded { round: current_round, mine: require_mine });
+		T::WeightInfo::round_end(report_count)
 	}
 
 	pub(crate) fn next_round() {
