@@ -29,7 +29,7 @@ pub struct NodeDepositInfo<Balance> {
 	#[cfg_attr(feature = "std", serde(with = "serde_balance"))]
 	pub slash_deposit: Balance,
 	#[cfg_attr(feature = "std", serde(with = "serde_balance"))]
-	pub slash_used_deposit: Balance,
+	pub used_deposit: Balance,
 }
 
 #[cfg(feature = "std")]

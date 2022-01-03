@@ -927,11 +927,11 @@ impl<T: Config> Pallet<T> {
 	pub fn node_deposit(controller: &T::AccountId) -> NodeDepositInfo<BalanceOf<T>> {
 		let stash_balance = T::StashBalance::get();
 		if let Some(stash_info) = Stashs::<T>::get(&controller) {
-			let slash_used_deposit = Self::node_used_deposit(&controller);
+			let used_deposit = Self::node_used_deposit(&controller);
 			NodeDepositInfo {
 				current_deposit: stash_info.deposit,
 				slash_deposit: stash_balance,
-				slash_used_deposit,
+				used_deposit,
 			}
 		} else {
 			NodeDepositInfo { slash_deposit: stash_balance, ..Default::default() }
