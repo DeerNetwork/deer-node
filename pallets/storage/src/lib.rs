@@ -23,10 +23,7 @@ pub mod migrations;
 
 use codec::{Decode, Encode};
 use frame_support::{
-	traits::{
-		Currency, ExistenceRequirement, Get, OnUnbalanced, ReservableCurrency, UnixTime,
-		WithdrawReasons,
-	},
+	traits::{Currency, ExistenceRequirement, Get, OnUnbalanced, ReservableCurrency, UnixTime},
 	PalletId,
 };
 use frame_system::{pallet_prelude::BlockNumberFor, Config as SystemConfig};
@@ -341,7 +338,7 @@ pub mod pallet {
 		/// A file was deleted by admin.
 		FileForceDeleted { cid: FileId },
 		/// A round was ended.
-		RoundEnded { round: RoundIndex, unpaid: BalanceOf<T> },
+		RoundEnded { round: RoundIndex, mine: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -388,8 +385,8 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
 			let next_round_at = NextRoundAt::<T>::get();
-			if now >= next_round_at {
-				Self::on_round_end();
+			if now > next_round_at {
+				Self::round_end();
 			}
 			0
 		}
@@ -930,60 +927,27 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn on_round_end() {
+	fn round_end() {
 		let current_round = CurrentRound::<T>::get();
-		let mine_reward = Self::calculate_mine_reward(current_round);
+		let (mine_reward, storage_pot_reserved, require_mine) = Self::calculate_mine(current_round);
 		if !mine_reward.is_zero() {
-			let storage_pot_reserved = StoragePotReserved::<T>::get();
-			let (new_storage_pot_reserved, need_mine_reward) = if storage_pot_reserved > mine_reward
-			{
-				(storage_pot_reserved.saturating_sub(mine_reward), Zero::zero())
-			} else {
-				(Zero::zero(), mine_reward.saturating_sub(storage_pot_reserved))
-			};
-			if !need_mine_reward.is_zero() {
-				T::Currency::deposit_creating(&Self::account_id(), need_mine_reward);
-			}
-			if new_storage_pot_reserved != storage_pot_reserved {
-				StoragePotReserved::<T>::mutate(|v| *v = new_storage_pot_reserved);
-			}
 			RoundsReward::<T>::mutate(current_round, |reward| {
 				reward.mine_reward = reward.mine_reward.saturating_add(mine_reward);
 			});
 		}
-
-		let prev_round = current_round.saturating_sub(1);
-		let mut unpaid_reward = Zero::zero();
-		if !prev_round.is_zero() {
-			let prev_reward = RoundsReward::<T>::get(prev_round);
-			unpaid_reward = prev_reward
-				.store_reward
-				.saturating_add(prev_reward.mine_reward)
-				.saturating_sub(prev_reward.paid_mine_reward)
-				.saturating_sub(prev_reward.paid_store_reward);
-			if !unpaid_reward.is_zero() {
-				match T::Currency::withdraw(
-					&Self::account_id(),
-					unpaid_reward,
-					WithdrawReasons::TRANSFER,
-					ExistenceRequirement::AllowDeath,
-				) {
-					Ok(treasury) => {
-						T::Treasury::on_unbalanced(treasury);
-					},
-					Err(e) => {
-						log::error!(
-							target: "runtime::storage",
-							"Storage pot lack of funds {:?}", e
-						);
-					},
-				}
-			}
+		StoragePotReserved::<T>::mutate(|v| *v = storage_pot_reserved);
+		if !require_mine.is_zero() {
+			T::Currency::deposit_creating(&Self::account_id(), require_mine);
 		}
 
+		let prev_2_round = current_round.saturating_sub(2);
+		if prev_2_round > 0 {
+			RoundsReport::<T>::remove_prefix(prev_2_round, None);
+			RoundsSummary::<T>::remove(prev_2_round);
+			RoundsReward::<T>::remove(prev_2_round);
+		}
 		Self::next_round();
-		Self::clear_round_information(prev_round.saturating_sub(1));
-		Self::deposit_event(Event::<T>::RoundEnded { round: current_round, unpaid: unpaid_reward });
+		Self::deposit_event(Event::<T>::RoundEnded { round: current_round, mine: require_mine });
 	}
 
 	fn next_round() {
@@ -991,13 +955,26 @@ impl<T: Config> Pallet<T> {
 		CurrentRound::<T>::mutate(|v| *v = v.saturating_add(1));
 	}
 
-	fn clear_round_information(round: RoundIndex) {
-		if round.is_zero() {
-			return
-		}
-		RoundsReport::<T>::remove_prefix(round, None);
-		RoundsSummary::<T>::remove(round);
-		RoundsReward::<T>::remove(round);
+	pub(crate) fn calculate_mine(round: RoundIndex) -> (BalanceOf<T>, BalanceOf<T>, BalanceOf<T>) {
+		let summary = RoundsSummary::<T>::get(round);
+		let mine_reward = if summary.power.is_zero() {
+			Zero::zero()
+		} else {
+			T::MaxMine::get().min((T::MineFactor::get() * summary.power).saturated_into())
+		};
+		let prev_reward = RoundsReward::<T>::get(round.saturating_sub(1));
+		let unpaid = prev_reward
+			.store_reward
+			.saturating_add(prev_reward.mine_reward)
+			.saturating_sub(prev_reward.paid_mine_reward)
+			.saturating_sub(prev_reward.paid_store_reward);
+		let withdraw = unpaid.saturating_add(StoragePotReserved::<T>::get());
+		let (new_reserved, require_mine) = if withdraw >= mine_reward {
+			(withdraw.saturating_sub(mine_reward), Zero::zero())
+		} else {
+			(Zero::zero(), mine_reward.saturating_sub(withdraw))
+		};
+		(mine_reward, new_reserved, require_mine)
 	}
 
 	fn add_file(ctx: &mut ReportContextOf<T>, cid: &FileId, file_size: u64) {
@@ -1058,7 +1035,7 @@ impl<T: Config> Pallet<T> {
 
 	fn settle_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
 		if let Some(file_order) = FileOrders::<T>::get(cid) {
-			if file_order.expire_at >= ctx.now_at {
+			if file_order.expire_at > ctx.now_at {
 				return
 			}
 
@@ -1191,16 +1168,6 @@ impl<T: Config> Pallet<T> {
 			return true
 		}
 		Nodes::<T>::get(&node).map(|v| v.reported_at.is_zero()).unwrap_or_default()
-	}
-
-	fn calculate_mine_reward(round: RoundIndex) -> BalanceOf<T> {
-		let summary = RoundsSummary::<T>::get(round);
-		if summary.power.is_zero() {
-			return Zero::zero()
-		}
-
-		let mine_reward: BalanceOf<T> = (T::MineFactor::get() * summary.power).saturated_into();
-		mine_reward.min(T::MaxMine::get())
 	}
 
 	fn clear_store_file(cid: &FileId) {
