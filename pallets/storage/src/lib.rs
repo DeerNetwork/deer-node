@@ -961,7 +961,7 @@ impl<T: Config> Pallet<T> {
 		Self::deposit_event(Event::<T>::RoundEnded { round: current_round, mine: require_mine });
 	}
 
-	fn next_round() {
+	pub(crate) fn next_round() {
 		NextRoundAt::<T>::mutate(|v| *v = v.saturating_add(T::RoundDuration::get()));
 		CurrentRound::<T>::mutate(|v| *v = v.saturating_add(1));
 	}
