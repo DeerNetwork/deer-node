@@ -3,7 +3,7 @@ use super::*;
 pub mod v1 {
 	use super::*;
 
-	use frame_support::{pallet_prelude::*, weights::Weight};
+	use frame_support::pallet_prelude::*;
 
 	macro_rules! generate_storage_instance {
 		($pallet:ident, $name:ident, $storage_instance:ident) => {
@@ -82,6 +82,7 @@ pub mod v1 {
 						rid: node_info.rid,
 						used: node_info.used,
 						slash_used: 0,
+						reward: Zero::zero(),
 						power: node_info.power,
 						reported_at: node_info.reported_at,
 					},
@@ -97,6 +98,7 @@ pub mod v1 {
 						rid: 0,
 						used: 0,
 						slash_used: 0,
+						reward: Zero::zero(),
 						power: 0,
 						reported_at: Zero::zero(),
 					},

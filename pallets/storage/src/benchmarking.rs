@@ -16,6 +16,9 @@ const FILE_ID_PREFIX: [u8; 43] = [
 	49, 122, 120, 67, 90, 122, 75, 80, 56, 81, 88, 88, 78, 72, 49, 121, 101, 101, 101, 101, 101,
 ];
 
+const MB: u64 = 1_048_576;
+const MB2: u128 = 1_048_576;
+
 fn get_enclave() -> Vec<u8> {
 	hex!("f9895dfce305b1081c242421781364a49e7b54739cb7d2cf0bf578e4f393bfa3").into()
 }
@@ -84,6 +87,7 @@ fn create_replica_nodes<T: Config>(
 				rid: 0,
 				used: 10000000,
 				slash_used: 0,
+				reward: 0u32.into(),
 				power: 10000000000,
 				reported_at: Zero::zero(),
 			},
@@ -249,6 +253,28 @@ benchmarks! {
 	}: _(SystemOrigin::Root, cid.clone())
 	verify {
 		assert_last_event::<T>(Event::<T>::FileForceDeleted { cid }.into());
+	}
+
+	round_end {
+		let x in 0..100;
+		let mut total_power = 0;
+		let mut total_used = 0;
+		for i in 0..x {
+			let node: T::AccountId = account("node", i, SEED);
+			RoundsReport::<T>::insert(1, node, NodeStats { power: 100 * MB, used: MB });
+			total_power += 100 * MB2;
+			total_used += 10 * MB2;
+		}
+		RoundsSummary::<T>::insert(1, SummaryStats { power: total_power, used: total_used });
+		FileStorage::<T>::round_end();
+		RoundsSummary::<T>::insert(2, SummaryStats { power: total_power, used: total_used });
+		FileStorage::<T>::round_end();
+		RoundsSummary::<T>::insert(3, SummaryStats { power: total_power, used: total_used });
+	}: {
+		FileStorage::<T>::round_end();
+	}
+	verify {
+		assert_eq!(CurrentRound::<T>::get(), 4);
 	}
 }
 
