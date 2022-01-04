@@ -544,7 +544,6 @@ fn report_do_mine_reward() {
 		})
 }
 
-
 #[test]
 fn slash_offline() {
 	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
@@ -764,16 +763,15 @@ fn round_end() {
 		})
 }
 
-
 #[test]
 fn round_end_current_round_and_next_round_at() {
 	ExtBuilder::default().build().execute_with(|| {
 		assert_eq!(CurrentRound::<Test>::get(), 1);
 		assert_eq!(NextRoundAt::<Test>::get(), 10);
-        run_to_block(10);
+		run_to_block(10);
 		assert_eq!(CurrentRound::<Test>::get(), 2);
 		assert_eq!(NextRoundAt::<Test>::get(), 20);
-    })
+	})
 }
 
 #[test]
