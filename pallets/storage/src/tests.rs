@@ -544,53 +544,6 @@ fn report_do_mine_reward() {
 		})
 }
 
-#[test]
-fn round_end_clear_prev_prev_round_data() {
-	ExtBuilder::default().build().execute_with(|| {
-		assert_eq!(CurrentRound::<Test>::get(), 1);
-		assert_eq!(NextRoundAt::<Test>::get(), 10);
-		RoundsReport::<Test>::insert(1, 2, NodeStats { power: 100 * MB, used: MB });
-		RoundsSummary::<Test>::insert(1, SummaryStats { power: 100 * MB2, used: MB2 });
-		RoundsReward::<Test>::insert(
-			1,
-			RewardInfo {
-				mine_reward: 2 * MB2,
-				store_reward: 2 * MB2,
-				paid_mine_reward: 2 * MB2,
-				paid_store_reward: 2 * MB2,
-			},
-		);
-		run_to_block(11);
-		assert_eq!(CurrentRound::<Test>::get(), 2);
-		assert_eq!(NextRoundAt::<Test>::get(), 20);
-		assert_eq!(RoundsReport::<Test>::get(1, 2), Some(NodeStats { power: 100 * MB, used: MB }));
-		assert_eq!(RoundsSummary::<Test>::get(1), SummaryStats { power: 100 * MB2, used: MB2 });
-		assert_eq!(
-			RoundsReward::<Test>::get(1),
-			RewardInfo {
-				mine_reward: 2 * MB2,
-				store_reward: 2 * MB2,
-				paid_mine_reward: 2 * MB2,
-				paid_store_reward: 2 * MB2
-			}
-		);
-		run_to_block(21);
-		run_to_block(31);
-		assert_eq!(CurrentRound::<Test>::get(), 4);
-		assert_eq!(NextRoundAt::<Test>::get(), 40);
-		assert_eq!(RoundsSummary::<Test>::get(1), SummaryStats { power: 0, used: 0 });
-		assert_eq!(
-			RoundsReward::<Test>::get(1),
-			RewardInfo {
-				mine_reward: 0,
-				store_reward: 0,
-				paid_store_reward: 0,
-				paid_mine_reward: 0,
-			}
-		);
-		assert_eq!(RoundsReport::<Test>::get(1, 2), None);
-	})
-}
 
 #[test]
 fn slash_offline() {
@@ -809,6 +762,63 @@ fn round_end() {
 			);
 			assert_last_pallet_event!(PalletEvent::RoundEnded { round: 2, mine: MB2 });
 		})
+}
+
+
+#[test]
+fn round_end_current_round_and_next_round_at() {
+	ExtBuilder::default().build().execute_with(|| {
+		assert_eq!(CurrentRound::<Test>::get(), 1);
+		assert_eq!(NextRoundAt::<Test>::get(), 10);
+        run_to_block(10);
+		assert_eq!(CurrentRound::<Test>::get(), 2);
+		assert_eq!(NextRoundAt::<Test>::get(), 20);
+    })
+}
+
+#[test]
+fn round_end_clear_prev_prev_round_data() {
+	ExtBuilder::default().build().execute_with(|| {
+		assert_eq!(CurrentRound::<Test>::get(), 1);
+		RoundsReport::<Test>::insert(1, 2, NodeStats { power: 100 * MB, used: MB });
+		RoundsSummary::<Test>::insert(1, SummaryStats { power: 100 * MB2, used: MB2 });
+		RoundsReward::<Test>::insert(
+			1,
+			RewardInfo {
+				mine_reward: 2 * MB2,
+				store_reward: 2 * MB2,
+				paid_mine_reward: 2 * MB2,
+				paid_store_reward: 2 * MB2,
+			},
+		);
+		run_to_block(11);
+		assert_eq!(CurrentRound::<Test>::get(), 2);
+		assert_eq!(RoundsReport::<Test>::get(1, 2), Some(NodeStats { power: 100 * MB, used: MB }));
+		assert_eq!(RoundsSummary::<Test>::get(1), SummaryStats { power: 100 * MB2, used: MB2 });
+		assert_eq!(
+			RoundsReward::<Test>::get(1),
+			RewardInfo {
+				mine_reward: 2 * MB2,
+				store_reward: 2 * MB2,
+				paid_mine_reward: 2 * MB2,
+				paid_store_reward: 2 * MB2
+			}
+		);
+		run_to_block(21);
+		run_to_block(31);
+		assert_eq!(CurrentRound::<Test>::get(), 4);
+		assert_eq!(RoundsSummary::<Test>::get(1), SummaryStats { power: 0, used: 0 });
+		assert_eq!(
+			RoundsReward::<Test>::get(1),
+			RewardInfo {
+				mine_reward: 0,
+				store_reward: 0,
+				paid_store_reward: 0,
+				paid_mine_reward: 0,
+			}
+		);
+		assert_eq!(RoundsReport::<Test>::get(1, 2), None);
+	})
 }
 
 #[test]

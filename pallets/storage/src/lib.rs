@@ -389,7 +389,7 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
 			let next_round_at = NextRoundAt::<T>::get();
-			if now > next_round_at {
+			if now >= next_round_at {
 				Self::round_end()
 			} else {
 				0
