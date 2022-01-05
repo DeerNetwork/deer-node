@@ -16,7 +16,6 @@ const FILE_ID_PREFIX: [u8; 43] = [
 	49, 122, 120, 67, 90, 122, 75, 80, 56, 81, 88, 88, 78, 72, 49, 121, 101, 101, 101, 101, 101,
 ];
 
-const MB: u64 = 1_048_576;
 const MB2: u128 = 1_048_576;
 
 fn get_enclave() -> Vec<u8> {
@@ -50,19 +49,27 @@ fn fund_storage_pot<T: Config>(balance_factor: u32) {
 	whitelist_account!(storage_pot);
 }
 
-fn create_store_file<T: Config>(cid: &FileId, no_reserved: bool) {
+fn create_file<T: Config>(
+	cid: &FileId,
+	no_reserved: bool,
+	replicas: &[T::AccountId],
+	expire_at: BlockNumberFor<T>,
+) {
 	let reserved = if no_reserved {
 		0u32.saturated_into()
 	} else {
 		FileStorage::<T>::store_file_bytes_fee(1_000_000)
 	};
-	StoreFiles::<T>::insert(
+	Files::<T>::insert(
 		cid.clone(),
-		StoreFile {
+		FileInfo {
 			reserved,
 			base_fee: T::FileBaseFee::get(),
 			file_size: 1_000_000u64,
 			added_at: 99u32.saturated_into(),
+			fee: FileStorage::<T>::store_file_bytes_fee(1_000_000),
+			expire_at,
+			replicas: replicas.to_vec(),
 		},
 	);
 }
@@ -90,27 +97,12 @@ fn create_replica_nodes<T: Config>(
 				reward: 0u32.into(),
 				power: 10000000000,
 				reported_at: Zero::zero(),
+				prev_reported_at: Zero::zero(),
 			},
 		);
 		nodes.push(node);
 	}
 	nodes
-}
-
-fn create_file_order<T: Config>(
-	cid: &FileId,
-	replicas: &[T::AccountId],
-	expire_at: BlockNumberFor<T>,
-) {
-	FileOrders::<T>::insert(
-		cid.clone(),
-		FileOrder {
-			fee: FileStorage::<T>::store_file_bytes_fee(1_000_000),
-			file_size: 1_000_000,
-			expire_at,
-			replicas: replicas.to_vec(),
-		},
-	);
 }
 
 benchmarks! {
@@ -198,7 +190,7 @@ benchmarks! {
 			let c = ((i % 26) + 97) as u8;
 			let suffix: Vec<u8> = vec![a, b, c];
 			let cid: FileId = [&FILE_ID_PREFIX[..], &suffix[..]].concat();
-			create_store_file::<T>(&cid, false);
+			create_file::<T>(&cid, false, &[], 0u32.into());
 			add_files.push((cid, 1_000_000));
 		}
 		let mut del_files = vec![];
@@ -208,9 +200,8 @@ benchmarks! {
 			let c = ((i % 26) + 97) as u8;
 			let suffix: Vec<u8> = vec![a, b, c];
 			let cid: FileId = [&FILE_ID_PREFIX[..], &suffix[..]].concat();
-			create_store_file::<T>(&cid, false);
 			let replicas = create_replica_nodes::<T>(T::EffectiveFileReplicas::get(), 2000u32 + i as u32, Some(controller.clone()));
-			create_file_order::<T>(&cid, &replicas, 1000u32.into());
+			create_file::<T>(&cid, false, &replicas, 1000u32.into());
 			del_files.push(cid);
 		}
 		let settle_files = vec![];
@@ -255,26 +246,17 @@ benchmarks! {
 		assert_last_event::<T>(Event::<T>::FileForceDeleted { cid }.into());
 	}
 
-	round_end {
-		let x in 0..100;
-		let mut total_power = 0;
-		let mut total_used = 0;
-		for i in 0..x {
-			let node: T::AccountId = account("node", i, SEED);
-			RoundsReport::<T>::insert(1, node, NodeStats { power: 100 * MB, used: MB });
-			total_power += 100 * MB2;
-			total_used += 10 * MB2;
-		}
-		RoundsSummary::<T>::insert(1, SummaryStats { power: total_power, used: total_used });
-		FileStorage::<T>::round_end();
-		RoundsSummary::<T>::insert(2, SummaryStats { power: total_power, used: total_used });
-		FileStorage::<T>::round_end();
-		RoundsSummary::<T>::insert(3, SummaryStats { power: total_power, used: total_used });
+	session_end {
+		Summarys::<T>::insert(0, SummaryInfo { power: 100 * MB2, used: 10 * MB2, ..Default::default() });
+		FileStorage::<T>::session_end();
+		Summarys::<T>::insert(1, SummaryInfo { power: 100 * MB2, used: 10 * MB2, ..Default::default() });
+		FileStorage::<T>::session_end();
+		Summarys::<T>::insert(2, SummaryInfo { power: 100 * MB2, used: 10 * MB2, ..Default::default() });
 	}: {
-		FileStorage::<T>::round_end();
+		FileStorage::<T>::session_end();
 	}
 	verify {
-		assert_eq!(CurrentRound::<T>::get(), 4);
+		assert_eq!(Session::<T>::get().current, 3);
 	}
 }
 

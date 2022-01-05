@@ -30,7 +30,6 @@ hex-literal = "0.3.4"
 hex = { version = "0.4" }
 sp-std = { path = "../../substrate/primitives/std" }
 sp-core = { path = "../../substrate/primitives/core" }
-sp-io = { path = "../../substrate/primitives/io" }
 pallet-balances = { path = "../../substrate/frame/balances" }
 pallet-timestamp = { path = "../../substrate/frame/timestamp" }
 
@@ -40,7 +39,6 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"sp-std/std",
-	"sp-io/std",
 	"sp-core/std",
 	"sp-runtime/std",
 	"frame-support/std",

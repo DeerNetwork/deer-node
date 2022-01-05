@@ -1069,10 +1069,10 @@ impl pallet_nft_auction::Config for Runtime {
 parameter_types! {
 	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
 	pub const SlashBalance: Balance = 100 * DOLLARS;
-	pub const RoundDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
-	pub const FileOrderRounds: u32 = 72;
-	pub const MaxFileReplicas: u32 = 30;
-	pub const EffectiveFileReplicas: u32 = 15;
+	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
+	pub const PaySessions: u32 = 72;
+	pub const MaxFileReplicas: u32 = 15;
+	pub const EffectiveFileReplicas: u32 = 9;
 	pub const MaxFileSize: u64 = 1_073_741_824; // 1G
 	pub const MaxPower: u64 = 1_125_899_906_842_624; // 1P
 	pub const MaxReportFiles: u32 = 200;
@@ -1081,7 +1081,7 @@ parameter_types! {
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub const StashBalance: Balance = 1000 * DOLLARS;
 	pub const MineFactor: Perbill = Perbill::from_parts(16629317);
-	pub const MaxMine: Balance = 342231348 * MILLICENTS;
+	pub const MaxMineReward: Balance = 342231348 * MILLICENTS;
 }
 
 impl pallet_storage::Config for Runtime {
@@ -1091,8 +1091,8 @@ impl pallet_storage::Config for Runtime {
 	type Treasury = Treasury;
 	type UnixTime = Timestamp;
 	type SlashBalance = SlashBalance;
-	type RoundDuration = RoundDuration;
-	type FileOrderRounds = FileOrderRounds;
+	type SessionDuration = SessionDuration;
+	type PaySessions = PaySessions;
 	type MaxFileReplicas = MaxFileReplicas;
 	type MaxFileSize = MaxFileSize;
 	type MaxPower = MaxPower;
@@ -1103,7 +1103,7 @@ impl pallet_storage::Config for Runtime {
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
 	type MineFactor = MineFactor;
-	type MaxMine = MaxMine;
+	type MaxMineReward = MaxMineReward;
 	type WeightInfo = pallet_storage::weights::SubstrateWeight<Runtime>;
 }
 

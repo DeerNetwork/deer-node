@@ -131,8 +131,8 @@ impl pallet_timestamp::Config for Test {
 parameter_types! {
 	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
 	pub const SlashBalance: Balance = 100;
-	pub const RoundDuration: BlockNumber = 10;
-	pub const FileOrderRounds: u32 = 3;
+	pub const SessionDuration: BlockNumber = 10;
+	pub const PaySessions: u32 = 3;
 	pub const MaxFileReplicas: u32 = 5;
 	pub const EffectiveFileReplicas: u32 = 4;
 	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
@@ -141,7 +141,7 @@ parameter_types! {
 	pub const FileBaseFee: Balance = FILE_BASE_PRICE;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub static MineFactor: Perbill = Perbill::from_percent(0);
-	pub const MaxMine: Balance = 4 * 1048576;
+	pub const MaxMineReward: Balance = 4 * 1048576;
 }
 
 impl Config for Test {
@@ -151,8 +151,8 @@ impl Config for Test {
 	type Treasury = TreasuryMock;
 	type UnixTime = Timestamp;
 	type SlashBalance = SlashBalance;
-	type RoundDuration = RoundDuration;
-	type FileOrderRounds = FileOrderRounds;
+	type SessionDuration = SessionDuration;
+	type PaySessions = PaySessions;
 	type MaxFileReplicas = MaxFileReplicas;
 	type EffectiveFileReplicas = EffectiveFileReplicas;
 	type MaxFileSize = MaxFileSize;
@@ -163,7 +163,7 @@ impl Config for Test {
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
 	type MineFactor = MineFactor;
-	type MaxMine = MaxMine;
+	type MaxMineReward = MaxMineReward;
 	type WeightInfo = ();
 }
 
