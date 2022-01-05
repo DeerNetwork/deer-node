@@ -400,6 +400,23 @@ fn report_liquidate_files() {
 }
 
 #[test]
+fn report_liquidate_files_ignored_if_file_not_add_first() {
+	ExtBuilder::default()
+		.stash(1, 2)
+		.register(2, MACHINES[0].register_data())
+		.files(vec![(mock_file_id('A'), MB, 1200)])
+		.build()
+		.execute_with(|| {
+			run_to_block(11);
+			assert_ok!(MockData::new(0, 3, 10 * MB, &[])
+				.liquidate_files(&['A'])
+				.report_data(0)
+				.call(2));
+            assert_file!(mock_file_id('A'), liquidate_at: 0);
+        })
+}
+
+#[test]
 fn report_liquidate_files_do_not_reward_unhealth_node() {
 	ExtBuilder::default()
 		.files(vec![(mock_file_id('A'), MB, 1200)])

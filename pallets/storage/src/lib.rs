@@ -955,9 +955,9 @@ impl<T: Config> Pallet<T> {
 
 	fn report_add_file(ctx: &mut ReportContextOf<T>, cid: &FileId, file_size: u64) {
 		if let Some(mut file) = Files::<T>::get(cid) {
-			if !file.liquidate_at.is_zero() {
+            if !file.liquidate_at.is_zero() {
 				let mut new_nodes = vec![];
-				let mut exist = false;
+				let mut is_included = false;
 				for (index, replica_account) in file.replicas.iter().enumerate() {
 					let replica_node = ctx
 						.node_infos
@@ -976,10 +976,10 @@ impl<T: Config> Pallet<T> {
 						}
 					}
 					if replica_account == &ctx.reporter {
-						exist = true;
+						is_included = true;
 					}
 				}
-				if !exist && (new_nodes.len() as u32) < T::MaxFileReplicas::get() {
+				if !is_included && (new_nodes.len() as u32) < T::MaxFileReplicas::get() {
 					new_nodes.push(ctx.reporter.clone());
 					let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
 					node_change.used_inc = node_change.used_inc.saturating_add(file_size);
@@ -987,14 +987,14 @@ impl<T: Config> Pallet<T> {
 				file.replicas = new_nodes;
 				Files::<T>::insert(cid, file);
 			} else {
-				let new = Self::liquidate_file(
+			    let is_file_exist = Self::liquidate_file(
 					ctx,
 					cid,
 					&mut file,
 					vec![ctx.reporter.clone()],
 					Some(file_size),
 				);
-				if new {
+				if is_file_exist {
 					let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
 					node_change.used_inc = node_change.used_inc.saturating_add(file_size);
 				}
@@ -1020,9 +1020,9 @@ impl<T: Config> Pallet<T> {
 
 	fn report_liquidate_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
 		if let Some(mut file) = Files::<T>::get(cid) {
-			if file.liquidate_at > ctx.now_at {
-				return
-			}
+            if file.liquidate_at.is_zero() || file.liquidate_at > ctx.now_at {
+                return;
+            }
 
 			let file_fee = file.fee;
 			let mut total_order_reward: BalanceOf<T> = Zero::zero();
@@ -1052,8 +1052,8 @@ impl<T: Config> Pallet<T> {
 					}
 				}
 			}
-			let ok = Self::liquidate_file(ctx, cid, &mut file, replicas.clone(), None);
-			if !ok {
+			let is_file_exist = Self::liquidate_file(ctx, cid, &mut file, replicas.clone(), None);
+			if !is_file_exist {
 				for node in replicas.iter() {
 					let node_change = ctx.node_changes.entry(node.clone()).or_default();
 					node_change.used_dec = node_change.used_dec.saturating_add(file.file_size);
@@ -1073,7 +1073,7 @@ impl<T: Config> Pallet<T> {
 		nodes: Vec<T::AccountId>,
 		maybe_file_size: Option<u64>,
 	) -> bool {
-		let first = !file.base_fee.is_zero();
+        let first = file.liquidate_at.is_zero();
 		let expect_order_fee =
 			Self::store_file_bytes_fee(maybe_file_size.unwrap_or(file.file_size));
 		if let Some(file_size) = maybe_file_size {
