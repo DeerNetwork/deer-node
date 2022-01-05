@@ -254,7 +254,7 @@ fn report_works_with_useless_files() {
 		.execute_with(|| {
 			assert_ok!(MockData::new(0, 3, 10 * MB, &[('A', MB)])
 				.del_files(&['B'])
-				.settle_files(&['C'])
+				.liquidate_files(&['C'])
 				.report_data(0)
 				.call(2));
 
@@ -364,7 +364,7 @@ fn report_del_files() {
 }
 
 #[test]
-fn report_settle_files() {
+fn report_liquidate_files() {
 	let report_data = MockData::new(0, 3, 10 * MB, &[('A', MB)]).report_data(0);
 	ExtBuilder::default()
 		.files(vec![(mock_file_id('A'), MB, 1100)])
@@ -381,7 +381,7 @@ fn report_settle_files() {
 			assert_node!(2, reported_at: 21, prev_reported_at: 11);
 			run_to_block(31);
 			assert_ok!(MockData::new(5, 6, 9 * MB, &[])
-				.settle_files(&['A'])
+				.liquidate_files(&['A'])
 				.report_data(0)
 				.call(2));
 			assert_node!(2, power: 9 * MB, used: 0, deposit: default_stash_balance() + 20);
@@ -400,7 +400,7 @@ fn report_settle_files() {
 }
 
 #[test]
-fn report_settle_files_do_not_reward_unhealth_node() {
+fn report_liquidate_files_do_not_reward_unhealth_node() {
 	ExtBuilder::default()
 		.files(vec![(mock_file_id('A'), MB, 1200)])
 		.reports(vec![
@@ -424,7 +424,7 @@ fn report_settle_files_do_not_reward_unhealth_node() {
 			assert_ok!(MockData::new(4, 5, 10 * MB, &[]).report_data(3).call(3));
 			run_to_block(31);
 			assert_ok!(MockData::new(5, 6, 10 * MB, &[])
-				.settle_files(&['A'])
+				.liquidate_files(&['A'])
 				.report_data(3)
 				.call(3));
 			assert_file!(mock_file_id('A'), replicas: vec![3]);
@@ -470,7 +470,7 @@ fn report_do_store_reward() {
 			});
 			run_to_block(11);
 			assert_ok!(MockData::new(3, 4, 10 * MB, &[])
-				.settle_files(&['A'])
+				.liquidate_files(&['A'])
 				.report_data(0)
 				.call(2));
 			assert_last_pallet_event!(PalletEvent::NodeReported {
@@ -576,7 +576,7 @@ fn report_slash() {
 			let pot_reserved = StoragePotReserved::<Test>::get();
 			run_to_block(31);
 			assert_ok!(MockData::new(4, 5, 10 * MB, &[])
-				.settle_files(&['A'])
+				.liquidate_files(&['A'])
 				.report_data(0)
 				.call(2));
 			assert_last_pallet_event!(PalletEvent::NodeReported {

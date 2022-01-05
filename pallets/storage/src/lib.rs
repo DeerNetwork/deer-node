@@ -74,7 +74,7 @@ pub struct NodeInfo<AccountId, Balance, BlockNumber> {
 	pub power: u64,
 	/// Slash Effective storage space
 	pub slash_used: u64,
-	/// FileOrder settle reward
+	/// Reward from liquidation
 	pub reward: Balance,
 	/// Latest report at
 	pub reported_at: BlockNumber,
@@ -604,12 +604,12 @@ pub mod pallet {
 			sig: Vec<u8>,
 			add_files: Vec<(FileId, u64)>,
 			del_files: Vec<FileId>,
-			settle_files: Vec<FileId>,
+			liquidate_fils: Vec<FileId>,
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
 			ensure!(
 				add_files.len() <= T::MaxReportFiles::get() as usize ||
-					settle_files.len() <= T::MaxReportFiles::get() as usize,
+					liquidate_fils.len() <= T::MaxReportFiles::get() as usize,
 				Error::<T>::ReportExceedLimit
 			);
 			let mut node_info = Nodes::<T>::get(&reporter).ok_or(Error::<T>::NodeNotStashed)?;
@@ -650,8 +650,8 @@ pub mod pallet {
 			};
 			let mut slash: BalanceOf<T> = Zero::zero();
 
-			for cid in settle_files.iter() {
-				Self::report_settle_file(&mut ctx, cid);
+			for cid in liquidate_fils.iter() {
+				Self::report_liquidate_file(&mut ctx, cid);
 			}
 
 			for (cid, file_size, ..) in add_files.iter() {
@@ -1018,7 +1018,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn report_settle_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
+	fn report_liquidate_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
 		if let Some(mut file) = Files::<T>::get(cid) {
 			if file.liquidate_at > ctx.now_at {
 				return

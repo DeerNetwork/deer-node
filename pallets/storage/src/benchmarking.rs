@@ -204,7 +204,7 @@ benchmarks! {
 			create_file::<T>(&cid, false, &replicas, 1000u32.into());
 			del_files.push(cid);
 		}
-		let settle_files = vec![];
+		let liquidate_files = vec![];
 		let rid = 1000;
 		let power = 1000_000_000;
 		let priv_k: Vec<u8> = hex!("e394cf1de366242a772f44904ba475f5317ce8baedac5485ccd812db2ccf28ab").into();
@@ -220,7 +220,7 @@ benchmarks! {
 			&del_files,
 			power,
 		);
-	}: _(SystemOrigin::Signed(controller.clone()), rid, power, sig, add_files, del_files, settle_files)
+	}: _(SystemOrigin::Signed(controller.clone()), rid, power, sig, add_files, del_files, liquidate_files)
 	verify {
 		assert!(Nodes::<T>::contains_key(&controller));
 	}
