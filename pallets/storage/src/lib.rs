@@ -130,7 +130,7 @@ pub struct FileInfo<AccountId, Balance, BlockNumber> {
 	/// The cost of storing for a period of time
 	pub fee: Balance,
 	/// When the order need to close or renew
-	pub expire_at: BlockNumber,
+	pub liquidate_at: BlockNumber,
 	/// Nodes store the file
 	pub replicas: Vec<AccountId>,
 }
@@ -814,7 +814,7 @@ pub mod pallet {
 						file_size,
 						add_at: Self::now_at(),
 						fee: Zero::zero(),
-						expire_at: Zero::zero(),
+						liquidate_at: Zero::zero(),
 						replicas: vec![],
 					},
 				);
@@ -955,7 +955,7 @@ impl<T: Config> Pallet<T> {
 
 	fn report_add_file(ctx: &mut ReportContextOf<T>, cid: &FileId, file_size: u64) {
 		if let Some(mut file) = Files::<T>::get(cid) {
-			if !file.expire_at.is_zero() {
+			if !file.liquidate_at.is_zero() {
 				let mut new_nodes = vec![];
 				let mut exist = false;
 				for (index, replica_account) in file.replicas.iter().enumerate() {
@@ -1020,7 +1020,7 @@ impl<T: Config> Pallet<T> {
 
 	fn report_settle_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
 		if let Some(mut file) = Files::<T>::get(cid) {
-			if file.expire_at > ctx.now_at {
+			if file.liquidate_at > ctx.now_at {
 				return
 			}
 
@@ -1114,7 +1114,7 @@ impl<T: Config> Pallet<T> {
 
 		file.fee = order_fee;
 		file.file_size = file.file_size;
-		file.expire_at = now_at.saturating_add(duration);
+		file.liquidate_at = now_at.saturating_add(duration);
 		file.replicas = nodes;
 		file.reserved = new_reserved;
 		Files::<T>::insert(cid, file);

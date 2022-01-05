@@ -224,7 +224,7 @@ fn report_works() {
 				add_at: now_at,
 				fee: 100,
 				file_size: MB,
-				expire_at: 31,
+				liquidate_at: 31,
 				replicas: vec![2],
 			);
 			assert_eq!(StoragePotReserved::<Test>::get(), 1000);
@@ -372,7 +372,7 @@ fn report_settle_files() {
 		.build()
 		.execute_with(|| {
 			assert_node!(2, deposit: default_stash_balance(), reported_at: 1, prev_reported_at: 0);
-			assert_file!(mock_file_id('A'), expire_at: 31);
+			assert_file!(mock_file_id('A'), liquidate_at: 31);
 			run_to_block(11);
 			assert_ok!(MockData::new(3, 4, 10 * MB, &[]).report_data(0).call(2));
 			assert_node!(2, reported_at: 11, prev_reported_at: 1);
@@ -465,7 +465,7 @@ fn report_do_store_reward() {
 		.execute_with(|| {
 			Files::<Test>::mutate(mock_file_id('A'), |maybe_file| {
 				if let Some(file) = maybe_file {
-					file.expire_at = 11;
+					file.liquidate_at = 11;
 				}
 			});
 			run_to_block(11);

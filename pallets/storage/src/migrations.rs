@@ -276,7 +276,7 @@ pub mod v1 {
 						file_size: file_order.file_size,
 						add_at: store_file.add_at,
 						fee: file_order.fee,
-						expire_at: file_order.expire_at,
+						liquidate_at: file_order.expire_at,
 						replicas: file_order.replicas,
 					},
 				);
@@ -290,7 +290,7 @@ pub mod v1 {
 						file_size: store_file.file_size,
 						add_at: store_file.add_at,
 						fee: Zero::zero(),
-						expire_at: Zero::zero(),
+						liquidate_at: Zero::zero(),
 						replicas: vec![],
 					},
 				);

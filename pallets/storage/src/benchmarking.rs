@@ -53,7 +53,7 @@ fn create_file<T: Config>(
 	cid: &FileId,
 	no_reserved: bool,
 	replicas: &[T::AccountId],
-	expire_at: BlockNumberFor<T>,
+	liquidate_at: BlockNumberFor<T>,
 ) {
 	let reserved = if no_reserved {
 		0u32.saturated_into()
@@ -68,7 +68,7 @@ fn create_file<T: Config>(
 			file_size: 1_000_000u64,
 			add_at: 99u32.saturated_into(),
 			fee: FileStorage::<T>::store_file_bytes_fee(1_000_000),
-			expire_at,
+			liquidate_at,
 			replicas: replicas.to_vec(),
 		},
 	);
