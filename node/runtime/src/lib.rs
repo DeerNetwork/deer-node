@@ -1069,8 +1069,8 @@ impl pallet_nft_auction::Config for Runtime {
 parameter_types! {
 	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
 	pub const SlashBalance: Balance = 100 * DOLLARS;
-	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
-	pub const PaySessions: u32 = 72;
+	pub const SessionDuration: BlockNumber = HOURS;
+	pub const LiquidateDuration: u32 = 3 * DAYS;
 	pub const MaxFileReplicas: u32 = 15;
 	pub const EffectiveFileReplicas: u32 = 9;
 	pub const MaxFileSize: u64 = 1_073_741_824; // 1G
@@ -1092,7 +1092,7 @@ impl pallet_storage::Config for Runtime {
 	type UnixTime = Timestamp;
 	type SlashBalance = SlashBalance;
 	type SessionDuration = SessionDuration;
-	type PaySessions = PaySessions;
+	type LiquidateDuration = LiquidateDuration;
 	type MaxFileReplicas = MaxFileReplicas;
 	type MaxFileSize = MaxFileSize;
 	type MaxPower = MaxPower;

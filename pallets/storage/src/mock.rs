@@ -132,7 +132,7 @@ parameter_types! {
 	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
 	pub const SlashBalance: Balance = 100;
 	pub const SessionDuration: BlockNumber = 10;
-	pub const PaySessions: u32 = 3;
+	pub const LiquidateDuration: u32 = 30;
 	pub const MaxFileReplicas: u32 = 5;
 	pub const EffectiveFileReplicas: u32 = 4;
 	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
@@ -152,7 +152,7 @@ impl Config for Test {
 	type UnixTime = Timestamp;
 	type SlashBalance = SlashBalance;
 	type SessionDuration = SessionDuration;
-	type PaySessions = PaySessions;
+	type LiquidateDuration = LiquidateDuration;
 	type MaxFileReplicas = MaxFileReplicas;
 	type EffectiveFileReplicas = EffectiveFileReplicas;
 	type MaxFileSize = MaxFileSize;

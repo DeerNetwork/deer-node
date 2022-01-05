@@ -195,9 +195,9 @@ pub mod pallet {
 		#[pallet::constant]
 		type SessionDuration: Get<BlockNumberFor<Self>>;
 
-		/// Number of sessions that file need to pay reporters
+		/// Number of blocks to liquidate a file
 		#[pallet::constant]
-		type PaySessions: Get<u32>;
+		type LiquidateDuration: Get<BlockNumberFor<Self>>;
 
 		/// The maximum number of replicas order included
 		#[pallet::constant]
@@ -829,10 +829,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			if let Some(file) = Files::<T>::get(&cid) {
 				let now = Self::now_at();
-				let sessions = T::PaySessions::get();
-				let invalid_at = file.added_at.saturating_add(
-					T::SessionDuration::get().saturating_mul(sessions.saturated_into()),
-				);
+				let invalid_at = file.added_at.saturating_add(T::LiquidateDuration::get());
 				ensure!(
 					!file.base_fee.is_zero() && now > invalid_at,
 					Error::<T>::UnableToDeleteFile
@@ -879,9 +876,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn store_fee(file_size: u64, time: BlockNumberFor<T>) -> BalanceOf<T> {
-		let session_blocks = Self::get_session_blocks();
-		let mut sessions: u64 = (time / session_blocks).saturated_into();
-		let rem = time % session_blocks;
+		let duration = T::LiquidateDuration::get();
+		let mut sessions: u64 = (time / duration).saturated_into();
+		let rem = time % duration;
 		if !rem.is_zero() {
 			sessions += 1;
 		}
@@ -990,7 +987,7 @@ impl<T: Config> Pallet<T> {
 				file.replicas = new_nodes;
 				Files::<T>::insert(cid, file);
 			} else {
-				let new = Self::pay_file(
+				let new = Self::liquidate_file(
 					ctx,
 					cid,
 					&mut file,
@@ -1055,7 +1052,7 @@ impl<T: Config> Pallet<T> {
 					}
 				}
 			}
-			let ok = Self::pay_file(ctx, cid, &mut file, replicas.clone(), None);
+			let ok = Self::liquidate_file(ctx, cid, &mut file, replicas.clone(), None);
 			if !ok {
 				for node in replicas.iter() {
 					let node_change = ctx.node_changes.entry(node.clone()).or_default();
@@ -1069,7 +1066,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn pay_file(
+	fn liquidate_file(
 		ctx: &mut ReportContextOf<T>,
 		cid: &FileId,
 		file: &mut FileInfoOf<T>,
@@ -1107,9 +1104,9 @@ impl<T: Config> Pallet<T> {
 			return false
 		}
 		let now_at = Self::now_at();
-		let mut expire = Self::get_session_blocks();
+		let mut duration = T::LiquidateDuration::get();
 		if order_fee < expect_order_fee {
-			expire = Perbill::from_rational(order_fee, expect_order_fee) * expire;
+			duration = Perbill::from_rational(order_fee, expect_order_fee) * duration;
 		}
 		if first {
 			Self::deposit_event(Event::<T>::FileStored { cid: cid.clone() });
@@ -1117,7 +1114,7 @@ impl<T: Config> Pallet<T> {
 
 		file.fee = order_fee;
 		file.file_size = file.file_size;
-		file.expire_at = now_at.saturating_add(expire);
+		file.expire_at = now_at.saturating_add(duration);
 		file.replicas = nodes;
 		file.reserved = new_reserved;
 		Files::<T>::insert(cid, file);
@@ -1164,11 +1161,6 @@ impl<T: Config> Pallet<T> {
 			file_size_in_mega += 1;
 		}
 		T::FileSizePrice::get().saturating_mul(file_size_in_mega.saturated_into())
-	}
-
-	fn get_session_blocks() -> BlockNumberFor<T> {
-		let sessions = T::PaySessions::get();
-		T::SessionDuration::get().saturating_mul(sessions.saturated_into())
 	}
 
 	fn now_at() -> BlockNumberFor<T> {

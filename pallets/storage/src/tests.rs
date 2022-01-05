@@ -794,7 +794,7 @@ fn session_end2() {
 				paid_mine_reward: 0,
 				paid_store_reward: 0,
 			);
-			assert_last_pallet_event!(PalletEvent::NewSession { index: 1, mine: MB2 });
+			assert_last_pallet_event!(PalletEvent::NewSession { index: 2, mine: MB2 });
 		})
 }
 
