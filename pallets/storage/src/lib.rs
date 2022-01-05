@@ -82,10 +82,10 @@ pub struct NodeInfo<AccountId, Balance, BlockNumber> {
 	pub prev_reported_at: BlockNumber,
 }
 
-/// Round state
+/// Session state
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Default, RuntimeDebug, TypeInfo)]
 pub struct SessionState<BlockNumber> {
-	/// Current round number
+	/// Current session number
 	pub current: SessionIndex,
 	/// Prev session begin at
 	pub prev_begin_at: BlockNumber,
@@ -95,7 +95,7 @@ pub struct SessionState<BlockNumber> {
 	pub end_at: BlockNumber,
 }
 
-/// Round data
+/// Session summary info
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct SummaryInfo<Balance> {
 	/// Number of reproted nodes
@@ -251,7 +251,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Enclaves<T: Config> = StorageMap<_, Twox64Concat, EnclaveId, BlockNumberFor<T>>;
 
-	/// Number of rounds that reserved to storage pot
+	/// Number of balance reserved to storage pot
 	#[pallet::storage]
 	pub type StoragePotReserved<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
@@ -310,7 +310,7 @@ pub mod pallet {
 		FileStored { cid: FileId },
 		/// A file was deleted by admin.
 		FileForceDeleted { cid: FileId },
-		/// A round was ended.
+		/// A session end
 		SessionEnd { index: SessionIndex, mine: BalanceOf<T> },
 	}
 
@@ -336,7 +336,7 @@ pub mod pallet {
 		InvalidIASBody,
 		/// Enclave id incorrenct
 		InvalidEnclave,
-		/// Already reported in current round
+		/// Already reported in current session
 		DuplicateReport,
 		/// Fail to verify signature
 		InvalidVerifyP256Sig,
@@ -646,7 +646,7 @@ pub mod pallet {
 				storage_pot_add: Zero::zero(),
 				node_changes: BTreeMap::new(),
 				node_infos: BTreeMap::new(),
-				round_store_reward: Zero::zero(),
+				session_store_reward: Zero::zero(),
 			};
 			let mut slash: BalanceOf<T> = Zero::zero();
 
@@ -752,7 +752,8 @@ pub mod pallet {
 				summary.count += 1;
 				summary.used = summary.used.saturating_add(node_info.used.saturated_into());
 				summary.power = summary.power.saturating_add(node_info.power.saturated_into());
-				summary.store_reward = summary.store_reward.saturating_add(ctx.round_store_reward);
+				summary.store_reward =
+					summary.store_reward.saturating_add(ctx.session_store_reward);
 			});
 			Nodes::<T>::insert(reporter.clone(), node_info);
 
@@ -861,7 +862,7 @@ struct ReportContext<AccountId, Balance, BlockNumber> {
 	storage_pot_add: Balance,
 	node_changes: BTreeMap<AccountId, ReportNodeChange<Balance>>,
 	node_infos: BTreeMap<AccountId, NodeInfo<AccountId, Balance, BlockNumber>>,
-	round_store_reward: Balance,
+	session_store_reward: Balance,
 }
 
 #[derive(RuntimeDebug, Default)]
@@ -878,9 +879,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn store_fee(file_size: u64, time: BlockNumberFor<T>) -> BalanceOf<T> {
-		let rount_time = Self::get_round_time();
-		let mut sessions: u64 = (time / rount_time).saturated_into();
-		let rem = time % rount_time;
+		let session_blocks = Self::get_session_blocks();
+		let mut sessions: u64 = (time / session_blocks).saturated_into();
+		let rem = time % session_blocks;
 		if !rem.is_zero() {
 			sessions += 1;
 		}
@@ -928,8 +929,7 @@ impl<T: Config> Pallet<T> {
 			session.current = session.current + 1;
 		});
 		Self::deposit_event(Event::<T>::SessionEnd { index: current, mine: require_mine });
-		// T::WeightInfo::session_end()
-		0
+		T::WeightInfo::session_end()
 	}
 
 	pub(crate) fn calculate_mine(
@@ -1064,7 +1064,7 @@ impl<T: Config> Pallet<T> {
 			}
 			let unpaid_reward = file_fee.saturating_sub(total_order_reward);
 			if !unpaid_reward.is_zero() {
-				ctx.round_store_reward = ctx.round_store_reward.saturating_add(unpaid_reward);
+				ctx.session_store_reward = ctx.session_store_reward.saturating_add(unpaid_reward);
 			}
 		}
 	}
@@ -1087,8 +1087,8 @@ impl<T: Config> Pallet<T> {
 					let to_reporter_reward = Self::share_ratio() * file.reserved;
 					let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
 					node_change.reward = node_change.reward.saturating_add(to_reporter_reward);
-					ctx.round_store_reward = ctx
-						.round_store_reward
+					ctx.session_store_reward = ctx
+						.session_store_reward
 						.saturating_add(file.reserved.saturating_sub(to_reporter_reward));
 					Self::delete_file(cid);
 					return false
@@ -1107,7 +1107,7 @@ impl<T: Config> Pallet<T> {
 			return false
 		}
 		let now_at = Self::now_at();
-		let mut expire = Self::get_round_time();
+		let mut expire = Self::get_session_blocks();
 		if order_fee < expect_order_fee {
 			expire = Perbill::from_rational(order_fee, expect_order_fee) * expire;
 		}
@@ -1166,9 +1166,9 @@ impl<T: Config> Pallet<T> {
 		T::FileSizePrice::get().saturating_mul(file_size_in_mega.saturated_into())
 	}
 
-	fn get_round_time() -> BlockNumberFor<T> {
-		let rounds = T::PaySessions::get();
-		T::SessionDuration::get().saturating_mul(rounds.saturated_into())
+	fn get_session_blocks() -> BlockNumberFor<T> {
+		let sessions = T::PaySessions::get();
+		T::SessionDuration::get().saturating_mul(sessions.saturated_into())
 	}
 
 	fn now_at() -> BlockNumberFor<T> {

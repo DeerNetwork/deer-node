@@ -240,7 +240,7 @@ fn report_works() {
 				used: MB,
 			);
 
-			// Failed when report twice in same round
+			// Failed when report twice in same session
 			assert_err!(report_data.call(2), Error::<Test>::DuplicateReport);
 		})
 }
