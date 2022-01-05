@@ -311,7 +311,7 @@ pub mod pallet {
 		/// A file was deleted by admin.
 		FileForceDeleted { cid: FileId },
 		/// A session end
-		SessionEnd { index: SessionIndex, mine: BalanceOf<T> },
+		NewSession { index: SessionIndex, mine: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -928,7 +928,7 @@ impl<T: Config> Pallet<T> {
 			session.end_at = session.end_at.saturating_add(duration);
 			session.current = session.current + 1;
 		});
-		Self::deposit_event(Event::<T>::SessionEnd { index: current, mine: require_mine });
+		Self::deposit_event(Event::<T>::NewSession { index: current + 1, mine: require_mine });
 		T::WeightInfo::session_end()
 	}
 
