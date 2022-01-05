@@ -66,7 +66,7 @@ fn create_file<T: Config>(
 			reserved,
 			base_fee: T::FileBaseFee::get(),
 			file_size: 1_000_000u64,
-			added_at: 99u32.saturated_into(),
+			add_at: 99u32.saturated_into(),
 			fee: FileStorage::<T>::store_file_bytes_fee(1_000_000),
 			expire_at,
 			replicas: replicas.to_vec(),

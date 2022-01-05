@@ -96,7 +96,7 @@ pub mod v1 {
 		// Store file size
 		pub file_size: u64,
 		// When added file
-		pub added_at: BlockNumber,
+		pub add_at: BlockNumber,
 	}
 
 	generate_storage_instance!(FileStorage, Stashs, StashsInstance);
@@ -274,7 +274,7 @@ pub mod v1 {
 						reserved: store_file.reserved,
 						base_fee: store_file.base_fee,
 						file_size: file_order.file_size,
-						added_at: store_file.added_at,
+						add_at: store_file.add_at,
 						fee: file_order.fee,
 						expire_at: file_order.expire_at,
 						replicas: file_order.replicas,
@@ -288,7 +288,7 @@ pub mod v1 {
 						reserved: store_file.reserved,
 						base_fee: store_file.base_fee,
 						file_size: store_file.file_size,
-						added_at: store_file.added_at,
+						add_at: store_file.add_at,
 						fee: Zero::zero(),
 						expire_at: Zero::zero(),
 						replicas: vec![],

@@ -221,7 +221,7 @@ fn report_works() {
 				base_fee: 0,
 				file_size: MB,
 				reserved: 900,
-				added_at: now_at,
+				add_at: now_at,
 				fee: 100,
 				file_size: MB,
 				expire_at: 31,
@@ -653,7 +653,7 @@ fn store_works() {
 			reserved: file_fee.saturating_sub(FILE_BASE_PRICE),
 			base_fee: FILE_BASE_PRICE,
 			file_size: MB,
-			added_at: now_at,
+			add_at: now_at,
 		);
 		assert_eq!(Balances::free_balance(&1000), u1000 - file_fee);
 		assert_eq!(balance_of_storage_pot(), pot.saturating_add(file_fee));
@@ -664,7 +664,7 @@ fn store_works() {
 			reserved: file_fee.saturating_sub(FILE_BASE_PRICE).saturating_add(10),
 			base_fee: FILE_BASE_PRICE,
 			file_size: MB,
-			added_at: now_at,
+			add_at: now_at,
 		);
 
 		// Failed when fee is not enough

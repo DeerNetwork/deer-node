@@ -125,8 +125,8 @@ pub struct FileInfo<AccountId, Balance, BlockNumber> {
 	pub base_fee: Balance,
 	// Store file size
 	pub file_size: u64,
-	// When added file
-	pub added_at: BlockNumber,
+	// When store file
+	pub add_at: BlockNumber,
 	/// The cost of storing for a period of time
 	pub fee: Balance,
 	/// When the order need to close or renew
@@ -812,7 +812,7 @@ pub mod pallet {
 						reserved: fee.saturating_sub(base_fee),
 						base_fee,
 						file_size,
-						added_at: Self::now_at(),
+						add_at: Self::now_at(),
 						fee: Zero::zero(),
 						expire_at: Zero::zero(),
 						replicas: vec![],
@@ -829,9 +829,9 @@ pub mod pallet {
 			ensure_root(origin)?;
 			if let Some(file) = Files::<T>::get(&cid) {
 				let now = Self::now_at();
-				let invalid_at = file.added_at.saturating_add(T::LiquidateDuration::get());
 				ensure!(
-					!file.base_fee.is_zero() && now > invalid_at,
+					!file.base_fee.is_zero() &&
+						now > file.add_at.saturating_add(T::LiquidateDuration::get()),
 					Error::<T>::UnableToDeleteFile
 				);
 				StoragePotReserved::<T>::mutate(|v| {
