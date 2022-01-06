@@ -955,7 +955,7 @@ impl<T: Config> Pallet<T> {
 
 	fn report_add_file(ctx: &mut ReportContextOf<T>, cid: &FileId, file_size: u64) {
 		if let Some(mut file) = Files::<T>::get(cid) {
-            if !file.liquidate_at.is_zero() {
+			if !file.liquidate_at.is_zero() {
 				let mut new_nodes = vec![];
 				let mut is_included = false;
 				for (index, replica_account) in file.replicas.iter().enumerate() {
@@ -987,7 +987,7 @@ impl<T: Config> Pallet<T> {
 				file.replicas = new_nodes;
 				Files::<T>::insert(cid, file);
 			} else {
-			    let is_file_exist = Self::liquidate_file(
+				let is_file_exist = Self::liquidate_file(
 					ctx,
 					cid,
 					&mut file,
@@ -1020,9 +1020,9 @@ impl<T: Config> Pallet<T> {
 
 	fn report_liquidate_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
 		if let Some(mut file) = Files::<T>::get(cid) {
-            if file.liquidate_at.is_zero() || file.liquidate_at > ctx.now_at {
-                return;
-            }
+			if file.liquidate_at.is_zero() || file.liquidate_at > ctx.now_at {
+				return
+			}
 
 			let file_fee = file.fee;
 			let mut total_order_reward: BalanceOf<T> = Zero::zero();
@@ -1073,7 +1073,7 @@ impl<T: Config> Pallet<T> {
 		nodes: Vec<T::AccountId>,
 		maybe_file_size: Option<u64>,
 	) -> bool {
-        let first = file.liquidate_at.is_zero();
+		let first = file.liquidate_at.is_zero();
 		let expect_order_fee =
 			Self::store_file_bytes_fee(maybe_file_size.unwrap_or(file.file_size));
 		if let Some(file_size) = maybe_file_size {

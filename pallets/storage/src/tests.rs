@@ -412,8 +412,8 @@ fn report_liquidate_files_ignored_if_file_not_add_first() {
 				.liquidate_files(&['A'])
 				.report_data(0)
 				.call(2));
-            assert_file!(mock_file_id('A'), liquidate_at: 0);
-        })
+			assert_file!(mock_file_id('A'), liquidate_at: 0);
+		})
 }
 
 #[test]
