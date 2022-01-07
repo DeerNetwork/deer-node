@@ -293,6 +293,7 @@ pub mod pallet {
 			from: T::AccountId,
 			to: T::AccountId,
 			reason: TransferReason,
+			price: BalanceOf<T, I>,
 		},
 		/// token info was updated
 		UpdatedToken { class_id: T::ClassId, token_id: T::TokenId },
@@ -630,7 +631,15 @@ pub mod pallet {
 			let to = T::Lookup::lookup(to)?;
 			ensure!(quantity >= One::one(), Error::<T, I>::InvalidQuantity);
 
-			Self::transfer_token(class_id, token_id, quantity, &who, &to, TransferReason::Direct)?;
+			Self::transfer_token(
+				class_id,
+				token_id,
+				quantity,
+				&who,
+				&to,
+				TransferReason::Direct,
+				Zero::zero(),
+			)?;
 			Ok(())
 		}
 	}
@@ -644,6 +653,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		from: &T::AccountId,
 		to: &T::AccountId,
 		reason: TransferReason,
+		price: BalanceOf<T, I>,
 	) -> Result<bool, DispatchError> {
 		if from == to || quantity.is_zero() {
 			return Ok(false)
@@ -693,6 +703,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 					from: from.clone(),
 					to: to.clone(),
 					reason,
+					price,
 				});
 
 				Ok(true)
@@ -786,7 +797,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		reason: TransferReason,
 	) -> DispatchResult {
 		let token = Tokens::<T, I>::get(class_id, token_id).ok_or(Error::<T, I>::TokenNotFound)?;
-		Self::transfer_token(class_id, token_id, quantity, from, to, reason)?;
+		Self::transfer_token(class_id, token_id, quantity, from, to, reason, price)?;
 		let mut royalty_fee = token.royalty_rate * price;
 		if royalty_fee < T::Currency::minimum_balance() &&
 			T::Currency::free_balance(&token.royalty_beneficiary).is_zero()
