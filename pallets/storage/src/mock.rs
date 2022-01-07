@@ -131,8 +131,8 @@ impl pallet_timestamp::Config for Test {
 parameter_types! {
 	pub const StoragePalletId: PalletId = PalletId(*b"filestor");
 	pub const SlashBalance: Balance = 100;
-	pub const RoundDuration: BlockNumber = 10;
-	pub const FileOrderRounds: u32 = 3;
+	pub const SessionDuration: BlockNumber = 10;
+	pub const LiquidateDuration: u32 = 30;
 	pub const MaxFileReplicas: u32 = 5;
 	pub const EffectiveFileReplicas: u32 = 4;
 	pub const MaxFileSize: u64 = MAX_FILE_SIZE;
@@ -141,7 +141,7 @@ parameter_types! {
 	pub const FileBaseFee: Balance = FILE_BASE_PRICE;
 	pub const StoreRewardRatio: Perbill = Perbill::from_percent(50);
 	pub static MineFactor: Perbill = Perbill::from_percent(0);
-	pub const MaxMine: Balance = 4 * 1048576;
+	pub const MaxMineReward: Balance = 4 * 1048576;
 }
 
 impl Config for Test {
@@ -151,8 +151,8 @@ impl Config for Test {
 	type Treasury = TreasuryMock;
 	type UnixTime = Timestamp;
 	type SlashBalance = SlashBalance;
-	type RoundDuration = RoundDuration;
-	type FileOrderRounds = FileOrderRounds;
+	type SessionDuration = SessionDuration;
+	type LiquidateDuration = LiquidateDuration;
 	type MaxFileReplicas = MaxFileReplicas;
 	type EffectiveFileReplicas = EffectiveFileReplicas;
 	type MaxFileSize = MaxFileSize;
@@ -163,7 +163,7 @@ impl Config for Test {
 	type StoreRewardRatio = StoreRewardRatio;
 	type StashBalance = StashBalance;
 	type MineFactor = MineFactor;
-	type MaxMine = MaxMine;
+	type MaxMineReward = MaxMineReward;
 	type WeightInfo = ();
 }
 
@@ -403,7 +403,7 @@ pub struct MockData {
 	pub add_files: Vec<(FileId, u64)>,
 	pub del_files: Vec<FileId>,
 	pub power: u64,
-	pub settle_files: Vec<FileId>,
+	pub liquidate_files: Vec<FileId>,
 }
 
 impl MockData {
@@ -415,15 +415,15 @@ impl MockData {
 			add_files: files.iter().cloned().map(|(c, size)| (mock_file_id(c), size)).collect(),
 			del_files: vec![],
 			power,
-			settle_files: vec![],
+			liquidate_files: vec![],
 		}
 	}
 	pub fn del_files(mut self, files: &[char]) -> Self {
 		self.del_files = files.iter().cloned().map(|c| mock_file_id(c)).collect();
 		self
 	}
-	pub fn settle_files(mut self, files: &[char]) -> Self {
-		self.settle_files = files.iter().cloned().map(|c| mock_file_id(c)).collect();
+	pub fn liquidate_files(mut self, files: &[char]) -> Self {
+		self.liquidate_files = files.iter().cloned().map(|c| mock_file_id(c)).collect();
 		self
 	}
 	pub fn report_data(&self, machine_index: usize) -> ReportData {
@@ -447,7 +447,7 @@ impl MockData {
 			add_files: self.add_files.clone(),
 			del_files: self.del_files.clone(),
 			power: self.power,
-			settle_files: self.settle_files.clone(),
+			liquidate_files: self.liquidate_files.clone(),
 		}
 	}
 }
@@ -481,7 +481,7 @@ pub struct ReportData {
 	pub add_files: Vec<(FileId, u64)>,
 	pub del_files: Vec<FileId>,
 	pub power: u64,
-	pub settle_files: Vec<FileId>,
+	pub liquidate_files: Vec<FileId>,
 }
 
 impl ReportData {
@@ -493,7 +493,7 @@ impl ReportData {
 			self.sig.clone(),
 			self.add_files.clone(),
 			self.del_files.clone(),
-			self.settle_files.clone(),
+			self.liquidate_files.clone(),
 		)
 	}
 }

@@ -34,7 +34,6 @@ use p256::ecdsa::{
 };
 use runtime_api::NodeDepositInfo;
 use scale_info::TypeInfo;
-use sp_io::KillStorageResult;
 use sp_runtime::{
 	traits::{AccountIdConversion, One, Saturating, StaticLookup, Zero},
 	Perbill, RuntimeDebug, SaturatedConversion,
@@ -45,17 +44,20 @@ pub type FileId = Vec<u8>;
 pub type EnclaveId = Vec<u8>;
 pub type PubKey = Vec<u8>;
 pub type MachineId = Vec<u8>;
-pub type RoundIndex = u32;
+pub type SessionIndex = u32;
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance;
 pub type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 pub type NodeInfoOf<T> = NodeInfo<<T as SystemConfig>::AccountId, BalanceOf<T>, BlockNumberFor<T>>;
+pub type FileInfoOf<T> = FileInfo<<T as SystemConfig>::AccountId, BalanceOf<T>, BlockNumberFor<T>>;
+pub type SessionStateOf<T> = SessionState<BlockNumberFor<T>>;
 
 pub use pallet::*;
 pub use weights::WeightInfo;
 
+/// Tee node info
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
 pub struct NodeInfo<AccountId, Balance, BlockNumber> {
 	/// Stash account
@@ -68,19 +70,42 @@ pub struct NodeInfo<AccountId, Balance, BlockNumber> {
 	pub rid: u64,
 	/// Effective storage space
 	pub used: u64,
-	/// Slash Effective storage space
-	pub slash_used: u64,
-	/// FileOrder settle reward
-	pub reward: Balance,
 	/// Mine power of node, use this to distribute mining rewards
 	pub power: u64,
+	/// Slash Effective storage space
+	pub slash_used: u64,
+	/// Reward from liquidation
+	pub reward: Balance,
 	/// Latest report at
 	pub reported_at: BlockNumber,
+	/// Prev session reported at
+	pub prev_reported_at: BlockNumber,
 }
 
-/// Information round rewards
+/// Session state
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Default, RuntimeDebug, TypeInfo)]
+pub struct SessionState<BlockNumber> {
+	/// Current session number
+	pub current: SessionIndex,
+	/// Prev session begin at
+	pub prev_begin_at: BlockNumber,
+	/// Session begin at
+	pub begin_at: BlockNumber,
+	/// Session end at
+	pub end_at: BlockNumber,
+}
+
+/// Session summary info
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
-pub struct RewardInfo<Balance> {
+pub struct SummaryInfo<Balance> {
+	/// Number of reproted nodes
+	pub count: u32,
+	/// Node's storage power
+	#[codec(compact)]
+	pub power: u128,
+	/// Eeffictive storage size
+	#[codec(compact)]
+	pub used: u128,
 	/// Reward for node power
 	pub mine_reward: Balance,
 	/// Reward for node store file
@@ -91,57 +116,32 @@ pub struct RewardInfo<Balance> {
 	pub paid_store_reward: Balance,
 }
 
-/// Derive from StoreFile, Record the replicas and expire time
+/// Ipfs file
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct FileOrder<AccountId, Balance, BlockNumber> {
-	/// The cost of storing for a period of time
-	pub fee: Balance,
-	/// Store file size
-	pub file_size: u64,
-	/// When the order need to close or renew
-	pub expire_at: BlockNumber,
-	/// Nodes store the file
-	pub replicas: Vec<AccountId>,
-}
-
-/// File that users submit to the network for storage
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct StoreFile<Balance, BlockNumber> {
+pub struct FileInfo<AccountId, Balance, BlockNumber> {
 	/// Funds gathered in this file
 	pub reserved: Balance,
 	/// Basic cost of sumit to network
 	pub base_fee: Balance,
 	// Store file size
 	pub file_size: u64,
-	// When added file
-	pub added_at: BlockNumber,
+	// When store file
+	pub add_at: BlockNumber,
+	/// The cost of storing for a period of time
+	pub fee: Balance,
+	/// When the order need to close or renew
+	pub liquidate_at: BlockNumber,
+	/// Nodes store the file
+	pub replicas: Vec<AccountId>,
 }
 
-/// Information for TEE node
+/// Node register info
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct RegisterInfo {
 	/// PUb key to verify signed message
 	pub key: PubKey,
 	/// Tee enclave id
 	pub enclave: EnclaveId,
-}
-
-/// Record node's effictive storage size and power
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
-pub struct NodeStats {
-	/// Node's power
-	pub power: u64,
-	/// Eeffictive storage size
-	pub used: u64,
-}
-
-/// Record network's effictive storage size and power
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
-pub struct SummaryStats {
-	/// Node's storage power
-	pub power: u128,
-	/// Eeffictive storage size
-	pub used: u128,
 }
 
 // A value placed in storage that represents the current version of the Scheduler storage.
@@ -193,11 +193,11 @@ pub mod pallet {
 
 		/// Number of blocks that node's need report its work
 		#[pallet::constant]
-		type RoundDuration: Get<BlockNumberFor<Self>>;
+		type SessionDuration: Get<BlockNumberFor<Self>>;
 
-		/// Number of rounds that file order is expired and need to renew or close
+		/// Number of blocks to liquidate a file
 		#[pallet::constant]
-		type FileOrderRounds: Get<u32>;
+		type LiquidateDuration: Get<BlockNumberFor<Self>>;
 
 		/// The maximum number of replicas order included
 		#[pallet::constant]
@@ -227,7 +227,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type FileSizePrice: Get<BalanceOf<Self>>;
 
-		/// The ratio for divide store reward to node's have replicas and round store reward.
+		/// The ratio for divide direct store reward and share store reward
 		#[pallet::constant]
 		type StoreRewardRatio: Get<Perbill>;
 
@@ -239,9 +239,9 @@ pub mod pallet {
 		#[pallet::constant]
 		type MineFactor: Get<Perbill>;
 
-		/// The maximum number of deer the storage mine in each report round
+		/// The maximum amount of  mine reward in each session
 		#[pallet::constant]
-		type MaxMine: Get<BalanceOf<Self>>;
+		type MaxMineReward: Get<BalanceOf<Self>>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -251,7 +251,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Enclaves<T: Config> = StorageMap<_, Twox64Concat, EnclaveId, BlockNumberFor<T>>;
 
-	/// Number of rounds that reserved to storage pot
+	/// Number of balance reserved to storage pot
 	#[pallet::storage]
 	pub type StoragePotReserved<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
@@ -263,49 +263,18 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Registers<T: Config> = StorageMap<_, Twox64Concat, MachineId, RegisterInfo>;
 
-	/// Record current round
+	/// Current session state
 	#[pallet::storage]
-	pub type CurrentRound<T: Config> = StorageValue<_, RoundIndex, ValueQuery>;
+	pub type Session<T: Config> = StorageValue<_, SessionStateOf<T>, ValueQuery>;
 
-	/// Record the block number next round starts
+	/// Summary info of earch session
 	#[pallet::storage]
-	pub type NextRoundAt<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
-
-	/// Node stats in a round
-	#[pallet::storage]
-	pub type RoundsReport<T: Config> = StorageDoubleMap<
-		_,
-		Twox64Concat,
-		RoundIndex,
-		Blake2_128Concat,
-		T::AccountId,
-		NodeStats,
-		OptionQuery,
-	>;
-
-	/// Network stats in a round
-	#[pallet::storage]
-	pub type RoundsSummary<T: Config> =
-		StorageMap<_, Twox64Concat, RoundIndex, SummaryStats, ValueQuery>;
-
-	/// Information round rewards
-	#[pallet::storage]
-	pub type RoundsReward<T: Config> =
-		StorageMap<_, Twox64Concat, RoundIndex, RewardInfo<BalanceOf<T>>, ValueQuery>;
-
-	/// Information for stored files
-	#[pallet::storage]
-	pub type StoreFiles<T: Config> =
-		StorageMap<_, Twox64Concat, FileId, StoreFile<BalanceOf<T>, BlockNumberFor<T>>>;
+	pub type Summarys<T: Config> =
+		StorageMap<_, Twox64Concat, SessionIndex, SummaryInfo<BalanceOf<T>>, ValueQuery>;
 
 	/// Information for file orders
 	#[pallet::storage]
-	pub type FileOrders<T: Config> = StorageMap<
-		_,
-		Twox64Concat,
-		FileId,
-		FileOrder<T::AccountId, BalanceOf<T>, BlockNumberFor<T>>,
-	>;
+	pub type Files<T: Config> = StorageMap<_, Blake2_128Concat, FileId, FileInfoOf<T>>;
 
 	/// Storage version of the pallet.
 	///
@@ -341,8 +310,8 @@ pub mod pallet {
 		FileStored { cid: FileId },
 		/// A file was deleted by admin.
 		FileForceDeleted { cid: FileId },
-		/// A round was ended.
-		RoundEnded { round: RoundIndex, mine: BalanceOf<T> },
+		/// A session end
+		NewSession { index: SessionIndex, mine: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -367,7 +336,7 @@ pub mod pallet {
 		InvalidIASBody,
 		/// Enclave id incorrenct
 		InvalidEnclave,
-		/// Already reported in current round
+		/// Already reported in current session
 		DuplicateReport,
 		/// Fail to verify signature
 		InvalidVerifyP256Sig,
@@ -388,9 +357,9 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> frame_support::weights::Weight {
-			let next_round_at = NextRoundAt::<T>::get();
-			if now >= next_round_at {
-				Self::round_end()
+			let session = Session::<T>::get();
+			if now > session.end_at {
+				Self::session_end()
 			} else {
 				0
 			}
@@ -434,7 +403,10 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
 			StorageVersion::<T>::put(Releases::V1);
-			<Pallet<T>>::next_round();
+			Session::<T>::mutate(|session| {
+				session.begin_at = One::one();
+				session.end_at = T::SessionDuration::get();
+			});
 			let storage_pot = <Pallet<T>>::account_id();
 			let min = T::Currency::minimum_balance();
 			if T::Currency::free_balance(&storage_pot) < min {
@@ -506,10 +478,11 @@ pub mod pallet {
 						machine_id: None,
 						rid: 0,
 						used: 0,
+						power: 0,
 						slash_used: 0,
 						reward: Zero::zero(),
-						power: 0,
 						reported_at: Zero::zero(),
+						prev_reported_at: Zero::zero(),
 					},
 				);
 				Self::deposit_event(Event::<T>::Stashed { controller, amount: stash_balance });
@@ -631,12 +604,12 @@ pub mod pallet {
 			sig: Vec<u8>,
 			add_files: Vec<(FileId, u64)>,
 			del_files: Vec<FileId>,
-			settle_files: Vec<FileId>,
+			liquidate_fils: Vec<FileId>,
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
 			ensure!(
 				add_files.len() <= T::MaxReportFiles::get() as usize ||
-					settle_files.len() <= T::MaxReportFiles::get() as usize,
+					liquidate_fils.len() <= T::MaxReportFiles::get() as usize,
 				Error::<T>::ReportExceedLimit
 			);
 			let mut node_info = Nodes::<T>::get(&reporter).ok_or(Error::<T>::NodeNotStashed)?;
@@ -650,13 +623,10 @@ pub mod pallet {
 			let enclave_bn =
 				Enclaves::<T>::get(&register.enclave).ok_or(Error::<T>::InvalidEnclave)?;
 			ensure!(now_at <= enclave_bn, Error::<T>::InvalidEnclave);
-
-			let current_round = CurrentRound::<T>::get();
-			let prev_round = current_round.saturating_sub(One::one());
-			ensure!(
-				!RoundsReport::<T>::contains_key(current_round, &reporter),
-				Error::<T>::DuplicateReport
-			);
+			let session = Session::<T>::get();
+			let current = session.current;
+			let prev = current.saturating_sub(One::one());
+			ensure!(!Self::is_reported(&node_info, &session), Error::<T>::DuplicateReport);
 			let data: Vec<u8> = [
 				&machine_id[..],
 				&register.key[..],
@@ -671,48 +641,42 @@ pub mod pallet {
 
 			let mut ctx: ReportContextOf<T> = ReportContext {
 				now_at,
-				prev_round,
+				session: session.clone(),
 				reporter: reporter.clone(),
 				storage_pot_add: Zero::zero(),
 				node_changes: BTreeMap::new(),
-				nodes_prev_reported: BTreeMap::new(),
-				round_store_reward: Zero::zero(),
+				node_infos: BTreeMap::new(),
+				session_store_reward: Zero::zero(),
 			};
 			let mut slash: BalanceOf<T> = Zero::zero();
 
-			for cid in settle_files.iter() {
-				Self::settle_file(&mut ctx, cid);
+			for cid in liquidate_fils.iter() {
+				Self::report_liquidate_file(&mut ctx, cid);
 			}
 
 			for (cid, file_size, ..) in add_files.iter() {
 				if file_size > &T::MaxFileSize::get() {
 					continue
 				}
-				Self::add_file(&mut ctx, cid, *file_size);
+				Self::report_add_file(&mut ctx, cid, *file_size);
 			}
 			for cid in del_files.iter() {
-				Self::delete_file(&mut ctx, cid);
+				Self::report_delete_file(&mut ctx, cid);
 			}
 
 			let mut mine_reward: BalanceOf<T> = Zero::zero();
 			let mut share_store_reward: BalanceOf<T> = Zero::zero();
-
-			if let Some(node_stats) = RoundsReport::<T>::get(prev_round, &reporter) {
-				if !prev_round.is_zero() {
-					RoundsReward::<T>::mutate(ctx.prev_round, |mut reward_info| {
-						let summary = RoundsSummary::<T>::get(ctx.prev_round);
-						let used_ratio =
-							Perbill::from_rational(node_stats.used as u128, summary.used);
-						let power_ratio =
-							Perbill::from_rational(node_stats.power as u128, summary.power);
-						share_store_reward = used_ratio * reward_info.store_reward;
-						mine_reward = power_ratio * reward_info.mine_reward;
-						reward_info.paid_store_reward =
-							reward_info.paid_store_reward.saturating_add(share_store_reward);
-						reward_info.paid_mine_reward =
-							reward_info.paid_mine_reward.saturating_add(mine_reward);
-					});
-				}
+			if Self::is_prev_reported(&node_info, &session) {
+				Summarys::<T>::mutate(prev, |mut summary| {
+					let used_ratio = Perbill::from_rational(node_info.used as u128, summary.used);
+					let power_ratio =
+						Perbill::from_rational(node_info.power as u128, summary.power);
+					share_store_reward = used_ratio * summary.store_reward;
+					mine_reward = power_ratio * summary.mine_reward;
+					summary.paid_store_reward =
+						summary.paid_store_reward.saturating_add(share_store_reward);
+					summary.paid_mine_reward = summary.paid_mine_reward.saturating_add(mine_reward);
+				});
 			} else {
 				if !node_info.reported_at.is_zero() {
 					let slash_balance = T::SlashBalance::get();
@@ -723,6 +687,7 @@ pub mod pallet {
 					node_info.reward = Zero::zero();
 				}
 			}
+
 			let reporter_change = ctx.node_changes.entry(reporter.clone()).or_default();
 			node_info.used = node_info
 				.used
@@ -778,21 +743,17 @@ pub mod pallet {
 			node_info.power = power.min(T::MaxPower::get());
 
 			node_info.rid = rid;
+			node_info.prev_reported_at = node_info.reported_at;
 			node_info.reported_at = now_at;
 
 			StoragePotReserved::<T>::mutate(|v| *v = v.saturating_add(ctx.storage_pot_add));
-			RoundsReward::<T>::mutate(current_round, |round_reward| {
-				round_reward.store_reward =
-					round_reward.store_reward.saturating_add(ctx.round_store_reward);
-			});
-			RoundsReport::<T>::insert(
-				current_round,
-				reporter.clone(),
-				NodeStats { power: node_info.power, used: node_info.used },
-			);
-			RoundsSummary::<T>::mutate(current_round, |v| {
-				v.used = v.used.saturating_add(node_info.used.saturated_into());
-				v.power = v.power.saturating_add(node_info.power.saturated_into());
+
+			Summarys::<T>::mutate(current, |summary| {
+				summary.count += 1;
+				summary.used = summary.used.saturating_add(node_info.used.saturated_into());
+				summary.power = summary.power.saturating_add(node_info.power.saturated_into());
+				summary.store_reward =
+					summary.store_reward.saturating_add(ctx.session_store_reward);
 			});
 			Nodes::<T>::insert(reporter.clone(), node_info);
 
@@ -822,7 +783,7 @@ pub mod pallet {
 				Error::<T>::InvalidFileSize
 			);
 
-			if let Some(mut file) = StoreFiles::<T>::get(&cid) {
+			if let Some(mut file) = Files::<T>::get(&cid) {
 				let new_reserved = fee.saturating_add(file.reserved);
 				let min_fee = Self::store_file_bytes_fee(file.file_size);
 				ensure!(new_reserved >= min_fee, Error::<T>::NotEnoughFee);
@@ -833,7 +794,7 @@ pub mod pallet {
 					ExistenceRequirement::KeepAlive,
 				)?;
 				file.reserved = new_reserved;
-				StoreFiles::<T>::insert(cid.clone(), file);
+				Files::<T>::insert(cid.clone(), file);
 				Self::deposit_event(Event::<T>::FileAdded { cid, caller: who, fee, first: false });
 			} else {
 				let min_fee = Self::store_file_fee(file_size);
@@ -845,13 +806,16 @@ pub mod pallet {
 					ExistenceRequirement::KeepAlive,
 				)?;
 				let base_fee = T::FileBaseFee::get();
-				StoreFiles::<T>::insert(
+				Files::<T>::insert(
 					cid.clone(),
-					StoreFile {
+					FileInfo {
 						reserved: fee.saturating_sub(base_fee),
 						base_fee,
 						file_size,
-						added_at: Self::now_at(),
+						add_at: Self::now_at(),
+						fee: Zero::zero(),
+						liquidate_at: Zero::zero(),
+						replicas: vec![],
 					},
 				);
 				Self::deposit_event(Event::<T>::FileAdded { cid, caller: who, fee, first: true });
@@ -863,21 +827,17 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::force_delete())]
 		pub fn force_delete(origin: OriginFor<T>, cid: FileId) -> DispatchResult {
 			ensure_root(origin)?;
-			if let Some(file) = StoreFiles::<T>::get(&cid) {
+			if let Some(file) = Files::<T>::get(&cid) {
 				let now = Self::now_at();
-				let rounds = T::FileOrderRounds::get();
-				let invalid_at = file.added_at.saturating_add(
-					T::RoundDuration::get().saturating_mul(rounds.saturated_into()),
-				);
 				ensure!(
 					!file.base_fee.is_zero() &&
-						now > invalid_at && FileOrders::<T>::get(&cid).is_none(),
+						now > file.add_at.saturating_add(T::LiquidateDuration::get()),
 					Error::<T>::UnableToDeleteFile
 				);
 				StoragePotReserved::<T>::mutate(|v| {
 					*v = v.saturating_add(file.base_fee).saturating_add(file.reserved)
 				});
-				StoreFiles::<T>::remove(&cid);
+				Files::<T>::remove(&cid);
 				Self::deposit_event(Event::<T>::FileForceDeleted { cid });
 			}
 			Ok(())
@@ -887,19 +847,19 @@ pub mod pallet {
 
 type ReportContextOf<T> = ReportContext<
 	<T as SystemConfig>::AccountId,
-	<T as SystemConfig>::BlockNumber,
 	<<T as Config>::Currency as Currency<<T as SystemConfig>::AccountId>>::Balance,
+	<T as SystemConfig>::BlockNumber,
 >;
 
 #[derive(RuntimeDebug)]
-struct ReportContext<AccountId, BlockNumber, Balance> {
+struct ReportContext<AccountId, Balance, BlockNumber> {
 	now_at: BlockNumber,
-	prev_round: RoundIndex,
+	session: SessionState<BlockNumber>,
 	reporter: AccountId,
 	storage_pot_add: Balance,
 	node_changes: BTreeMap<AccountId, ReportNodeChange<Balance>>,
-	nodes_prev_reported: BTreeMap<AccountId, bool>,
-	round_store_reward: Balance,
+	node_infos: BTreeMap<AccountId, NodeInfo<AccountId, Balance, BlockNumber>>,
+	session_store_reward: Balance,
 }
 
 #[derive(RuntimeDebug, Default)]
@@ -916,14 +876,14 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn store_fee(file_size: u64, time: BlockNumberFor<T>) -> BalanceOf<T> {
-		let rount_time = Self::get_round_time();
-		let mut num_rounds: u64 = (time / rount_time).saturated_into();
-		let rem = time % rount_time;
+		let duration = T::LiquidateDuration::get();
+		let mut sessions: u64 = (time / duration).saturated_into();
+		let rem = time % duration;
 		if !rem.is_zero() {
-			num_rounds += 1;
+			sessions += 1;
 		}
 		Self::store_file_bytes_fee(file_size)
-			.saturating_mul(num_rounds.saturated_into())
+			.saturating_mul(sessions.saturated_into())
 			.saturating_add(T::FileBaseFee::get())
 	}
 
@@ -941,12 +901,13 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn round_end() -> Weight {
-		let current_round = CurrentRound::<T>::get();
-		let (mine_reward, storage_pot_reserved, require_mine) = Self::calculate_mine(current_round);
+	pub(crate) fn session_end() -> Weight {
+		let session = Session::<T>::get();
+		let current = session.current;
+		let (mine_reward, storage_pot_reserved, require_mine) = Self::calculate_mine(current);
 		if !mine_reward.is_zero() {
-			RoundsReward::<T>::mutate(current_round, |reward| {
-				reward.mine_reward = reward.mine_reward.saturating_add(mine_reward);
+			Summarys::<T>::mutate(current, |session| {
+				session.mine_reward = session.mine_reward.saturating_add(mine_reward);
 			});
 		}
 		StoragePotReserved::<T>::mutate(|v| *v = storage_pot_reserved);
@@ -954,46 +915,35 @@ impl<T: Config> Pallet<T> {
 			T::Currency::deposit_creating(&Self::account_id(), require_mine);
 		}
 
-		let prev_2_round = current_round.saturating_sub(2);
-		let mut report_count = 0;
-		if prev_2_round > 0 {
-			match RoundsReport::<T>::remove_prefix(prev_2_round, None) {
-				KillStorageResult::SomeRemaining(count) => {
-					report_count = count;
-					log::warn!(
-						target: "runtime::file-storage",
-						"Storage RoundsReports remaining on round {}",
-						prev_2_round
-					);
-				},
-				KillStorageResult::AllRemoved(count) => report_count = count,
-			}
-			RoundsSummary::<T>::remove(prev_2_round);
-			RoundsReward::<T>::remove(prev_2_round);
+		if current >= 2 {
+			Summarys::<T>::remove(current.saturating_sub(2));
 		}
-		Self::next_round();
-		Self::deposit_event(Event::<T>::RoundEnded { round: current_round, mine: require_mine });
-		T::WeightInfo::round_end(report_count)
+		Session::<T>::mutate(|session| {
+			let duration = T::SessionDuration::get();
+			session.prev_begin_at = session.begin_at;
+			session.begin_at = session.begin_at.saturating_add(duration);
+			session.end_at = session.end_at.saturating_add(duration);
+			session.current = session.current + 1;
+		});
+		Self::deposit_event(Event::<T>::NewSession { index: current + 1, mine: require_mine });
+		T::WeightInfo::session_end()
 	}
 
-	pub(crate) fn next_round() {
-		NextRoundAt::<T>::mutate(|v| *v = v.saturating_add(T::RoundDuration::get()));
-		CurrentRound::<T>::mutate(|v| *v = v.saturating_add(1));
-	}
-
-	pub(crate) fn calculate_mine(round: RoundIndex) -> (BalanceOf<T>, BalanceOf<T>, BalanceOf<T>) {
-		let summary = RoundsSummary::<T>::get(round);
+	pub(crate) fn calculate_mine(
+		index: SessionIndex,
+	) -> (BalanceOf<T>, BalanceOf<T>, BalanceOf<T>) {
+		let summary = Summarys::<T>::get(index);
 		let mine_reward = if summary.power.is_zero() {
 			Zero::zero()
 		} else {
-			T::MaxMine::get().min((T::MineFactor::get() * summary.power).saturated_into())
+			T::MaxMineReward::get().min((T::MineFactor::get() * summary.power).saturated_into())
 		};
-		let prev_reward = RoundsReward::<T>::get(round.saturating_sub(1));
-		let unpaid = prev_reward
+		let prev_summary = Summarys::<T>::get(index.saturating_sub(1));
+		let unpaid = prev_summary
 			.store_reward
-			.saturating_add(prev_reward.mine_reward)
-			.saturating_sub(prev_reward.paid_mine_reward)
-			.saturating_sub(prev_reward.paid_store_reward);
+			.saturating_add(prev_summary.mine_reward)
+			.saturating_sub(prev_summary.paid_mine_reward)
+			.saturating_sub(prev_summary.paid_store_reward);
 		let withdraw = unpaid.saturating_add(StoragePotReserved::<T>::get());
 		let (new_reserved, require_mine) = if withdraw >= mine_reward {
 			(withdraw.saturating_sub(mine_reward), Zero::zero())
@@ -1003,191 +953,191 @@ impl<T: Config> Pallet<T> {
 		(mine_reward, new_reserved, require_mine)
 	}
 
-	fn add_file(ctx: &mut ReportContextOf<T>, cid: &FileId, file_size: u64) {
-		if let Some(mut file_order) = FileOrders::<T>::get(cid) {
-			let mut new_nodes = vec![];
-			let mut exist = false;
-			let prev_round = ctx.prev_round;
-			for (index, node) in file_order.replicas.iter().enumerate() {
-				let reported = ctx
-					.nodes_prev_reported
-					.entry(node.clone())
-					.or_insert_with(|| Self::round_reported(prev_round, node));
-				if *reported {
-					new_nodes.push(node.clone());
-				} else {
-					let node_change = ctx.node_changes.entry(node.clone()).or_default();
-					if (index as u32) < T::MaxFileReplicas::get() {
-						node_change.slash_used_dec =
-							node_change.slash_used_dec.saturating_add(file_size);
+	fn report_add_file(ctx: &mut ReportContextOf<T>, cid: &FileId, file_size: u64) {
+		if let Some(mut file) = Files::<T>::get(cid) {
+			if !file.liquidate_at.is_zero() {
+				let mut new_nodes = vec![];
+				let mut is_included = false;
+				for (index, replica_account) in file.replicas.iter().enumerate() {
+					let replica_node = ctx
+						.node_infos
+						.entry(replica_account.clone())
+						.or_insert_with(|| Nodes::<T>::get(replica_account).unwrap_or_default());
+					if Self::is_prev_reported(replica_node, &ctx.session) {
+						new_nodes.push(replica_account.clone());
 					} else {
-						node_change.used_dec = node_change.used_dec.saturating_add(file_size);
+						let node_change =
+							ctx.node_changes.entry(replica_account.clone()).or_default();
+						if (index as u32) < T::MaxFileReplicas::get() {
+							node_change.slash_used_dec =
+								node_change.slash_used_dec.saturating_add(file_size);
+						} else {
+							node_change.used_dec = node_change.used_dec.saturating_add(file_size);
+						}
+					}
+					if replica_account == &ctx.reporter {
+						is_included = true;
 					}
 				}
-				if node == &ctx.reporter {
-					exist = true;
+				if !is_included && (new_nodes.len() as u32) < T::MaxFileReplicas::get() {
+					new_nodes.push(ctx.reporter.clone());
+					let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
+					node_change.used_inc = node_change.used_inc.saturating_add(file_size);
 				}
-			}
-			if !exist && (new_nodes.len() as u32) < T::MaxFileReplicas::get() {
-				new_nodes.push(ctx.reporter.clone());
-				let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
-				node_change.used_inc = node_change.used_inc.saturating_add(file_size);
-			}
-			file_order.replicas = new_nodes;
-			FileOrders::<T>::insert(cid, file_order);
-		} else {
-			let new =
-				Self::settle_file_order(ctx, cid, vec![ctx.reporter.clone()], Some(file_size));
-			if new {
-				let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
-				node_change.used_inc = node_change.used_inc.saturating_add(file_size);
+				file.replicas = new_nodes;
+				Files::<T>::insert(cid, file);
+			} else {
+				let is_file_exist = Self::liquidate_file(
+					ctx,
+					cid,
+					&mut file,
+					vec![ctx.reporter.clone()],
+					Some(file_size),
+				);
+				if is_file_exist {
+					let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
+					node_change.used_inc = node_change.used_inc.saturating_add(file_size);
+				}
 			}
 		}
 	}
 
-	fn delete_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
-		if let Some(mut file_order) = FileOrders::<T>::get(cid) {
-			if let Ok(index) = file_order.replicas.binary_search(&ctx.reporter) {
-				file_order.replicas.remove(index);
+	fn report_delete_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
+		if let Some(mut file) = Files::<T>::get(cid) {
+			if let Ok(index) = file.replicas.binary_search(&ctx.reporter) {
+				file.replicas.remove(index);
 				let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
 				if (index as u32) < T::MaxFileReplicas::get() {
 					node_change.slash_used_dec =
-						node_change.slash_used_dec.saturating_add(file_order.file_size);
+						node_change.slash_used_dec.saturating_add(file.file_size);
 				} else {
-					node_change.used_dec =
-						node_change.used_dec.saturating_add(file_order.file_size);
+					node_change.used_dec = node_change.used_dec.saturating_add(file.file_size);
 				}
-				FileOrders::<T>::insert(cid, file_order);
+				Files::<T>::insert(cid, file);
 			}
 		}
 	}
 
-	fn settle_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
-		if let Some(file_order) = FileOrders::<T>::get(cid) {
-			if file_order.expire_at > ctx.now_at {
+	fn report_liquidate_file(ctx: &mut ReportContextOf<T>, cid: &FileId) {
+		if let Some(mut file) = Files::<T>::get(cid) {
+			if file.liquidate_at.is_zero() || file.liquidate_at > ctx.now_at {
 				return
 			}
 
-			let prev_round = ctx.prev_round;
-			let file_order_fee = file_order.fee;
+			let file_fee = file.fee;
 			let mut total_order_reward: BalanceOf<T> = Zero::zero();
-			let each_order_reward = Self::share_ratio() * file_order_fee;
+			let each_order_reward = Self::share_ratio() * file_fee;
 			let mut replicas = vec![];
-			for (index, node) in file_order.replicas.iter().enumerate() {
-				let reported = ctx
-					.nodes_prev_reported
-					.entry(node.clone())
-					.or_insert_with(|| Self::round_reported(prev_round, node));
-				if *reported {
-					let node_change = ctx.node_changes.entry(node.clone()).or_default();
+			for (index, replica_account) in file.replicas.iter().enumerate() {
+				let replica_node = ctx
+					.node_infos
+					.entry(replica_account.clone())
+					.or_insert_with(|| Nodes::<T>::get(replica_account).unwrap_or_default());
+				if Self::is_prev_reported(replica_node, &ctx.session) {
+					let node_change = ctx.node_changes.entry(replica_account.clone()).or_default();
 					node_change.reward = node_change.reward.saturating_add(each_order_reward);
 					total_order_reward = total_order_reward.saturating_add(each_order_reward);
-					if node == &ctx.reporter {
+					if replica_account == &ctx.reporter {
 						node_change.reward = node_change.reward.saturating_add(each_order_reward);
 						total_order_reward = total_order_reward.saturating_add(each_order_reward);
 					}
-					replicas.push(node.clone());
+					replicas.push(replica_account.clone());
 				} else {
-					let node_change = ctx.node_changes.entry(node.clone()).or_default();
+					let node_change = ctx.node_changes.entry(replica_account.clone()).or_default();
 					if (index as u32) < T::MaxFileReplicas::get() {
 						node_change.slash_used_dec =
-							node_change.slash_used_dec.saturating_add(file_order.file_size);
+							node_change.slash_used_dec.saturating_add(file.file_size);
 					} else {
-						node_change.used_dec =
-							node_change.used_dec.saturating_add(file_order.file_size);
+						node_change.used_dec = node_change.used_dec.saturating_add(file.file_size);
 					}
 				}
 			}
-			let ok = Self::settle_file_order(ctx, cid, replicas.clone(), None);
-			if !ok {
+			let is_file_exist = Self::liquidate_file(ctx, cid, &mut file, replicas.clone(), None);
+			if !is_file_exist {
 				for node in replicas.iter() {
 					let node_change = ctx.node_changes.entry(node.clone()).or_default();
-					node_change.used_dec =
-						node_change.used_dec.saturating_add(file_order.file_size);
+					node_change.used_dec = node_change.used_dec.saturating_add(file.file_size);
 				}
 			}
-			let unpaid_reward = file_order_fee.saturating_sub(total_order_reward);
+			let unpaid_reward = file_fee.saturating_sub(total_order_reward);
 			if !unpaid_reward.is_zero() {
-				ctx.round_store_reward = ctx.round_store_reward.saturating_add(unpaid_reward);
+				ctx.session_store_reward = ctx.session_store_reward.saturating_add(unpaid_reward);
 			}
 		}
 	}
 
-	fn settle_file_order(
+	fn liquidate_file(
 		ctx: &mut ReportContextOf<T>,
 		cid: &FileId,
+		file: &mut FileInfoOf<T>,
 		nodes: Vec<T::AccountId>,
 		maybe_file_size: Option<u64>,
 	) -> bool {
-		if let Some(mut file) = StoreFiles::<T>::get(cid) {
-			let first = !file.base_fee.is_zero();
-			let expect_order_fee =
-				Self::store_file_bytes_fee(maybe_file_size.unwrap_or(file.file_size));
-			if let Some(file_size) = maybe_file_size {
-				if first {
-					ctx.storage_pot_add = ctx.storage_pot_add.saturating_add(file.base_fee);
-					// user underreported the file size
-					if file.file_size < file_size && file.reserved < expect_order_fee {
-						let to_reporter_reward = Self::share_ratio() * file.reserved;
-						let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
-						node_change.reward = node_change.reward.saturating_add(to_reporter_reward);
-						ctx.round_store_reward = ctx
-							.round_store_reward
-							.saturating_add(file.reserved.saturating_sub(to_reporter_reward));
-						Self::clear_store_file(cid);
-						return false
-					}
-					file.base_fee = Zero::zero();
-					file.file_size = file_size;
-				}
-			}
-			let (order_fee, new_reserved) = if file.reserved > expect_order_fee {
-				(expect_order_fee, file.reserved.saturating_sub(expect_order_fee))
-			} else {
-				(file.reserved, Zero::zero())
-			};
-			if order_fee.is_zero() {
-				Self::clear_store_file(cid);
-				return false
-			}
-			let now_at = Self::now_at();
-			let mut expire = Self::get_round_time();
-			if order_fee < expect_order_fee {
-				expire = Perbill::from_rational(order_fee, expect_order_fee) * expire;
-			}
+		let first = file.liquidate_at.is_zero();
+		let expect_order_fee =
+			Self::store_file_bytes_fee(maybe_file_size.unwrap_or(file.file_size));
+		if let Some(file_size) = maybe_file_size {
 			if first {
-				Self::deposit_event(Event::<T>::FileStored { cid: cid.clone() });
+				ctx.storage_pot_add = ctx.storage_pot_add.saturating_add(file.base_fee);
+				// user underreported the file size
+				if file.file_size < file_size && file.reserved < expect_order_fee {
+					let to_reporter_reward = Self::share_ratio() * file.reserved;
+					let node_change = ctx.node_changes.entry(ctx.reporter.clone()).or_default();
+					node_change.reward = node_change.reward.saturating_add(to_reporter_reward);
+					ctx.session_store_reward = ctx
+						.session_store_reward
+						.saturating_add(file.reserved.saturating_sub(to_reporter_reward));
+					Self::delete_file(cid);
+					return false
+				}
+				file.base_fee = Zero::zero();
+				file.file_size = file_size;
 			}
-			FileOrders::<T>::insert(
-				cid,
-				FileOrder {
-					fee: order_fee,
-					file_size: file.file_size,
-					expire_at: now_at.saturating_add(expire),
-					replicas: nodes,
-				},
-			);
-			file.reserved = new_reserved;
-			StoreFiles::<T>::insert(cid, file);
-			true
+		}
+		let (order_fee, new_reserved) = if file.reserved > expect_order_fee {
+			(expect_order_fee, file.reserved.saturating_sub(expect_order_fee))
 		} else {
-			false
+			(file.reserved, Zero::zero())
+		};
+		if order_fee.is_zero() {
+			Self::delete_file(cid);
+			return false
+		}
+		let now_at = Self::now_at();
+		let mut duration = T::LiquidateDuration::get();
+		if order_fee < expect_order_fee {
+			duration = Perbill::from_rational(order_fee, expect_order_fee) * duration;
+		}
+		if first {
+			Self::deposit_event(Event::<T>::FileStored { cid: cid.clone() });
+		}
+
+		file.fee = order_fee;
+		file.file_size = file.file_size;
+		file.liquidate_at = now_at.saturating_add(duration);
+		file.replicas = nodes;
+		file.reserved = new_reserved;
+		Files::<T>::insert(cid, file);
+		return true
+	}
+
+	fn is_reported(node_info: &NodeInfoOf<T>, session: &SessionStateOf<T>) -> bool {
+		!node_info.reported_at.is_zero() && node_info.reported_at >= session.begin_at
+	}
+
+	fn is_prev_reported(node_info: &NodeInfoOf<T>, session: &SessionStateOf<T>) -> bool {
+		if session.prev_begin_at.is_zero() {
+			return true
+		}
+		if Self::is_reported(node_info, session) {
+			return node_info.prev_reported_at >= session.prev_begin_at
+		} else {
+			return node_info.reported_at >= session.prev_begin_at
 		}
 	}
 
-	fn round_reported(round: RoundIndex, node: &T::AccountId) -> bool {
-		if round.is_zero() {
-			return true
-		}
-		if RoundsReport::<T>::contains_key(round, node) {
-			return true
-		}
-		Nodes::<T>::get(&node).map(|v| v.reported_at.is_zero()).unwrap_or_default()
-	}
-
-	fn clear_store_file(cid: &FileId) {
-		StoreFiles::<T>::remove(cid);
-		FileOrders::<T>::remove(cid);
+	fn delete_file(cid: &FileId) {
+		Files::<T>::remove(cid);
 		Self::deposit_event(Event::<T>::FileDeleted { cid: cid.clone() });
 	}
 
@@ -1211,11 +1161,6 @@ impl<T: Config> Pallet<T> {
 			file_size_in_mega += 1;
 		}
 		T::FileSizePrice::get().saturating_mul(file_size_in_mega.saturated_into())
-	}
-
-	fn get_round_time() -> BlockNumberFor<T> {
-		let rounds = T::FileOrderRounds::get();
-		T::RoundDuration::get().saturating_mul(rounds.saturated_into())
 	}
 
 	fn now_at() -> BlockNumberFor<T> {
