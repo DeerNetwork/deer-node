@@ -138,7 +138,7 @@ benchmarks_instance_pallet! {
 		let target_lookup = T::Lookup::unlookup(target.clone());
 	}: _(SystemOrigin::Signed(caller.clone()), class_id, token_id, quantity, target_lookup)
 	verify {
-		assert_last_event::<T, I>(Event::TransferredToken { class_id, token_id, quantity, from: caller, to: target, reason: TransferReason::Direct }.into());
+		assert_last_event::<T, I>(Event::TransferredToken { class_id, token_id, quantity, from: caller, to: target, reason: TransferReason::Direct, price: Zero::zero() }.into());
 	}
 }
 
