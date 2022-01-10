@@ -826,7 +826,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Force delete unsoloved file by root
+		/// Force delete unsoloved file
 		#[pallet::weight(T::WeightInfo::force_delete())]
 		pub fn force_delete(origin: OriginFor<T>, cid: FileId) -> DispatchResult {
 			T::ForceOrigin::ensure_origin(origin)?;
