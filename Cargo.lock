@@ -809,20 +809,9 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff0e3bc0b6446b3f9663c1a6aba6ef06c5aeaa1bc92bd18077be337198ab9768"
 dependencies = [
- "multibase 0.8.0",
+ "multibase",
  "multihash 0.13.2",
  "unsigned-varint 0.5.1",
-]
-
-[[package]]
-name = "cid"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6b8976b33648136e969aafa6eb33d58ff0d301fa0b4e8d513db58fd32cd81aa"
-dependencies = [
- "multibase 0.9.1",
- "multihash 0.14.0",
- "unsigned-varint 0.7.0",
 ]
 
 [[package]]
@@ -4049,17 +4038,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "multibase"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b3539ec3c1f04ac9748a260728e855f261b4977f5c3406612c884564f329404"
-dependencies = [
- "base-x",
- "data-encoding",
- "data-encoding-macro",
-]
-
-[[package]]
 name = "multihash"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4970,7 +4948,6 @@ name = "pallet-storage"
 version = "0.4.0"
 dependencies = [
  "base64 0.13.0",
- "cid 0.7.0",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -6733,7 +6710,7 @@ dependencies = [
  "asynchronous-codec 0.5.0",
  "bitflags",
  "bytes 1.0.1",
- "cid 0.6.1",
+ "cid",
  "derive_more",
  "either",
  "fnv",

@@ -1222,8 +1222,19 @@ fn encode_del_files(list: &Vec<FileId>) -> Vec<u8> {
 }
 
 fn is_cid(cid: &[u8]) -> bool {
-	if let Ok(cid) = str::from_utf8(cid) {
-		return cid::Cid::try_from(cid).is_ok()
+	let len = cid.len();
+	if len == 46 {
+		return &cid[0..2] == b"Qm" &&
+			cid[2..].iter().all(|x| match *x {
+				49..=57 | 65..=90 | 97..=122 => true,
+				_ => false,
+			})
+	} else if len == 59 {
+		return &cid[0..7] == b"bafkrei" &&
+			cid[7..].iter().all(|x| match *x {
+				49..=57 | 65..=90 | 97..=122 => true,
+				_ => false,
+			})
 	}
 	false
 }
