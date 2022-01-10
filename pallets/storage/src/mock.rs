@@ -310,7 +310,7 @@ pub fn change_file_byte_price(v: Balance) {
 }
 
 pub fn mock_file_id(suffix: char) -> FileId {
-	str2bytes(&format!("QmS9ErDVxHXRNMJRJ5i3bp1zxCZzKP8QXXNH1yeeeeeee{}", suffix))
+	str2bytes(&format!("QmQywLBjvLgDabmv8QZmJxxj6AqmZdGNZxCvnKh644JfF{}", suffix))
 }
 
 #[derive(Debug, Clone, Default)]

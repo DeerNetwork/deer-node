@@ -38,7 +38,7 @@ use sp_runtime::{
 	traits::{AccountIdConversion, One, Saturating, StaticLookup, Zero},
 	Perbill, RuntimeDebug, SaturatedConversion,
 };
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*, str};
 
 pub type FileId = Vec<u8>;
 pub type EnclaveId = Vec<u8>;
@@ -352,6 +352,8 @@ pub mod pallet {
 		UnableToDeleteFile,
 		/// Insufficient stash
 		InsufficientDeposit,
+		/// Invalid cid
+		InvalidCid,
 	}
 
 	#[pallet::hooks]
@@ -782,6 +784,7 @@ pub mod pallet {
 				file_size > 0 && file_size <= T::MaxFileSize::get(),
 				Error::<T>::InvalidFileSize
 			);
+			ensure!(is_cid(&cid), Error::<T>::InvalidCid);
 
 			if let Some(mut file) = Files::<T>::get(&cid) {
 				let new_reserved = fee.saturating_add(file.reserved);
@@ -1216,4 +1219,11 @@ fn encode_del_files(list: &Vec<FileId>) -> Vec<u8> {
 		output.extend(cid.clone());
 	}
 	output
+}
+
+fn is_cid(cid: &[u8]) -> bool {
+	if let Ok(cid) = str::from_utf8(cid) {
+		return cid::Cid::try_from(cid).is_ok()
+	}
+	false
 }
