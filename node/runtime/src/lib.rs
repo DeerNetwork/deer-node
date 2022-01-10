@@ -1087,8 +1087,8 @@ parameter_types! {
 impl pallet_storage::Config for Runtime {
 	type Event = Event;
 	type PalletId = StoragePalletId;
+	type ForceOrigin = EnsureRootOrHalfCouncil;
 	type Currency = Balances;
-	type Treasury = Treasury;
 	type UnixTime = Timestamp;
 	type SlashBalance = SlashBalance;
 	type SessionDuration = SessionDuration;

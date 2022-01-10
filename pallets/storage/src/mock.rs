@@ -2,11 +2,12 @@ use super::*;
 use crate as pallet_storage;
 
 use frame_support::{
-	construct_runtime, parameter_types,
+	construct_runtime, ord_parameter_types, parameter_types,
 	traits::{tokens::imbalance::Imbalance, GenesisBuild, Hooks},
 	weights::constants::RocksDbWeight,
 	PalletId,
 };
+use frame_system::{EnsureOneOf, EnsureRoot, EnsureSignedBy};
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, DispatchResult};
 
@@ -144,11 +145,17 @@ parameter_types! {
 	pub const MaxMineReward: Balance = 4 * 1048576;
 }
 
+ord_parameter_types! {
+	pub const One: u64 = 1;
+}
+
+type EnsureOneOrRoot = EnsureOneOf<u64, EnsureRoot<u64>, EnsureSignedBy<One, u64>>;
+
 impl Config for Test {
 	type Event = Event;
 	type Currency = Balances;
 	type PalletId = StoragePalletId;
-	type Treasury = TreasuryMock;
+	type ForceOrigin = EnsureOneOrRoot;
 	type UnixTime = Timestamp;
 	type SlashBalance = SlashBalance;
 	type SessionDuration = SessionDuration;

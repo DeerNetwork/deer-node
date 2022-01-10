@@ -178,11 +178,11 @@ pub mod pallet {
 		/// The module id, used for deriving its sovereign account ID.
 		type PalletId: Get<PalletId>;
 
+		/// The origin which may forcibly remove file. Root can always do this.
+		type ForceOrigin: EnsureOrigin<Self::Origin>;
+
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
-
-		/// The Treasury trait.
-		type Treasury: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
 		/// Time used for validating register cert
 		type UnixTime: UnixTime;
@@ -829,7 +829,8 @@ pub mod pallet {
 		/// Force delete unsoloved file by root
 		#[pallet::weight(T::WeightInfo::force_delete())]
 		pub fn force_delete(origin: OriginFor<T>, cid: FileId) -> DispatchResult {
-			ensure_root(origin)?;
+			T::ForceOrigin::ensure_origin(origin)?;
+
 			if let Some(file) = Files::<T>::get(&cid) {
 				let now = Self::now_at();
 				ensure!(
