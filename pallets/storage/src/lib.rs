@@ -38,7 +38,7 @@ use sp_runtime::{
 	traits::{AccountIdConversion, One, Saturating, StaticLookup, Zero},
 	Perbill, RuntimeDebug, SaturatedConversion,
 };
-use sp_std::{collections::btree_map::BTreeMap, prelude::*, str};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 pub type FileId = Vec<u8>;
 pub type EnclaveId = Vec<u8>;
