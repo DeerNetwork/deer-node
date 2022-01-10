@@ -352,6 +352,8 @@ pub mod pallet {
 		UnableToDeleteFile,
 		/// Insufficient stash
 		InsufficientDeposit,
+		/// Invalid cid
+		InvalidCid,
 	}
 
 	#[pallet::hooks]
@@ -782,6 +784,7 @@ pub mod pallet {
 				file_size > 0 && file_size <= T::MaxFileSize::get(),
 				Error::<T>::InvalidFileSize
 			);
+			ensure!(is_cid(&cid), Error::<T>::InvalidCid);
 
 			if let Some(mut file) = Files::<T>::get(&cid) {
 				let new_reserved = fee.saturating_add(file.reserved);
@@ -1216,4 +1219,22 @@ fn encode_del_files(list: &Vec<FileId>) -> Vec<u8> {
 		output.extend(cid.clone());
 	}
 	output
+}
+
+fn is_cid(cid: &[u8]) -> bool {
+	let len = cid.len();
+	if len == 46 {
+		return &cid[0..2] == b"Qm" &&
+			cid[2..].iter().all(|x| match *x {
+				49..=57 | 65..=90 | 97..=122 => true,
+				_ => false,
+			})
+	} else if len == 59 {
+		return &cid[0..7] == b"bafkrei" &&
+			cid[7..].iter().all(|x| match *x {
+				49..=57 | 65..=90 | 97..=122 => true,
+				_ => false,
+			})
+	}
+	false
 }
