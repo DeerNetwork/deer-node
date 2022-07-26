@@ -162,7 +162,7 @@ pub fn deer_testnet_local_config() -> ChainSpec {
 		boot_nodes,
 		None,
 		Some(protocol_id),
-        None,
+		None,
 		Some(properties),
 		Default::default(),
 	)
@@ -349,7 +349,7 @@ pub fn development_config() -> ChainSpec {
 		vec![],
 		None,
 		None,
-        None,
+		None,
 		None,
 		Default::default(),
 	)
@@ -377,7 +377,7 @@ pub fn local_testnet_config() -> ChainSpec {
 				.expect("Staging telemetry url is valid; qed"),
 		),
 		None,
-        None,
+		None,
 		None,
 		Default::default(),
 	)

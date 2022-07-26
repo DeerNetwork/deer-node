@@ -326,7 +326,7 @@ impl pallet_scheduler::Config for Runtime {
 	type MaxScheduledPerBlock = ConstU32<50>;
 	type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
 	type OriginPrivilegeCmp = EqualPrivilegeOnly;
-    type PreimageProvider = Preimage;
+	type PreimageProvider = Preimage;
 	type NoPreimagePostponement = NoPreimagePostponement;
 }
 
@@ -729,7 +729,6 @@ impl pallet_nomination_pools::Config for Runtime {
 	type PalletId = NominationPoolsPalletId;
 	type MinPointsToBalance = MinPointsToBalance;
 }
-
 
 parameter_types! {
 	pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
@@ -1343,7 +1342,6 @@ pub type Executive = frame_executive::Executive<
 	AllPalletsWithSystem,
 >;
 
-
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
 extern crate frame_benchmarking;
@@ -1351,44 +1349,44 @@ extern crate frame_benchmarking;
 #[cfg(feature = "runtime-benchmarks")]
 mod benches {
 	define_benchmarks!(
-        [frame_benchmarking, BaselineBench::<Runtime>]
-        [pallet_babe, Babe]
-        [pallet_bags_list, BagsList]
-        [pallet_balances, Balances]
-        [pallet_bounties, Bounties]
-        [pallet_child_bounties, ChildBounties]
-        [pallet_collective, Council]
-        [pallet_democracy, Democracy]
-        [pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
+		[frame_benchmarking, BaselineBench::<Runtime>]
+		[pallet_babe, Babe]
+		[pallet_bags_list, BagsList]
+		[pallet_balances, Balances]
+		[pallet_bounties, Bounties]
+		[pallet_child_bounties, ChildBounties]
+		[pallet_collective, Council]
+		[pallet_democracy, Democracy]
+		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
 		[pallet_election_provider_support_benchmarking, EPSBench::<Runtime>]
-        [pallet_elections_phragmen, Elections]
-        [pallet_grandpa, Grandpa]
-        [pallet_identity, Identity]
-        [pallet_im_online, ImOnline]
-        [pallet_indices, Indices]
-        [pallet_membership, TechnicalMembership]
-        [pallet_multisig, Multisig]
+		[pallet_elections_phragmen, Elections]
+		[pallet_grandpa, Grandpa]
+		[pallet_identity, Identity]
+		[pallet_im_online, ImOnline]
+		[pallet_indices, Indices]
+		[pallet_membership, TechnicalMembership]
+		[pallet_multisig, Multisig]
 		[pallet_nomination_pools, NominationPoolsBench::<Runtime>]
-        [pallet_nft, NFT]
-        [pallet_nft_order, NFTOrder]
-        [pallet_nft_auction, NFTAuction]
-        [pallet_offences, OffencesBench::<Runtime>]
+		[pallet_nft, NFT]
+		[pallet_nft_order, NFTOrder]
+		[pallet_nft_auction, NFTAuction]
+		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
-        [pallet_proxy, Proxy]
-        [pallet_scheduler, Scheduler]
-        [pallet_session, SessionBench::<Runtime>]
-        [pallet_staking, Staking]
-        [pallet_storage, FileStorage]
-        [pallet_bridge, Bridge]
-        [pallet_bridge_transfer, BridgeTransfer]
-        [frame_system, SystemBench::<Runtime>]
-        [pallet_timestamp, Timestamp]
-        [pallet_tips, Tips]
-        [pallet_transaction_storage, TransactionStorage]
-        [pallet_treasury, Treasury]
-        [pallet_utility, Utility]
-        [pallet_vesting, Vesting]
-    );
+		[pallet_proxy, Proxy]
+		[pallet_scheduler, Scheduler]
+		[pallet_session, SessionBench::<Runtime>]
+		[pallet_staking, Staking]
+		[pallet_storage, FileStorage]
+		[pallet_bridge, Bridge]
+		[pallet_bridge_transfer, BridgeTransfer]
+		[frame_system, SystemBench::<Runtime>]
+		[pallet_timestamp, Timestamp]
+		[pallet_tips, Tips]
+		[pallet_transaction_storage, TransactionStorage]
+		[pallet_treasury, Treasury]
+		[pallet_utility, Utility]
+		[pallet_vesting, Vesting]
+	);
 }
 
 impl_runtime_apis! {
@@ -1688,7 +1686,7 @@ impl_runtime_apis! {
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
-            add_benchmarks!(params, batches);
+			add_benchmarks!(params, batches);
 			Ok(batches)
 		}
 	}

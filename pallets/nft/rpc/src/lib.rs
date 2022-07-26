@@ -11,10 +11,7 @@ pub use pallet_nft_rpc_runtime_api::NFTApi as NFTRuntimeApi;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_rpc::number::NumberOrHex;
-use sp_runtime::{
-	generic::BlockId,
-	traits::{Block as BlockT},
-};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 
 const RUNTIME_ERROR: i32 = 1;
 

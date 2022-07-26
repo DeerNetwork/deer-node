@@ -11,10 +11,7 @@ use pallet_storage_rpc_runtime_api::{NodeDepositInfo, StoreFeeInfo};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_rpc::number::NumberOrHex;
-use sp_runtime::{
-	generic::BlockId,
-	traits::{Block as BlockT},
-};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 
 const RUNTIME_ERROR: i32 = 1;
 
@@ -57,8 +54,13 @@ impl From<Error> for i64 {
 }
 
 impl<Client, Block, AccountId, Balance, BlockNumber>
-	FileStorageApiServer<AccountId, Balance, BlockNumber, StoreFeeInfo<Balance>, NodeDepositInfo<Balance>>
-	for FileStorage<Client, Block>
+	FileStorageApiServer<
+		AccountId,
+		Balance,
+		BlockNumber,
+		StoreFeeInfo<Balance>,
+		NodeDepositInfo<Balance>,
+	> for FileStorage<Client, Block>
 where
 	Block: BlockT,
 	Client: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,

@@ -3,7 +3,7 @@ use crate as pallet_storage;
 
 use frame_support::{
 	construct_runtime, ord_parameter_types, parameter_types,
-	traits::{tokens::imbalance::Imbalance, GenesisBuild, Hooks, EitherOfDiverse},
+	traits::{tokens::imbalance::Imbalance, EitherOfDiverse, GenesisBuild, Hooks},
 	weights::constants::RocksDbWeight,
 	PalletId,
 };
@@ -99,7 +99,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {

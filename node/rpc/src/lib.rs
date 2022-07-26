@@ -118,7 +118,7 @@ where
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
-	use pallet_nft_rpc::{NFT, NFTApiServer};
+	use pallet_nft_rpc::{NFTApiServer, NFT};
 	use pallet_storage_rpc::{FileStorage, FileStorageApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_babe_rpc::{Babe, BabeApiServer};

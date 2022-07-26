@@ -1,5 +1,4 @@
-use super::*;
-use super::StorageVersion as PalletStorageVersion;
+use super::{StorageVersion as PalletStorageVersion, *};
 
 pub mod v1 {
 	use super::*;
