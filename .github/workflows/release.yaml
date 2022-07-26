@@ -7,7 +7,7 @@ on:
 
 jobs:
   github-releases:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     outputs:
       image: ${{ steps.check_tag.outputs.image }}
     steps: 
@@ -48,7 +48,7 @@ jobs:
             target/release/wbuild/deer-runtime/deer_runtime.compact.wasm 
 
   docker-hub:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: ["github-releases"]
     steps:
       - run: echo "Build image ${{ needs.github-releases.outputs.image }}"
