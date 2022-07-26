@@ -1,8 +1,11 @@
-use std::{convert::TryInto, sync::Arc};
+use std::sync::Arc;
 
 use codec::Codec;
-use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
-use jsonrpc_derive::rpc;
+use jsonrpsee::{
+	core::{Error as JsonRpseeError, RpcResult},
+	proc_macros::rpc,
+	types::error::{CallError, ErrorObject},
+};
 use pallet_nft_rpc_runtime_api::BalanceInfo;
 pub use pallet_nft_rpc_runtime_api::NFTApi as NFTRuntimeApi;
 use sp_api::ProvideRuntimeApi;
@@ -10,16 +13,18 @@ use sp_blockchain::HeaderBackend;
 use sp_rpc::number::NumberOrHex;
 use sp_runtime::{
 	generic::BlockId,
-	traits::{Block as BlockT, MaybeDisplay, MaybeFromStr},
+	traits::{Block as BlockT},
 };
 
-#[rpc]
-pub trait NFTApi<Balance, ResponseType> {
-	#[rpc(name = "nft_createClassDeposit")]
-	fn create_class_deposit(&self, bytes_len: u32) -> Result<ResponseType>;
+const RUNTIME_ERROR: i32 = 1;
 
-	#[rpc(name = "nft_mintTokenDeposit")]
-	fn mint_token_deposit(&self, bytes_len: u32) -> Result<ResponseType>;
+#[rpc(client, server)]
+pub trait NFTApi<Balance, ResponseType> {
+	#[method(name = "nft_createClassDeposit")]
+	fn create_class_deposit(&self, bytes_len: u32) -> RpcResult<ResponseType>;
+
+	#[method(name = "nft_mintTokenDeposit")]
+	fn mint_token_deposit(&self, bytes_len: u32) -> RpcResult<ResponseType>;
 }
 
 /// A struct that implements the [`NFTApi`].
@@ -52,30 +57,32 @@ impl From<Error> for i64 {
 	}
 }
 
-impl<C, Block, Balance> NFTApi<Balance, BalanceInfo<Balance>> for NFT<C, Block>
+impl<Client, Block, Balance> NFTApiServer<Balance, BalanceInfo<Balance>> for NFT<Client, Block>
 where
 	Block: BlockT,
-	C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-	C::Api: NFTRuntimeApi<Block, Balance>,
-	Balance: Codec + MaybeDisplay + MaybeFromStr + Copy + TryInto<NumberOrHex>,
+	Client: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
+	Client::Api: NFTRuntimeApi<Block, Balance>,
+	Balance: Codec + Copy + TryFrom<NumberOrHex> + Into<NumberOrHex>,
 {
-	fn create_class_deposit(&self, bytes_len: u32) -> Result<BalanceInfo<Balance>> {
+	fn create_class_deposit(&self, bytes_len: u32) -> RpcResult<BalanceInfo<Balance>> {
 		let api = self.client.runtime_api();
 		let at = BlockId::hash(self.client.info().best_hash);
-		api.create_class_deposit(&at, bytes_len).map_err(|e| RpcError {
-			code: ErrorCode::ServerError(Error::RuntimeError.into()),
-			message: "Unable to query dispatch info.".into(),
-			data: Some(format!("{:?}", e).into()),
-		})
+		api.create_class_deposit(&at, bytes_len).map_err(runtime_error_into_rpc_err)
 	}
 
-	fn mint_token_deposit(&self, bytes_len: u32) -> Result<BalanceInfo<Balance>> {
+	fn mint_token_deposit(&self, bytes_len: u32) -> RpcResult<BalanceInfo<Balance>> {
 		let api = self.client.runtime_api();
 		let at = BlockId::hash(self.client.info().best_hash);
-		api.mint_token_deposit(&at, bytes_len).map_err(|e| RpcError {
-			code: ErrorCode::ServerError(Error::RuntimeError.into()),
-			message: "Unable to query dispatch info.".into(),
-			data: Some(format!("{:?}", e).into()),
-		})
+		api.mint_token_deposit(&at, bytes_len).map_err(runtime_error_into_rpc_err)
 	}
+}
+
+/// Converts a runtime trap into an RPC error.
+fn runtime_error_into_rpc_err(err: impl std::fmt::Debug) -> JsonRpseeError {
+	CallError::Custom(ErrorObject::owned(
+		RUNTIME_ERROR,
+		"Runtime error",
+		Some(format!("{:?}", err)),
+	))
+	.into()
 }

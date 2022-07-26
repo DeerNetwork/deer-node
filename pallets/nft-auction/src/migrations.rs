@@ -1,4 +1,5 @@
 use super::*;
+use super::StorageVersion as PalletStorageVersion;
 
 pub mod v2 {
 	use super::*;
@@ -141,7 +142,7 @@ pub mod v2 {
 
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V1);
+		assert!(PalletStorageVersion::<T, I>::get() == Releases::V1);
 		log::debug!(
 			target: "runtime::nft-auction",
 			"migration: nft auction storage version v2 PRE migration checks succesful!",
@@ -205,7 +206,7 @@ pub mod v2 {
 		let next_auction_id = CurrentAuctionId::<T, I>::take();
 		NextAuctionId::<T, I>::put(next_auction_id);
 
-		StorageVersion::<T, I>::put(Releases::V2);
+		PalletStorageVersion::<T, I>::put(Releases::V2);
 
 		log::info!(
 			target: "runtime::nft-auction",
@@ -221,7 +222,7 @@ pub mod v2 {
 	}
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V2);
+		assert!(PalletStorageVersion::<T, I>::get() == Releases::V2);
 		for (_, _, auction) in DutchAuctions::<T, I>::iter() {
 			assert_eq!(auction.quantity, One::one());
 		}

@@ -1,8 +1,9 @@
 [package]
 name = "deer-rpc"
 version = "0.2.0"
-edition = "2018"
-license = "Apache 2.0"
+authors = ["Deer Network"]
+edition = "2021"
+license = "Apache-2.0"
 homepage = "https://deernetwork.org"
 repository = "https://github.com/DeerNetwork/deer-node/"
 
@@ -10,27 +11,27 @@ repository = "https://github.com/DeerNetwork/deer-node/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-jsonrpc-core = "18.0.0"
+jsonrpsee = { version = "0.14.0", features = ["server"] }
 node-primitives = { package = "deer-primitives", path = "../primitives" }
-pallet-transaction-payment-rpc = { path = "../../substrate/frame/transaction-payment/rpc/" }
 pallet-nft-rpc = { path = "../../pallets/nft/rpc/" }
 pallet-storage-rpc = { path = "../../pallets/storage/rpc/" }
+pallet-transaction-payment-rpc = { path = "../../substrate/frame/transaction-payment/rpc/" }
+sc-chain-spec = { path = "../../substrate/client/chain-spec" }
 sc-client-api = { path = "../../substrate/client/api" }
 sc-consensus-babe = { path = "../../substrate/client/consensus/babe" }
 sc-consensus-babe-rpc = { path = "../../substrate/client/consensus/babe/rpc" }
 sc-consensus-epochs = { path = "../../substrate/client/consensus/epochs" }
-sc-chain-spec = { path = "../../substrate/client/chain-spec" }
 sc-finality-grandpa = { path = "../../substrate/client/finality-grandpa" }
 sc-finality-grandpa-rpc = { path = "../../substrate/client/finality-grandpa/rpc" }
-sc-rpc-api = { path = "../../substrate/client/rpc-api" }
 sc-rpc = { path = "../../substrate/client/rpc" }
+sc-rpc-api = { path = "../../substrate/client/rpc-api" }
 sc-sync-state-rpc = { path = "../../substrate/client/sync-state-rpc" }
+sc-transaction-pool-api = { path = "../../substrate/client/transaction-pool/api" }
 sp-api = { path = "../../substrate/primitives/api" }
 sp-block-builder = { path = "../../substrate/primitives/block-builder" }
 sp-blockchain = { path = "../../substrate/primitives/blockchain" }
-sp-keystore = { path = "../../substrate/primitives/keystore" }
 sp-consensus = { path = "../../substrate/primitives/consensus/common" }
 sp-consensus-babe = { path = "../../substrate/primitives/consensus/babe" }
+sp-keystore = { path = "../../substrate/primitives/keystore" }
 sp-runtime = { path = "../../substrate/primitives/runtime" }
-sc-transaction-pool-api = { path = "../../substrate/client/transaction-pool/api" }
 substrate-frame-rpc-system = { path = "../../substrate/utils/frame/rpc/system" }

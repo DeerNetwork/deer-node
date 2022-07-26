@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) 2019-2022 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,18 +29,18 @@
 //! be placed here or imported from corresponding FRAME RPC definitions.
 
 #![warn(missing_docs)]
+#![warn(unused_crate_dependencies)]
 
 use std::sync::Arc;
 
+use jsonrpsee::RpcModule;
 use node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
 use sc_client_api::AuxStore;
 use sc_consensus_babe::{Config, Epoch};
-use sc_consensus_babe_rpc::BabeRpcHandler;
 use sc_consensus_epochs::SharedEpochChanges;
 use sc_finality_grandpa::{
 	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
 };
-use sc_finality_grandpa_rpc::GrandpaRpcHandler;
 use sc_rpc::SubscriptionTaskExecutor;
 pub use sc_rpc_api::DenyUnsafe;
 use sc_transaction_pool_api::TransactionPool;
@@ -93,15 +93,14 @@ pub struct FullDeps<C, P, SC, B> {
 	pub grandpa: GrandpaDeps<B>,
 }
 
-/// A IO handler that uses all Full RPC extensions.
-pub type IoHandler = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
-
 /// Instantiate all Full RPC extensions.
 pub fn create_full<C, P, SC, B>(
 	deps: FullDeps<C, P, SC, B>,
-) -> Result<jsonrpc_core::IoHandler<sc_rpc_api::Metadata>, Box<dyn std::error::Error + Send + Sync>>
+	_backend: Arc<B>,
+) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
 	C: ProvideRuntimeApi<Block>
+		+ sc_client_api::BlockBackend<Block>
 		+ HeaderBackend<Block>
 		+ AuxStore
 		+ HeaderMetadata<Block, Error = BlockChainError>
@@ -119,12 +118,15 @@ where
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
-	use pallet_nft_rpc::{NFTApi, NFT};
-	use pallet_storage_rpc::{FileStorage, FileStorageApi};
-	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
-	use substrate_frame_rpc_system::{FullSystem, SystemApi};
+	use pallet_nft_rpc::{NFT, NFTApiServer};
+	use pallet_storage_rpc::{FileStorage, FileStorageApiServer};
+	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
+	use sc_consensus_babe_rpc::{Babe, BabeApiServer};
+	use sc_finality_grandpa_rpc::{Grandpa, GrandpaApiServer};
+	use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
+	use substrate_frame_rpc_system::{System, SystemApiServer};
 
-	let mut io = jsonrpc_core::IoHandler::default();
+	let mut io = RpcModule::new(());
 	let FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, babe, grandpa } = deps;
 
 	let BabeDeps { keystore, babe_config, shared_epoch_changes } = babe;
@@ -136,39 +138,36 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.extend_with(SystemApi::to_delegate(FullSystem::new(client.clone(), pool, deny_unsafe)));
-
-	io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone())));
-
-	io.extend_with(NFTApi::to_delegate(NFT::new(client.clone())));
-
-	io.extend_with(FileStorageApi::to_delegate(FileStorage::new(client.clone())));
-
-	io.extend_with(sc_consensus_babe_rpc::BabeApi::to_delegate(BabeRpcHandler::new(
-		client.clone(),
-		shared_epoch_changes.clone(),
-		keystore,
-		babe_config,
-		select_chain,
-		deny_unsafe,
-	)));
-	io.extend_with(sc_finality_grandpa_rpc::GrandpaApi::to_delegate(GrandpaRpcHandler::new(
-		shared_authority_set.clone(),
-		shared_voter_state,
-		justification_stream,
-		subscription_executor,
-		finality_provider,
-	)));
-
-	io.extend_with(sc_sync_state_rpc::SyncStateRpcApi::to_delegate(
-		sc_sync_state_rpc::SyncStateRpcHandler::new(
-			chain_spec,
-			client,
-			shared_authority_set,
-			shared_epoch_changes,
+	io.merge(System::new(client.clone(), pool, deny_unsafe).into_rpc())?;
+	io.merge(NFT::new(client.clone()).into_rpc())?;
+	io.merge(FileStorage::new(client.clone()).into_rpc())?;
+	io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
+	io.merge(
+		Babe::new(
+			client.clone(),
+			shared_epoch_changes.clone(),
+			keystore,
+			babe_config,
+			select_chain,
 			deny_unsafe,
-		)?,
-	));
+		)
+		.into_rpc(),
+	)?;
+	io.merge(
+		Grandpa::new(
+			subscription_executor,
+			shared_authority_set.clone(),
+			shared_voter_state,
+			justification_stream,
+			finality_provider,
+		)
+		.into_rpc(),
+	)?;
+
+	io.merge(
+		SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
+			.into_rpc(),
+	)?;
 
 	Ok(io)
 }

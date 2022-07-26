@@ -3,11 +3,11 @@ use crate as pallet_storage;
 
 use frame_support::{
 	construct_runtime, ord_parameter_types, parameter_types,
-	traits::{tokens::imbalance::Imbalance, GenesisBuild, Hooks},
+	traits::{tokens::imbalance::Imbalance, GenesisBuild, Hooks, EitherOfDiverse},
 	weights::constants::RocksDbWeight,
 	PalletId,
 };
-use frame_system::{EnsureOneOf, EnsureRoot, EnsureSignedBy};
+use frame_system::{EnsureRoot, EnsureSignedBy};
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, DispatchResult};
 
@@ -99,6 +99,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+    type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
@@ -149,7 +150,7 @@ ord_parameter_types! {
 	pub const One: u64 = 1;
 }
 
-type EnsureOneOrRoot = EnsureOneOf<u64, EnsureRoot<u64>, EnsureSignedBy<One, u64>>;
+type EnsureOneOrRoot = EitherOfDiverse<EnsureRoot<u64>, EnsureSignedBy<One, u64>>;
 
 impl Config for Test {
 	type Event = Event;

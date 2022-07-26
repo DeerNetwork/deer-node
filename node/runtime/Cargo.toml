@@ -1,9 +1,10 @@
 [package]
 name = "deer-runtime"
 version = "0.4.0"
-edition = "2018"
+edition = "2021"
+authors = ["Deer Network"]
 build = "build.rs"
-license = "Apache 2.0"
+license = "Apache-2.0"
 homepage = "https://deernetwork.org"
 repository = "https://github.com/DeerNetwork/deer-node/"
 
@@ -13,14 +14,14 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 
 # third-party dependencies
-codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = [
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = [
 	"derive",
 	"max-encoded-len",
 ] }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 static_assertions = "1.1.0"
 hex-literal = { version = "0.3.4" }
-log = { version = "0.4.14", default-features = false }
+log = { version = "0.4.17", default-features = false }
 
 # primitives
 sp-authority-discovery = { default-features = false, path = "../../substrate/primitives/authority-discovery" }
@@ -34,11 +35,9 @@ sp-std = { path = "../../substrate/primitives/std", default-features = false }
 sp-api = { path = "../../substrate/primitives/api", default-features = false }
 sp-runtime = { path = "../../substrate/primitives/runtime", default-features = false }
 sp-staking = { default-features = false, path = "../../substrate/primitives/staking" }
-sp-keyring = { optional = true, path = "../../substrate/primitives/keyring" }
 sp-session = { path = "../../substrate/primitives/session", default-features = false }
 sp-transaction-pool = { path = "../../substrate/primitives/transaction-pool", default-features = false }
 sp-version = { path = "../../substrate/primitives/version", default-features = false }
-sp-npos-elections = { default-features = false, path = "../../substrate/primitives/npos-elections" }
 sp-io = { default-features = false, path = "../../substrate/primitives/io" }
 sp-sandbox = { default-features = false, path = "../../substrate/primitives/sandbox" }
 
@@ -57,18 +56,23 @@ pallet-babe = { default-features = false, path = "../../substrate/frame/babe" }
 pallet-bags-list = { path = "../../substrate/frame/bags-list", default-features = false }
 pallet-balances = { path = "../../substrate/frame/balances", default-features = false }
 pallet-bounties = { path = "../../substrate/frame/bounties", default-features = false }
+pallet-child-bounties = { path = "../../substrate/frame/child-bounties", default-features = false }
 pallet-collective = { default-features = false, path = "../../substrate/frame/collective" }
 pallet-democracy = { default-features = false, path = "../../substrate/frame/democracy" }
 pallet-election-provider-multi-phase = { default-features = false, path = "../../substrate/frame/election-provider-multi-phase" }
+pallet-election-provider-support-benchmarking = { default-features = false, path = "../../substrate/frame/election-provider-support/benchmarking" }
 pallet-elections-phragmen = { default-features = false, path = "../../substrate/frame/elections-phragmen" }
 pallet-grandpa = { path = "../../substrate/frame/grandpa", default-features = false }
-pallet-identity = { default-features = false, path = "../../substrate/frame/identity" }
 pallet-im-online = { default-features = false, path = "../../substrate/frame/im-online" }
 pallet-indices = { default-features = false, path = "../../substrate/frame/indices" }
+pallet-identity = { default-features = false, path = "../../substrate/frame/identity" }
 pallet-membership = { default-features = false, path = "../../substrate/frame/membership" }
 pallet-multisig = { path = "../../substrate/frame/multisig", default-features = false }
+pallet-nomination-pools = { default-features = false, path = "../../substrate/frame/nomination-pools" }
+pallet-nomination-pools-benchmarking = { default-features = false, path = "../../substrate/frame/nomination-pools/benchmarking", optional = true}
 pallet-offences = { default-features = false, path = "../../substrate/frame/offences" }
 pallet-offences-benchmarking = { path = "../../substrate/frame/offences/benchmarking", default-features = false, optional = true }
+pallet-preimage = { path = "../../substrate/frame/preimage", default-features = false }
 pallet-proxy = { path = "../../substrate/frame/proxy", default-features = false }
 pallet-randomness-collective-flip = { path = "../../substrate/frame/randomness-collective-flip", default-features = false }
 pallet-session = { path = "../../substrate/frame/session", default-features = false }
@@ -125,22 +129,22 @@ std = [
     "sp-inherents/std",
     "pallet-membership/std",
     "pallet-multisig/std",
+	"pallet-nomination-pools/std",
     "pallet-identity/std",
     "pallet-scheduler/std",
 	"node-primitives/std",
     "sp-offchain/std",
     "pallet-offences/std",
+	"pallet-preimage/std",
     "pallet-proxy/std",
     "sp-core/std",
     "pallet-randomness-collective-flip/std",
     "sp-std/std",
-	"sp-sandbox/std",
 	"pallet-session/std",
     "sp-api/std",
     "sp-runtime/std",
 	"sp-staking/std",
 	"pallet-staking/std",
-	"sp-keyring",
 	"sp-session/std",
     "pallet-sudo/std",
 	"frame-support/std",
@@ -160,7 +164,6 @@ std = [
 	"pallet-vesting/std",
 	"log/std",
 	"frame-try-runtime/std",
-	"sp-npos-elections/std",
 	"sp-io/std",
     "pallet-nft/std",
 	"pallet-nft-rpc-runtime-api/std",
@@ -176,14 +179,16 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
     "frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
-	"pallet-election-provider-multi-phase/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
     "pallet-balances/runtime-benchmarks",
     "pallet-bounties/runtime-benchmarks",
+	"pallet-child-bounties/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
+	"pallet-election-provider-multi-phase/runtime-benchmarks",
+	"pallet-election-provider-support-benchmarking/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
@@ -191,8 +196,12 @@ runtime-benchmarks = [
 	"pallet-indices/runtime-benchmarks",
 	"pallet-membership/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
+	"pallet-nomination-pools-benchmarking",
+	"pallet-offences-benchmarking",
+	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
+	"pallet-session-benchmarking",
 	"pallet-staking/runtime-benchmarks",
     "pallet-timestamp/runtime-benchmarks",
     "pallet-tips/runtime-benchmarks",
@@ -200,14 +209,12 @@ runtime-benchmarks = [
 	"pallet-treasury/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-vesting/runtime-benchmarks",
-	"pallet-offences-benchmarking",
-	"pallet-session-benchmarking",
 	"frame-system-benchmarking",
     "pallet-nft/runtime-benchmarks",
     "pallet-nft-order/runtime-benchmarks",
     "pallet-nft-auction/runtime-benchmarks",
     "pallet-storage/runtime-benchmarks",
-    "pallet-bridge/runtime-benchmarks",
+    # "pallet-bridge/runtime-benchmarks",
     # "pallet-bridge-transfer/runtime-benchmarks",
 ]
 try-runtime = [
@@ -219,23 +226,25 @@ try-runtime = [
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-bounties/try-runtime",
+	"pallet-child-bounties/try-runtime",
 	"pallet-collective/try-runtime",
 	"pallet-democracy/try-runtime",
+	"pallet-election-provider-multi-phase/try-runtime",
 	"pallet-elections-phragmen/try-runtime",
 	"pallet-grandpa/try-runtime",
+	"pallet-identity/try-runtime",
 	"pallet-im-online/try-runtime",
 	"pallet-indices/try-runtime",
 	"pallet-membership/try-runtime",
 	"pallet-multisig/try-runtime",
-	"pallet-identity/try-runtime",
-	"pallet-scheduler/try-runtime",
 	"pallet-offences/try-runtime",
+	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",
 	"pallet-randomness-collective-flip/try-runtime",
+	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-staking/try-runtime",
 	"pallet-sudo/try-runtime",
-	"pallet-election-provider-multi-phase/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-tips/try-runtime",
 	"pallet-transaction-payment/try-runtime",

@@ -1,8 +1,9 @@
 [package]
 name = "deer-inspect"
 version = "0.2.0"
-edition = "2018"
-license = "Apache 2.0"
+authors = ["Deer Network"]
+edition = "2021"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 homepage = "https://deernetwork.org"
 repository = "https://github.com/DeerNetwork/deer-node/"
 
@@ -10,8 +11,9 @@ repository = "https://github.com/DeerNetwork/deer-node/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.2.0" }
-derive_more = "0.99"
+clap = { version = "3.1.6", features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.0.0" }
+thiserror = "1.0"
 sc-cli = { path = "../../substrate/client/cli" }
 sc-client-api = { path = "../../substrate/client/api" }
 sc-executor = { path = "../../substrate/client/executor" }
@@ -19,4 +21,3 @@ sc-service = { default-features = false, path = "../../substrate/client/service"
 sp-blockchain = { path = "../../substrate/primitives/blockchain" }
 sp-core = { path = "../../substrate/primitives/core" }
 sp-runtime = { path = "../../substrate/primitives/runtime" }
-structopt = "0.3.8"

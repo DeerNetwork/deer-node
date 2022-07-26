@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2018-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) 2018-2022 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -23,8 +23,8 @@ use hex_literal::hex;
 use node_runtime::{
 	constants::currency::*, wasm_binary_unwrap, AuthorityDiscoveryConfig, BabeConfig,
 	BalancesConfig, Block, CouncilConfig, DemocracyConfig, ElectionsConfig, GrandpaConfig,
-	ImOnlineConfig, IndicesConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
-	SudoConfig, SystemConfig, TechnicalCommitteeConfig, MAX_NOMINATIONS,
+	ImOnlineConfig, IndicesConfig, MaxNominations, NominationPoolsConfig, SessionConfig,
+	SessionKeys, StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::{ChainSpecExtension, Properties};
@@ -64,6 +64,16 @@ pub struct Extensions {
 /// Specialized `ChainSpec`.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 
+/// Tesnet config
+pub fn deer_testnet_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_json_bytes(&include_bytes!("../res/testnet.json")[..])
+}
+
+/// Mainnet config
+pub fn deer_mainnet_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_json_bytes(&include_bytes!("../res/mainnet.json")[..])
+}
+
 fn session_keys(
 	grandpa: GrandpaId,
 	babe: BabeId,
@@ -71,216 +81,6 @@ fn session_keys(
 	authority_discovery: AuthorityDiscoveryId,
 ) -> SessionKeys {
 	SessionKeys { grandpa, babe, im_online, authority_discovery }
-}
-
-/// Helper function to generate a crypto pair from seed
-pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
-	TPublic::Pair::from_string(&format!("//{}", seed), None)
-		.expect("static values are valid; qed")
-		.public()
-}
-
-/// Helper function to generate an account ID from seed
-pub fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId
-where
-	AccountPublic: From<<TPublic::Pair as Pair>::Public>,
-{
-	AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
-}
-
-/// Helper function to generate stash, controller and session key from seed
-pub fn authority_keys_from_seed(
-	seed: &str,
-) -> (AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId) {
-	(
-		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
-		get_account_id_from_seed::<sr25519::Public>(seed),
-		get_from_seed::<GrandpaId>(seed),
-		get_from_seed::<BabeId>(seed),
-		get_from_seed::<ImOnlineId>(seed),
-		get_from_seed::<AuthorityDiscoveryId>(seed),
-	)
-}
-
-/// Helper function to create GenesisConfig for testing
-pub fn testnet_genesis(
-	initial_authorities: Vec<(
-		AccountId,
-		AccountId,
-		GrandpaId,
-		BabeId,
-		ImOnlineId,
-		AuthorityDiscoveryId,
-	)>,
-	initial_nominators: Vec<AccountId>,
-	root_key: AccountId,
-	endowed_accounts: Option<Vec<AccountId>>,
-) -> GenesisConfig {
-	let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
-		vec![
-			get_account_id_from_seed::<sr25519::Public>("Alice"),
-			get_account_id_from_seed::<sr25519::Public>("Bob"),
-			get_account_id_from_seed::<sr25519::Public>("Charlie"),
-			get_account_id_from_seed::<sr25519::Public>("Dave"),
-			get_account_id_from_seed::<sr25519::Public>("Eve"),
-			get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-			get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
-		]
-	});
-	// endow all authorities and nominators.
-	initial_authorities
-		.iter()
-		.map(|x| &x.0)
-		.chain(initial_nominators.iter())
-		.for_each(|x| {
-			if !endowed_accounts.contains(&x) {
-				endowed_accounts.push(x.clone())
-			}
-		});
-
-	// stakers: all validators and nominators.
-	let mut rng = rand::thread_rng();
-	let stakers = initial_authorities
-		.iter()
-		.map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
-		.chain(initial_nominators.iter().map(|x| {
-			use rand::{seq::SliceRandom, Rng};
-			let limit = (MAX_NOMINATIONS as usize).min(initial_authorities.len());
-			let count = rng.gen::<usize>() % limit;
-			let nominations = initial_authorities
-				.as_slice()
-				.choose_multiple(&mut rng, count)
-				.into_iter()
-				.map(|choice| choice.0.clone())
-				.collect::<Vec<_>>();
-			(x.clone(), x.clone(), STASH, StakerStatus::Nominator(nominations))
-		}))
-		.collect::<Vec<_>>();
-
-	let num_endowed_accounts = endowed_accounts.len();
-
-	const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
-	const STASH: Balance = ENDOWMENT / 1000;
-
-	GenesisConfig {
-		system: SystemConfig { code: wasm_binary_unwrap().to_vec() },
-		balances: BalancesConfig {
-			balances: endowed_accounts.iter().cloned().map(|x| (x, ENDOWMENT)).collect(),
-		},
-		indices: IndicesConfig { indices: vec![] },
-		session: SessionConfig {
-			keys: initial_authorities
-				.iter()
-				.map(|x| {
-					(
-						x.0.clone(),
-						x.0.clone(),
-						session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone()),
-					)
-				})
-				.collect::<Vec<_>>(),
-		},
-		staking: StakingConfig {
-			validator_count: initial_authorities.len() as u32,
-			minimum_validator_count: initial_authorities.len() as u32,
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			slash_reward_fraction: Perbill::from_percent(10),
-			stakers,
-			..Default::default()
-		},
-		democracy: DemocracyConfig::default(),
-		elections: ElectionsConfig {
-			members: endowed_accounts
-				.iter()
-				.take((num_endowed_accounts + 1) / 2)
-				.cloned()
-				.map(|member| (member, STASH))
-				.collect(),
-		},
-		council: CouncilConfig::default(),
-		technical_committee: TechnicalCommitteeConfig {
-			members: endowed_accounts
-				.iter()
-				.take((num_endowed_accounts + 1) / 2)
-				.cloned()
-				.collect(),
-			phantom: Default::default(),
-		},
-		sudo: SudoConfig { key: root_key },
-		babe: BabeConfig {
-			authorities: vec![],
-			epoch_config: Some(node_runtime::BABE_GENESIS_EPOCH_CONFIG),
-		},
-		im_online: ImOnlineConfig { keys: vec![] },
-		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
-		grandpa: GrandpaConfig { authorities: vec![] },
-		technical_membership: Default::default(),
-		treasury: Default::default(),
-		vesting: Default::default(),
-		file_storage: Default::default(),
-		transaction_storage: Default::default(),
-		transaction_payment: Default::default(),
-		scheduler: Default::default(),
-		nft: Default::default(),
-		nft_order: Default::default(),
-		nft_auction: Default::default(),
-	}
-}
-
-fn development_config_genesis() -> GenesisConfig {
-	testnet_genesis(
-		vec![authority_keys_from_seed("Alice")],
-		vec![],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
-}
-
-/// Development config (single validator Alice)
-pub fn development_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Development",
-		"dev",
-		ChainType::Development,
-		development_config_genesis,
-		vec![],
-		None,
-		None,
-		None,
-		Default::default(),
-	)
-}
-
-fn local_testnet_genesis() -> GenesisConfig {
-	testnet_genesis(
-		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
-		vec![],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
-}
-
-/// Local testnet config (multivalidator Alice + Bob)
-pub fn local_testnet_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Local Testnet",
-		"local_testnet",
-		ChainType::Local,
-		local_testnet_genesis,
-		vec![],
-		Some(
-			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
-				.expect("Staging telemetry url is valid; qed"),
-		),
-		None,
-		None,
-		Default::default(),
-	)
 }
 
 fn deer_testnet_genesis() -> GenesisConfig {
@@ -362,24 +162,232 @@ pub fn deer_testnet_local_config() -> ChainSpec {
 		boot_nodes,
 		None,
 		Some(protocol_id),
+        None,
 		Some(properties),
 		Default::default(),
 	)
 }
-
-/// Tesnet config
-pub fn deer_testnet_config() -> Result<ChainSpec, String> {
-	ChainSpec::from_json_bytes(&include_bytes!("../res/testnet.json")[..])
+/// Helper function to generate a crypto pair from seed
+pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
+	TPublic::Pair::from_string(&format!("//{}", seed), None)
+		.expect("static values are valid; qed")
+		.public()
 }
 
-/// Mainnet config
-pub fn deer_mainnet_config() -> Result<ChainSpec, String> {
-	ChainSpec::from_json_bytes(&include_bytes!("../res/mainnet.json")[..])
+/// Helper function to generate an account ID from seed
+pub fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId
+where
+	AccountPublic: From<<TPublic::Pair as Pair>::Public>,
+{
+	AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
+}
+
+/// Helper function to generate stash, controller and session key from seed
+pub fn authority_keys_from_seed(
+	seed: &str,
+) -> (AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId) {
+	(
+		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
+		get_account_id_from_seed::<sr25519::Public>(seed),
+		get_from_seed::<GrandpaId>(seed),
+		get_from_seed::<BabeId>(seed),
+		get_from_seed::<ImOnlineId>(seed),
+		get_from_seed::<AuthorityDiscoveryId>(seed),
+	)
+}
+
+/// Helper function to create GenesisConfig for testing
+pub fn testnet_genesis(
+	initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		GrandpaId,
+		BabeId,
+		ImOnlineId,
+		AuthorityDiscoveryId,
+	)>,
+	initial_nominators: Vec<AccountId>,
+	root_key: AccountId,
+	endowed_accounts: Option<Vec<AccountId>>,
+) -> GenesisConfig {
+	let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
+		vec![
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
+			get_account_id_from_seed::<sr25519::Public>("Charlie"),
+			get_account_id_from_seed::<sr25519::Public>("Dave"),
+			get_account_id_from_seed::<sr25519::Public>("Eve"),
+			get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+			get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+		]
+	});
+	// endow all authorities and nominators.
+	initial_authorities
+		.iter()
+		.map(|x| &x.0)
+		.chain(initial_nominators.iter())
+		.for_each(|x| {
+			if !endowed_accounts.contains(x) {
+				endowed_accounts.push(x.clone())
+			}
+		});
+
+	// stakers: all validators and nominators.
+	let mut rng = rand::thread_rng();
+	let stakers = initial_authorities
+		.iter()
+		.map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
+		.chain(initial_nominators.iter().map(|x| {
+			use rand::{seq::SliceRandom, Rng};
+			let limit = (MaxNominations::get() as usize).min(initial_authorities.len());
+			let count = rng.gen::<usize>() % limit;
+			let nominations = initial_authorities
+				.as_slice()
+				.choose_multiple(&mut rng, count)
+				.into_iter()
+				.map(|choice| choice.0.clone())
+				.collect::<Vec<_>>();
+			(x.clone(), x.clone(), STASH, StakerStatus::Nominator(nominations))
+		}))
+		.collect::<Vec<_>>();
+
+	let num_endowed_accounts = endowed_accounts.len();
+
+	const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
+	const STASH: Balance = ENDOWMENT / 1000;
+
+	GenesisConfig {
+		system: SystemConfig { code: wasm_binary_unwrap().to_vec() },
+		balances: BalancesConfig {
+			balances: endowed_accounts.iter().cloned().map(|x| (x, ENDOWMENT)).collect(),
+		},
+		indices: IndicesConfig { indices: vec![] },
+		session: SessionConfig {
+			keys: initial_authorities
+				.iter()
+				.map(|x| {
+					(
+						x.0.clone(),
+						x.0.clone(),
+						session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone()),
+					)
+				})
+				.collect::<Vec<_>>(),
+		},
+		staking: StakingConfig {
+			validator_count: initial_authorities.len() as u32,
+			minimum_validator_count: initial_authorities.len() as u32,
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			slash_reward_fraction: Perbill::from_percent(10),
+			stakers,
+			..Default::default()
+		},
+		democracy: DemocracyConfig::default(),
+		elections: ElectionsConfig {
+			members: endowed_accounts
+				.iter()
+				.take((num_endowed_accounts + 1) / 2)
+				.cloned()
+				.map(|member| (member, STASH))
+				.collect(),
+		},
+		council: CouncilConfig::default(),
+		technical_committee: TechnicalCommitteeConfig {
+			members: endowed_accounts
+				.iter()
+				.take((num_endowed_accounts + 1) / 2)
+				.cloned()
+				.collect(),
+			phantom: Default::default(),
+		},
+		sudo: SudoConfig { key: Some(root_key) },
+		babe: BabeConfig {
+			authorities: vec![],
+			epoch_config: Some(node_runtime::BABE_GENESIS_EPOCH_CONFIG),
+		},
+		im_online: ImOnlineConfig { keys: vec![] },
+		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
+		grandpa: GrandpaConfig { authorities: vec![] },
+		technical_membership: Default::default(),
+		treasury: Default::default(),
+		vesting: Default::default(),
+		file_storage: Default::default(),
+		transaction_storage: Default::default(),
+		transaction_payment: Default::default(),
+		nft: Default::default(),
+		nft_order: Default::default(),
+		nft_auction: Default::default(),
+		nomination_pools: NominationPoolsConfig {
+			min_create_bond: 10 * DOLLARS,
+			min_join_bond: 1 * DOLLARS,
+			..Default::default()
+		},
+	}
+}
+
+fn development_config_genesis() -> GenesisConfig {
+	testnet_genesis(
+		vec![authority_keys_from_seed("Alice")],
+		vec![],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
+/// Development config (single validator Alice)
+pub fn development_config() -> ChainSpec {
+	ChainSpec::from_genesis(
+		"Development",
+		"dev",
+		ChainType::Development,
+		development_config_genesis,
+		vec![],
+		None,
+		None,
+        None,
+		None,
+		Default::default(),
+	)
+}
+
+fn local_testnet_genesis() -> GenesisConfig {
+	testnet_genesis(
+		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
+		vec![],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
+/// Local testnet config (multivalidator Alice + Bob)
+pub fn local_testnet_config() -> ChainSpec {
+	ChainSpec::from_genesis(
+		"Local Testnet",
+		"local_testnet",
+		ChainType::Local,
+		local_testnet_genesis,
+		vec![],
+		Some(
+			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
+				.expect("Staging telemetry url is valid; qed"),
+		),
+		None,
+        None,
+		None,
+		Default::default(),
+	)
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
+	use crate::service::{new_full_base, NewFullBase};
+	use sc_service_test;
 	use sp_runtime::BuildStorage;
 
 	fn local_testnet_genesis_instant_single() -> GenesisConfig {
@@ -402,6 +410,7 @@ pub(crate) mod tests {
 			None,
 			None,
 			None,
+			None,
 			Default::default(),
 		)
 	}
@@ -417,8 +426,26 @@ pub(crate) mod tests {
 			None,
 			None,
 			None,
+			None,
 			Default::default(),
 		)
+	}
+
+	#[test]
+	#[ignore]
+	fn test_connectivity() {
+		sp_tracing::try_init_simple();
+
+		sc_service_test::connectivity(integration_test_config_with_two_authorities(), |config| {
+			let NewFullBase { task_manager, client, network, transaction_pool, .. } =
+				new_full_base(config, false, |_, _| ())?;
+			Ok(sc_service_test::TestNetComponents::new(
+				task_manager,
+				client,
+				network,
+				transaction_pool,
+			))
+		});
 	}
 
 	#[test]
