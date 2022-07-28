@@ -23,7 +23,7 @@ use hex_literal::hex;
 use node_runtime::{
 	constants::currency::*, wasm_binary_unwrap, AuthorityDiscoveryConfig, BabeConfig,
 	BalancesConfig, Block, CouncilConfig, DemocracyConfig, ElectionsConfig, GrandpaConfig,
-	ImOnlineConfig, IndicesConfig, MaxNominations, NominationPoolsConfig, SessionConfig,
+	ImOnlineConfig, IndicesConfig, MaxNominations, SessionConfig,
 	SessionKeys, StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -322,11 +322,6 @@ pub fn testnet_genesis(
 		nft: Default::default(),
 		nft_order: Default::default(),
 		nft_auction: Default::default(),
-		nomination_pools: NominationPoolsConfig {
-			min_create_bond: 10 * DOLLARS,
-			min_join_bond: 1 * DOLLARS,
-			..Default::default()
-		},
 	}
 }
 

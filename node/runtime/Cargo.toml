@@ -56,7 +56,6 @@ pallet-babe = { default-features = false, path = "../../substrate/frame/babe" }
 pallet-bags-list = { path = "../../substrate/frame/bags-list", default-features = false }
 pallet-balances = { path = "../../substrate/frame/balances", default-features = false }
 pallet-bounties = { path = "../../substrate/frame/bounties", default-features = false }
-pallet-child-bounties = { path = "../../substrate/frame/child-bounties", default-features = false }
 pallet-collective = { default-features = false, path = "../../substrate/frame/collective" }
 pallet-democracy = { default-features = false, path = "../../substrate/frame/democracy" }
 pallet-election-provider-multi-phase = { default-features = false, path = "../../substrate/frame/election-provider-multi-phase" }
@@ -68,8 +67,6 @@ pallet-indices = { default-features = false, path = "../../substrate/frame/indic
 pallet-identity = { default-features = false, path = "../../substrate/frame/identity" }
 pallet-membership = { default-features = false, path = "../../substrate/frame/membership" }
 pallet-multisig = { path = "../../substrate/frame/multisig", default-features = false }
-pallet-nomination-pools = { default-features = false, path = "../../substrate/frame/nomination-pools" }
-pallet-nomination-pools-benchmarking = { default-features = false, path = "../../substrate/frame/nomination-pools/benchmarking", optional = true}
 pallet-offences = { default-features = false, path = "../../substrate/frame/offences" }
 pallet-offences-benchmarking = { path = "../../substrate/frame/offences/benchmarking", default-features = false, optional = true }
 pallet-preimage = { path = "../../substrate/frame/preimage", default-features = false }
@@ -129,7 +126,6 @@ std = [
     "sp-inherents/std",
     "pallet-membership/std",
     "pallet-multisig/std",
-	"pallet-nomination-pools/std",
     "pallet-identity/std",
     "pallet-scheduler/std",
 	"node-primitives/std",
@@ -184,7 +180,6 @@ runtime-benchmarks = [
 	"pallet-bags-list/runtime-benchmarks",
     "pallet-balances/runtime-benchmarks",
     "pallet-bounties/runtime-benchmarks",
-	"pallet-child-bounties/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
@@ -196,7 +191,6 @@ runtime-benchmarks = [
 	"pallet-indices/runtime-benchmarks",
 	"pallet-membership/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
-	"pallet-nomination-pools-benchmarking",
 	"pallet-offences-benchmarking",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
@@ -226,7 +220,6 @@ try-runtime = [
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-bounties/try-runtime",
-	"pallet-child-bounties/try-runtime",
 	"pallet-collective/try-runtime",
 	"pallet-democracy/try-runtime",
 	"pallet-election-provider-multi-phase/try-runtime",

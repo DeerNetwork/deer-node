@@ -533,7 +533,7 @@ impl pallet_staking::Config for Runtime {
 	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type VoterList = BagsList;
 	type MaxUnlockingChunks = ConstU32<32>;
-	type OnStakerSlash = NominationPools;
+	type OnStakerSlash = ();
 	type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
 	type BenchmarkingConfig = StakingBenchmarkingConfig;
 }
@@ -696,12 +696,6 @@ impl pallet_bags_list::Config for Runtime {
 	type Score = VoteWeight;
 }
 
-parameter_types! {
-	pub const PostUnbondPoolsWindow: u32 = 4;
-	pub const NominationPoolsPalletId: PalletId = PalletId(*b"py/nopls");
-	pub const MinPointsToBalance: u32 = 10;
-}
-
 use sp_runtime::traits::Convert;
 pub struct BalanceToU256;
 impl Convert<Balance, sp_core::U256> for BalanceToU256 {
@@ -714,20 +708,6 @@ impl Convert<sp_core::U256, Balance> for U256ToBalance {
 	fn convert(n: sp_core::U256) -> Balance {
 		n.try_into().unwrap_or(Balance::max_value())
 	}
-}
-
-impl pallet_nomination_pools::Config for Runtime {
-	type WeightInfo = ();
-	type Event = Event;
-	type Currency = Balances;
-	type BalanceToU256 = BalanceToU256;
-	type U256ToBalance = U256ToBalance;
-	type StakingInterface = pallet_staking::Pallet<Self>;
-	type PostUnbondingPoolsWindow = PostUnbondPoolsWindow;
-	type MaxMetadataLen = ConstU32<256>;
-	type MaxUnbonding = ConstU32<8>;
-	type PalletId = NominationPoolsPalletId;
-	type MinPointsToBalance = MinPointsToBalance;
 }
 
 parameter_types! {
@@ -941,18 +921,7 @@ impl pallet_bounties::Config for Runtime {
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
 	type WeightInfo = pallet_bounties::weights::SubstrateWeight<Runtime>;
-	type ChildBountyManager = ChildBounties;
-}
-
-parameter_types! {
-	pub const ChildBountyValueMinimum: Balance = 1 * DOLLARS;
-}
-
-impl pallet_child_bounties::Config for Runtime {
-	type Event = Event;
-	type MaxActiveChildBountyCount = ConstU32<5>;
-	type ChildBountyValueMinimum = ChildBountyValueMinimum;
-	type WeightInfo = pallet_child_bounties::weights::SubstrateWeight<Runtime>;
+	type ChildBountyManager = ();
 }
 
 impl pallet_tips::Config for Runtime {
@@ -1297,8 +1266,6 @@ construct_runtime!(
 		Bridge: pallet_bridge = 37,
 		BridgeTransfer: pallet_bridge_transfer = 38,
 		Preimage: pallet_preimage = 39,
-		ChildBounties: pallet_child_bounties = 40,
-		NominationPools: pallet_nomination_pools = 41,
 	}
 );
 
@@ -1354,7 +1321,6 @@ mod benches {
 		[pallet_bags_list, BagsList]
 		[pallet_balances, Balances]
 		[pallet_bounties, Bounties]
-		[pallet_child_bounties, ChildBounties]
 		[pallet_collective, Council]
 		[pallet_democracy, Democracy]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
@@ -1366,7 +1332,6 @@ mod benches {
 		[pallet_indices, Indices]
 		[pallet_membership, TechnicalMembership]
 		[pallet_multisig, Multisig]
-		[pallet_nomination_pools, NominationPoolsBench::<Runtime>]
 		[pallet_nft, NFT]
 		[pallet_nft_order, NFTOrder]
 		[pallet_nft_auction, NFTAuction]
@@ -1633,7 +1598,6 @@ impl_runtime_apis! {
 			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use baseline::Pallet as BaselineBench;
-			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
@@ -1656,14 +1620,12 @@ impl_runtime_apis! {
 			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use baseline::Pallet as BaselineBench;
-			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl baseline::Config for Runtime {}
-			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number

@@ -1480,7 +1480,6 @@ dependencies = [
  "pallet-bounties",
  "pallet-bridge",
  "pallet-bridge-transfer",
- "pallet-child-bounties",
  "pallet-collective",
  "pallet-democracy",
  "pallet-election-provider-multi-phase",
@@ -1496,8 +1495,6 @@ dependencies = [
  "pallet-nft-auction",
  "pallet-nft-order",
  "pallet-nft-rpc-runtime-api",
- "pallet-nomination-pools",
- "pallet-nomination-pools-benchmarking",
  "pallet-offences",
  "pallet-offences-benchmarking",
  "pallet-preimage",
@@ -4514,24 +4511,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-child-bounties"
-version = "4.0.0-dev"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "pallet-bounties",
- "pallet-treasury",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-collective"
 version = "4.0.0-dev"
 dependencies = [
@@ -4840,40 +4819,6 @@ dependencies = [
  "sp-api",
  "sp-core",
  "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-nomination-pools"
-version = "1.0.0"
-dependencies = [
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-staking",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-nomination-pools-benchmarking"
-version = "1.0.0"
-dependencies = [
- "frame-benchmarking",
- "frame-election-provider-support",
- "frame-support",
- "frame-system",
- "pallet-bags-list",
- "pallet-nomination-pools",
- "pallet-staking",
- "parity-scale-codec",
- "scale-info",
- "sp-runtime",
- "sp-staking",
  "sp-std",
 ]
 
