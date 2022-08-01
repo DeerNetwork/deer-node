@@ -222,16 +222,6 @@ pub mod v2 {
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
 		assert!(PalletStorageVersion::<T, I>::get() == Releases::V2);
-		for (_, _, auction) in DutchAuctions::<T, I>::iter() {
-			assert_eq!(auction.quantity, One::one());
-		}
-		for (_, _, auction) in EnglishAuctions::<T, I>::iter() {
-			assert_eq!(auction.quantity, One::one());
-		}
-		log::debug!(
-			target: "runtime::nft-auction",
-			"migration: nft auction storage version v2 POST migration checks succesful!",
-		);
 		Ok(())
 	}
 }

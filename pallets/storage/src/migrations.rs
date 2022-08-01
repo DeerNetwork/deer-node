@@ -318,10 +318,6 @@ pub mod v1 {
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config>() -> Result<(), &'static str> {
 		assert!(PalletStorageVersion::<T>::get() == Releases::V1);
-		log::debug!(
-			target: "runtime::file-storage",
-			"migration: file storage storage version v1 POST migration checks succesful!",
-		);
 		Ok(())
 	}
 }

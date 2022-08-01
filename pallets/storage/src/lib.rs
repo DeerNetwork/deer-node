@@ -23,7 +23,7 @@ pub mod migrations;
 
 use codec::{Decode, Encode};
 use frame_support::{
-	traits::{Currency, ExistenceRequirement, Get, OnUnbalanced, ReservableCurrency, UnixTime},
+	traits::{Currency, ExistenceRequirement, Get, ReservableCurrency, UnixTime},
 	weights::Weight,
 	PalletId,
 };

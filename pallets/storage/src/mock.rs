@@ -3,7 +3,7 @@ use crate as pallet_storage;
 
 use frame_support::{
 	construct_runtime, ord_parameter_types, parameter_types,
-	traits::{tokens::imbalance::Imbalance, EitherOfDiverse, GenesisBuild, Hooks},
+	traits::{tokens::imbalance::Imbalance, EitherOfDiverse, GenesisBuild, Hooks, OnUnbalanced},
 	weights::constants::RocksDbWeight,
 	PalletId,
 };
