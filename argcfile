@@ -15,10 +15,22 @@ build() {
 }
 
 # @cmd
-# @arg crate!
-# @arg args*
+# @arg kind[nft|nft-auction|nft-order|storage|pallets|ci|cli]
 test() {
-    cargo test $@
+    pallets=( nft nft-auction nft-order storage )
+    if [[ " ${pallets[*]} " =~ " $1 " ]]; then
+        cargo test -p pallet-$1
+    elif [[ "pallets" == $1 ]]; then
+        for name in ${pallets[@]}; do 
+            cargo test -p pallet-$name
+        done
+    elif [[ "ci" == $1 ]]; then
+        cargo test --workspace --exclude deer-cli
+    elif [[ "cli" == $1 ]]; then
+        cargo test -p deer-cli
+    else
+        echo "Unsupported"
+    fi
 }
 
 # @cmd
