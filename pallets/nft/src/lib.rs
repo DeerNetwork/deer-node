@@ -12,7 +12,7 @@ pub mod weights;
 pub mod migrations;
 
 use codec::{Decode, Encode, HasCompact, MaxEncodedLen};
-pub use enumflags2::BitFlags;
+pub use enumflags2::{bitflags, BitFlags};
 use frame_support::{
 	dispatch::{DispatchError, DispatchResult},
 	ensure,
@@ -64,8 +64,9 @@ pub enum TransferReason {
 	DutchAuction,
 }
 
+#[bitflags]
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, BitFlags, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum Permission {
 	/// Token can be transferred
 	Transferable = 0b00000001,
@@ -172,6 +173,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T, I = ()>(_);
 
 	/// The module configuration trait.
@@ -181,13 +183,31 @@ pub mod pallet {
 		type Event: From<Event<Self, I>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// Identifier for nft class
-		type ClassId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
+		type ClassId: Member
+			+ Parameter
+			+ Default
+			+ Copy
+			+ HasCompact
+			+ AtLeast32BitUnsigned
+			+ MaxEncodedLen;
 
 		/// The type used to identify nft token
-		type TokenId: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
+		type TokenId: Member
+			+ Parameter
+			+ Default
+			+ Copy
+			+ HasCompact
+			+ AtLeast32BitUnsigned
+			+ MaxEncodedLen;
 
 		/// Nft quantity
-		type Quantity: Member + Parameter + Default + Copy + HasCompact + AtLeast32BitUnsigned;
+		type Quantity: Member
+			+ Parameter
+			+ Default
+			+ Copy
+			+ HasCompact
+			+ AtLeast32BitUnsigned
+			+ MaxEncodedLen;
 
 		/// The currency mechanism, used for paying for reserves.
 		type Currency: ReservableCurrency<Self::AccountId>;

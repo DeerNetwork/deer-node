@@ -2,7 +2,6 @@
 
 use codec::{Codec, Decode, Encode};
 use scale_info::TypeInfo;
-use sp_runtime::traits::{MaybeDisplay, MaybeFromStr};
 use sp_std::prelude::*;
 
 #[cfg(feature = "std")]
@@ -53,7 +52,7 @@ mod serde_balance {
 
 sp_api::decl_runtime_apis! {
 	pub trait FileStorageApi<AccountId, Balance, BlockNumber> where
-		Balance: Codec + MaybeDisplay + MaybeFromStr,
+		Balance: Codec,
 		BlockNumber: Codec,
 		AccountId: Codec,
 	 {

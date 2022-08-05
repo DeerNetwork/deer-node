@@ -7,7 +7,7 @@ on:
 
 jobs:
   github-releases:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     outputs:
       image: ${{ steps.check_tag.outputs.image }}
     steps: 
@@ -30,7 +30,7 @@ jobs:
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2021-11-30
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
       - name: Build release
@@ -48,7 +48,7 @@ jobs:
             target/release/wbuild/deer-runtime/deer_runtime.compact.wasm 
 
   docker-hub:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: ["github-releases"]
     steps:
       - run: echo "Build image ${{ needs.github-releases.outputs.image }}"

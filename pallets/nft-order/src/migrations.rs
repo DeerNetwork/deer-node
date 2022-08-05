@@ -1,4 +1,4 @@
-use super::*;
+use super::{StorageVersion as PalletStorageVersion, *};
 
 pub mod v1 {
 	use super::*;
@@ -67,7 +67,7 @@ pub mod v1 {
 
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V0);
+		assert!(PalletStorageVersion::<T, I>::get() == Releases::V0);
 		log::debug!(
 			target: "runtime::nft-order",
 			"migration: nft order storage version v1 PRE migration checks succesful!",
@@ -111,7 +111,7 @@ pub mod v1 {
 
 		NextOrderId::<T, I>::put(next_order_id);
 
-		StorageVersion::<T, I>::put(Releases::V1);
+		PalletStorageVersion::<T, I>::put(Releases::V1);
 
 		log::info!(
 			target: "runtime::nft-order",
@@ -127,14 +127,7 @@ pub mod v1 {
 
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V1);
-		for (_owner, _order_id, order) in Orders::<T, I>::iter() {
-			assert_eq!(order.quantity, One::one());
-		}
-		log::debug!(
-			target: "runtime::nft-order",
-			"migration: nft order storage version v1 POST migration checks succesful!",
-		);
+		assert!(PalletStorageVersion::<T, I>::get() == Releases::V1);
 		Ok(())
 	}
 }

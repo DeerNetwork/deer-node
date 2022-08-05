@@ -10,7 +10,7 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-18.04
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
         with:
@@ -18,11 +18,11 @@ jobs:
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2021-11-30
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
           components: rustfmt
       - name: Check Formatting
-        run: cargo fmt -- --check
+        run: cargo fmt --check
       - name: Run tests
-        run: cargo test --all
+        run: cargo test --workspace --exclude deer-cli

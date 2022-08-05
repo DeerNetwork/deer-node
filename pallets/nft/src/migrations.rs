@@ -1,4 +1,4 @@
-use super::*;
+use super::{StorageVersion as PalletStorageVersion, *};
 
 pub mod v2 {
 	use super::*;
@@ -93,7 +93,7 @@ pub mod v2 {
 
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V1);
+		assert!(PalletStorageVersion::<T, I>::get() == Releases::V1);
 		log::debug!(
 			target: "runtime::nft",
 			"migration: nft storage version v2 PRE migration checks succesful!",
@@ -177,7 +177,7 @@ pub mod v2 {
 		migration::remove_storage_prefix(pallet_name, b"MaxClassId", b"");
 		NextClassId::<T, I>::put(max_class_id.saturating_add(One::one()));
 
-		StorageVersion::<T, I>::put(Releases::V2);
+		PalletStorageVersion::<T, I>::put(Releases::V2);
 
 		log::info!(
 			target: "runtime::nft",
@@ -194,22 +194,7 @@ pub mod v2 {
 
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config<I>, I: 'static>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T, I>::get() == Releases::V2);
-		log::debug!(
-			target: "runtime::nft",
-			"migration: nft storage version v2 POST migration checks succesful!",
-		);
-		for (owner, (class_id, token_id), _) in TokensByOwner::<T, I>::iter() {
-			assert!(
-				OwnersByToken::<T, I>::get((class_id, token_id), owner.clone()).is_some() &&
-					Tokens::<T, I>::get(class_id, token_id).is_some(),
-				"invalid token ({:?} {:?})",
-				class_id,
-				token_id
-			);
-		}
-		assert_eq!(Class::<T, I>::iter().count(), 0);
-		assert_eq!(Asset::<T, I>::iter().count(), 0);
+		assert!(PalletStorageVersion::<T, I>::get() == Releases::V2);
 		Ok(())
 	}
 

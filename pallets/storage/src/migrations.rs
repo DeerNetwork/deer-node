@@ -1,4 +1,4 @@
-use super::*;
+use super::{StorageVersion as PalletStorageVersion, *};
 
 pub mod v1 {
 	use super::*;
@@ -173,7 +173,7 @@ pub mod v1 {
 
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: Config>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T>::get() == Releases::V0);
+		assert!(PalletStorageVersion::<T>::get() == Releases::V0);
 		assert!(CurrentRound::<T>::get() > 2);
 		log::debug!(
 			target: "runtime::file-storage",
@@ -299,7 +299,7 @@ pub mod v1 {
 		}
 
 		migration::remove_storage_prefix(pallet_name, b"RoundsReport", b"");
-		StorageVersion::<T>::put(Releases::V1);
+		PalletStorageVersion::<T>::put(Releases::V1);
 
 		log::info!(
 			target: "runtime::file-storage",
@@ -317,11 +317,7 @@ pub mod v1 {
 	}
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config>() -> Result<(), &'static str> {
-		assert!(StorageVersion::<T>::get() == Releases::V1);
-		log::debug!(
-			target: "runtime::file-storage",
-			"migration: file storage storage version v1 POST migration checks succesful!",
-		);
+		assert!(PalletStorageVersion::<T>::get() == Releases::V1);
 		Ok(())
 	}
 }

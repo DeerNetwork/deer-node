@@ -1,0 +1,94 @@
+#/bin/bash
+
+set -e
+
+NAME=deer-node
+
+# @cmd
+# @arg args*
+build() {
+    if [[ $# -eq 0 ]]; then
+        cargo build --release
+    else
+        cargo build $@
+    fi
+}
+
+# @cmd
+# @arg crate!
+# @arg args*
+test() {
+    cargo test $@
+}
+
+# @cmd
+# @flag --wasm
+# @arg pallet!
+bench() {
+    cargo build --release --locked --features=runtime-benchmarks
+    if [[ "$argc_wasm" -eq 1 ]]; then
+        ./target/release/$NAME benchmark \
+            --chain=dev \
+            --steps=50 \
+            --repeat=20 \
+            --pallet=pallet-$argc_pallet \
+            --extrinsic=* \
+            --execution=wasm \
+            --wasm-execution=compiled \
+            --heap-pages=4096 \
+            --output=./pallets/$argc_pallet/src/weights.rs \
+            --template=./scripts/frame-weight-template.hbs
+    else
+        ./target/release/$NAME benchmark \
+            --chain=dev \
+            --steps=50 \
+            --repeat=20 \
+            --pallet=pallet-$argc_pallet \
+            --extrinsic=* \
+            --heap-pages=4096 \
+            --execution=native
+    fi
+}
+
+# @cmd
+# @arg args*
+run() {
+    if [ $# -eq 0 ]; then
+        args="--dev --tmp"
+    else
+        args="$@"
+    fi
+    cargo run --release -- \
+        $args \
+        --port 30333 \
+        --ws-port 9944 \
+        --rpc-port 9933 \
+        --rpc-methods Unsafe \
+        --unsafe-rpc-external \
+        --unsafe-ws-external \
+        --rpc-cors all 
+}
+
+# @cmd
+# @flag --wasm
+# @arg uri!
+# @arg block!
+# @arg args*
+try-runtime() {
+    if [[ $argc_wasm -eq 1 ]]; then
+        execution="--execution Wasm --wasm-execution Compiled"
+    else
+        execution="--execution Native"
+    fi
+    RUST_LOG=runtime=trace,try-runtime::cli=trace,executor=trace \
+    cargo run --features=try-runtime -- \
+        try-runtime \
+        $execution \
+        $argc_args \
+        on-runtime-upgrade \
+        live \
+        -a $argc_block \
+        -u $argc_uri
+}
+
+eval $(argc --argc-eval "$0" "$@")

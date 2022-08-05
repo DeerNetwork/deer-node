@@ -2,7 +2,6 @@
 
 use codec::{Codec, Decode, Encode};
 use scale_info::TypeInfo;
-use sp_runtime::traits::{MaybeDisplay, MaybeFromStr};
 use sp_std::prelude::*;
 
 #[cfg(feature = "std")]
@@ -36,9 +35,7 @@ fn deserialize_from_string<'de, D: Deserializer<'de>, T: std::str::FromStr>(
 }
 
 sp_api::decl_runtime_apis! {
-	pub trait NFTApi<Balance> where
-		Balance: Codec + MaybeDisplay + MaybeFromStr,
-	 {
+	pub trait NFTApi<Balance> where Balance: Codec {
 		/// Get deposit for create nft class.
 		fn create_class_deposit(bytes_len: u32) -> BalanceInfo<Balance>;
 		/// Get deposit for mint nft token.

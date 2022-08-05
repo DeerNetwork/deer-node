@@ -1,8 +1,9 @@
 [package]
 name = "deer-primitives"
 version = "0.2.0"
-edition = "2018"
-license = "Apache 2.0"
+authors = ["Deer Network"]
+edition = "2021"
+license = "Apache-2.0"
 homepage = "https://deernetwork.org"
 repository = "https://github.com/DeerNetwork/deer-node/"
 
@@ -10,10 +11,10 @@ repository = "https://github.com/DeerNetwork/deer-node/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = [
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = [
 	"derive",
 ] }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 frame-system = { default-features = false, path = "../../substrate/frame/system" }
 sp-application-crypto = { default-features = false, path = "../../substrate/primitives/application-crypto" }
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }
@@ -23,8 +24,8 @@ sp-runtime = { default-features = false, path = "../../substrate/primitives/runt
 default = ["std"]
 std = [
 	"codec/std",
-	"scale-info/std",
 	"frame-system/std",
+	"scale-info/std",
 	"sp-application-crypto/std",
 	"sp-core/std",
 	"sp-runtime/std",

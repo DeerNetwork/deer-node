@@ -23,7 +23,7 @@ pub mod migrations;
 
 use codec::{Decode, Encode};
 use frame_support::{
-	traits::{Currency, ExistenceRequirement, Get, OnUnbalanced, ReservableCurrency, UnixTime},
+	traits::{Currency, ExistenceRequirement, Get, ReservableCurrency, UnixTime},
 	weights::Weight,
 	PalletId,
 };
@@ -58,7 +58,7 @@ pub use pallet::*;
 pub use weights::WeightInfo;
 
 /// Tee node info
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct NodeInfo<AccountId, Balance, BlockNumber> {
 	/// Stash account
 	pub stash: AccountId,
@@ -80,6 +80,26 @@ pub struct NodeInfo<AccountId, Balance, BlockNumber> {
 	pub reported_at: BlockNumber,
 	/// Prev session reported at
 	pub prev_reported_at: BlockNumber,
+}
+
+impl<AccountId: sp_std::fmt::Debug, Balance: Zero, BlockNumber: Zero>
+	NodeInfo<AccountId, Balance, BlockNumber>
+{
+	pub fn new(account_id: AccountId) -> Self {
+		log::warn!(target: "runtime::file-storage", "Invalid replica on node {:?}", account_id);
+		Self {
+			stash: account_id,
+			deposit: Zero::zero(),
+			machine_id: None,
+			rid: 0,
+			used: 0,
+			power: 0,
+			slash_used: 0,
+			reward: Zero::zero(),
+			reported_at: Zero::zero(),
+			prev_reported_at: Zero::zero(),
+		}
+	}
 }
 
 /// Session state
@@ -167,6 +187,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -876,7 +897,7 @@ struct ReportNodeChange<Balance> {
 
 impl<T: Config> Pallet<T> {
 	pub fn account_id() -> T::AccountId {
-		T::PalletId::get().into_account()
+		T::PalletId::get().into_account_truncating()
 	}
 
 	pub fn store_fee(file_size: u64, time: BlockNumberFor<T>) -> BalanceOf<T> {
@@ -963,10 +984,11 @@ impl<T: Config> Pallet<T> {
 				let mut new_nodes = vec![];
 				let mut is_included = false;
 				for (index, replica_account) in file.replicas.iter().enumerate() {
-					let replica_node = ctx
-						.node_infos
-						.entry(replica_account.clone())
-						.or_insert_with(|| Nodes::<T>::get(replica_account).unwrap_or_default());
+					let replica_node =
+						ctx.node_infos.entry(replica_account.clone()).or_insert_with(|| {
+							Nodes::<T>::get(replica_account)
+								.unwrap_or_else(|| NodeInfo::new(replica_account.clone()))
+						});
 					if Self::is_prev_reported(replica_node, &ctx.session) {
 						new_nodes.push(replica_account.clone());
 					} else {
@@ -1033,10 +1055,11 @@ impl<T: Config> Pallet<T> {
 			let each_order_reward = Self::share_ratio() * file_fee;
 			let mut replicas = vec![];
 			for (index, replica_account) in file.replicas.iter().enumerate() {
-				let replica_node = ctx
-					.node_infos
-					.entry(replica_account.clone())
-					.or_insert_with(|| Nodes::<T>::get(replica_account).unwrap_or_default());
+				let replica_node =
+					ctx.node_infos.entry(replica_account.clone()).or_insert_with(|| {
+						Nodes::<T>::get(replica_account)
+							.unwrap_or_else(|| NodeInfo::new(replica_account.clone()))
+					});
 				if Self::is_prev_reported(replica_node, &ctx.session) {
 					let node_change = ctx.node_changes.entry(replica_account.clone()).or_default();
 					node_change.reward = node_change.reward.saturating_add(each_order_reward);

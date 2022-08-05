@@ -1,13 +1,13 @@
 [package]
 name = "pallet-bridge"
 version = "0.2.4"
-edition = "2018"
+edition = "2021"
 license = "Apache 2.0"
 
 [dependencies]
 # third-party dependencies
-codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["max-encoded-len"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 blake2-rfc = { version = "0.2.18", default-features = false }
 sp-std = { default-features = false, path = "../../substrate/primitives/std" }
 sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
