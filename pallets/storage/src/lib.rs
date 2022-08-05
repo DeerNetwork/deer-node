@@ -13,6 +13,9 @@ pub mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(target_arch = "wasm32")]
+extern crate webpki_wasm as webpki;
+
 mod constants;
 
 pub use constants::*;
@@ -556,7 +559,7 @@ pub mod pallet {
 			}
 			let dec_cert = base64::decode_config(&ias_cert, base64::STANDARD)
 				.map_err(|_| Error::<T>::InvalidIASSigningCert)?;
-			let sig_cert = webpki::EndEntityCert::from(&dec_cert)
+			let sig_cert = webpki::EndEntityCert::try_from(dec_cert.as_slice())
 				.map_err(|_| Error::<T>::InvalidIASSigningCert)?;
 			let chain: Vec<&[u8]> = Vec::new();
 			#[cfg(not(feature = "runtime-benchmarks"))]
