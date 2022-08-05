@@ -22,8 +22,13 @@ sp-runtime = { default-features = false, path = "../../substrate/primitives/runt
 frame-support = { default-features = false, path = "../../substrate/frame/support" }
 frame-system = { default-features = false, path = "../../substrate/frame/system" }
 frame-benchmarking = { path = "../../substrate/frame/benchmarking", default-features = false, optional = true }
-webpki = { path = "../../vendors/webpki", default-features = false }
 runtime-api = { package = "pallet-storage-rpc-runtime-api", path = "./rpc/runtime-api", default-features = false }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+webpki = { version = "0.22", default-features = false, features = ["alloc"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+webpki_wasm = { package = "webpki", path = "../../vendors/webpki", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 hex-literal = "0.3.4"
